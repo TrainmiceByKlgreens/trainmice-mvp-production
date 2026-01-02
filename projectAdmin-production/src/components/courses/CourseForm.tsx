@@ -266,8 +266,6 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       };
       
       console.log('Updated formData:', {
-        learning_objectives: updated.learning_objectives,
-        learning_outcomes: updated.learning_outcomes,
         target_audience: updated.target_audience,
         methodology: updated.methodology,
         prerequisite: updated.prerequisite,
@@ -484,7 +482,6 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         hrdcClaimable: formData.hrdc_claimable,
         courseType: formData.course_type === 'BOTH' ? ['IN_HOUSE', 'PUBLIC'] : [formData.course_type],
         courseMode: Array.isArray(formData.course_mode) && formData.course_mode.length > 0 ? formData.course_mode : ['PHYSICAL'],
-        certificate: formData.certificate || null,
         professionalDevelopmentPoints: formData.professional_development_points || null,
         professionalDevelopmentPointsOther: formData.professional_development_points === 'OTHERS' ? formData.professional_development_points_other : null,
         status: formData.status.toUpperCase().replace(' ', '_') as any,
