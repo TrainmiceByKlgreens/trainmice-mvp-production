@@ -61,13 +61,13 @@ export async function sendVerificationEmail({
                style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                       color: white; padding: 15px 30px; text-decoration: none; 
                       border-radius: 5px; font-weight: bold; font-size: 16px;">
-              Verify Email Address
+              Verify Now
             </a>
           </div>
           
           <p style="font-size: 12px; color: #666; margin-top: 30px;">
             Or copy and paste this link into your browser:<br>
-            <a href="${verificationUrl}" style="color: #667eea; word-break: break-all;">${verificationUrl}</a>
+            <a href="${verificationUrl}" style="color: #667eea; word-break: break-all;">Verify Now</a>
           </p>
           
           <p style="font-size: 12px; color: #999; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">
