@@ -65,11 +65,6 @@ export async function sendVerificationEmail({
             </a>
           </div>
           
-          <p style="font-size: 12px; color: #666; margin-top: 30px;">
-            Or copy and paste this link into your browser:<br>
-            <a href="${verificationUrl}" style="color: #667eea; word-break: break-all;">Verify Now</a>
-          </p>
-          
           <p style="font-size: 12px; color: #999; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">
             This verification link will expire in 24 hours.<br>
             If you did not create this account, please ignore this email.
@@ -84,9 +79,9 @@ Hello,
 
 Thank you for signing up with TrainMICE!
 
-Please click the link below to verify your email address and activate your account:
+Please click the "Verify Now" button in the HTML version of this email to verify your email address and activate your account.
 
-${verificationUrl}
+Verification link: ${verificationUrl}
 
 This verification link will expire in 24 hours.
 
