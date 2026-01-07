@@ -200,15 +200,32 @@ router.put(
       });
 
       const created = await prisma.courseSchedule.createMany({
-        data: (items || []).map((i) => ({
-          courseId,
-          dayNumber: i.dayNumber,
-          startTime: i.startTime,
-          endTime: i.endTime,
-          moduleTitle: i.moduleTitle,
-          submoduleTitle: i.submoduleTitle ?? null,
-          durationMinutes: i.durationMinutes,
-        })),
+        data: (items || []).map((i) => {
+          // Ensure moduleTitle is an array
+          const moduleTitleArray = Array.isArray(i.moduleTitle) 
+            ? i.moduleTitle 
+            : (i.moduleTitle ? [i.moduleTitle] : []);
+          
+          // Ensure submoduleTitle is an array or null
+          let submoduleTitleArray: string[] | null = null;
+          if (i.submoduleTitle) {
+            if (Array.isArray(i.submoduleTitle)) {
+              submoduleTitleArray = i.submoduleTitle;
+            } else {
+              submoduleTitleArray = [i.submoduleTitle];
+            }
+          }
+
+          return {
+            courseId,
+            dayNumber: i.dayNumber,
+            startTime: i.startTime,
+            endTime: i.endTime,
+            moduleTitle: moduleTitleArray,
+            submoduleTitle: submoduleTitleArray,
+            durationMinutes: i.durationMinutes,
+          };
+        }),
       });
 
       const schedule = await prisma.courseSchedule.findMany({
