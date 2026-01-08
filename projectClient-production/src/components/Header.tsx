@@ -56,6 +56,12 @@ export function Header({ onLoginClick, onSignupClick }: HeaderProps) {
 
   const trainerUrl = import.meta.env.VITE_FRONTEND_URL_TRAINER || '';
 
+  const handleBecomeTrainer = () => {
+    if (trainerUrl) {
+      window.location.href = trainerUrl;
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -63,14 +69,12 @@ export function Header({ onLoginClick, onSignupClick }: HeaderProps) {
           {/* Logo - Left */}
           <div className="flex flex-col items-start flex-shrink-0">
             {trainerUrl && (
-              <a 
-                href={trainerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-gray-600 hover:text-teal-600 transition-colors mb-1"
+              <button
+                onClick={handleBecomeTrainer}
+                className="px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors mb-1"
               >
                 Become Trainer
-              </a>
+              </button>
             )}
             <a href="/" className="flex items-center">
               <img 
@@ -202,6 +206,17 @@ export function Header({ onLoginClick, onSignupClick }: HeaderProps) {
               >
                 Contact Us
               </button>
+              {trainerUrl && (
+                <button
+                  onClick={() => {
+                    handleBecomeTrainer();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="px-4 py-2 text-left text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+                >
+                  Become Trainer
+                </button>
+              )}
               {user && (
                 <button
                   onClick={() => {
