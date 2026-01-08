@@ -65,17 +65,9 @@ export function Header({ onLoginClick, onSignupClick }: HeaderProps) {
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center h-20 relative">
+        <div className="flex items-center h-16 relative">
           {/* Logo - Left */}
-          <div className="flex flex-col items-start flex-shrink-0">
-            {trainerUrl && (
-              <button
-                onClick={handleBecomeTrainer}
-                className="px-3 py-1 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 rounded-lg transition-colors mb-1"
-              >
-                Become Trainer
-              </button>
-            )}
+          <div className="flex items-center gap-3 flex-shrink-0">
             <a href="/" className="flex items-center">
               <img 
                 src={trainMICELogo} 
@@ -83,6 +75,14 @@ export function Header({ onLoginClick, onSignupClick }: HeaderProps) {
                 className="h-10 w-auto"
               />
             </a>
+            {trainerUrl && (
+              <button
+                onClick={handleBecomeTrainer}
+                className="px-3 py-1 text-xs font-medium text-yellow-500 hover:text-teal-600 rounded-lg transition-colors"
+              >
+                Become Trainer
+              </button>
+            )}
           </div>
 
           {/* Navigation Links - Centered */}
