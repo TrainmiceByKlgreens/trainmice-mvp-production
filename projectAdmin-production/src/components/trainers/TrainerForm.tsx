@@ -21,7 +21,7 @@ export const TrainerForm: React.FC<TrainerFormProps> = ({
     phone: trainer?.phone || '',
     specialization: trainer?.specialization || '',
     bio: trainer?.bio || '',
-    hourly_rate: trainer?.hourly_rate?.toString() || '',
+    // Removed hourly_rate - not editable
     // Removed hrdc_certified - HRDC verification should only be done via Verify HRDC Certification button
   });
   const [loading, setLoading] = useState(false);
@@ -31,10 +31,14 @@ export const TrainerForm: React.FC<TrainerFormProps> = ({
     setLoading(true);
 
     try {
-      await onSubmit({
-        ...formData,
-        hourly_rate: formData.hourly_rate ? parseFloat(formData.hourly_rate) : null,
-      });
+      if (trainer) {
+        // When editing, exclude disabled fields (full_name, phone, specialization)
+        const { full_name, phone, specialization, ...editableFields } = formData;
+        await onSubmit(editableFields);
+      } else {
+        // When creating, include all fields
+        await onSubmit(formData);
+      }
     } finally {
       setLoading(false);
     }
@@ -48,6 +52,7 @@ export const TrainerForm: React.FC<TrainerFormProps> = ({
           value={formData.full_name}
           onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
           required
+          disabled={!!trainer}
         />
         <Input
           label="Email"
@@ -64,21 +69,15 @@ export const TrainerForm: React.FC<TrainerFormProps> = ({
           label="Phone"
           value={formData.phone}
           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+          disabled={!!trainer}
         />
         <Input
           label="Specialization"
           value={formData.specialization}
           onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+          disabled={!!trainer}
         />
       </div>
-
-      <Input
-        label="Hourly Rate (MYR)"
-        type="number"
-        step="0.01"
-        value={formData.hourly_rate}
-        onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })}
-      />
 
       <Textarea
         label="Bio"
