@@ -29,7 +29,7 @@ export async function fetchTrainerProfile(trainerId: string): Promise<Trainer | 
       email: trainer.email || null,
       hrdc_accreditation_id: trainer.hrdcAccreditationId || trainer.hrdc_accreditation_id || null,
       hrdc_accreditation_valid_until: trainer.hrdcAccreditationValidUntil 
-        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString() 
+        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0] 
         : trainer.hrdc_accreditation_valid_until || null,
       professional_bio: trainer.professionalBio || trainer.professional_bio || null,
       state: trainer.state || null,
@@ -86,7 +86,7 @@ export async function updateTrainerProfile(
       email: trainer.email || null,
       hrdc_accreditation_id: trainer.hrdcAccreditationId || trainer.hrdc_accreditation_id || null,
       hrdc_accreditation_valid_until: trainer.hrdcAccreditationValidUntil 
-        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString() 
+        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0] 
         : trainer.hrdc_accreditation_valid_until || null,
       professional_bio: trainer.professionalBio || trainer.professional_bio || null,
       state: trainer.state || null,

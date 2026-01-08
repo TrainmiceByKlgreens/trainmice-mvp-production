@@ -1,7 +1,7 @@
 import prisma from '../../config/database';
 
 /**
- * Generates the next sequential trainer ID (TR001, TR002, etc.)
+ * Generates the next sequential trainer ID (TR0001, TR0002, etc.)
  */
 export async function generateTrainerId(): Promise<string> {
   // Find the highest existing trainer ID
@@ -26,8 +26,8 @@ export async function generateTrainerId(): Promise<string> {
     }
   }
 
-  // Format as TR### with zero padding (e.g., TR001, TR002, ..., TR999)
-  return `TR${String(nextNumber).padStart(3, '0')}`;
+  // Format as TR#### with zero padding (e.g., TR0001, TR0002, ..., TR9999)
+  return `TR${String(nextNumber).padStart(4, '0')}`;
 }
 
 /**
