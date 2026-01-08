@@ -97,7 +97,9 @@ export const EnhancedTrainersPage: React.FC = () => {
         // Store HRDC data for use in modal
         hrdcAccreditationId: t.hrdcAccreditationId || null,
         hrdcAccreditationValidUntil: t.hrdcAccreditationValidUntil || null,
-      } as Trainer & { hrdcAccreditationId?: string | null; hrdcAccreditationValidUntil?: string | Date | null }));
+        // Store full areasOfExpertise array for filtering
+        areasOfExpertise: Array.isArray(t.areasOfExpertise) ? t.areasOfExpertise : [],
+      } as Trainer & { hrdcAccreditationId?: string | null; hrdcAccreditationValidUntil?: string | Date | null; areasOfExpertise?: string[] }));
 
       setTrainers(mappedTrainers);
 
@@ -133,7 +135,15 @@ export const EnhancedTrainersPage: React.FC = () => {
     }
 
     if (selectedExpertise !== 'all') {
-      filtered = filtered.filter(trainer => trainer.specialization === selectedExpertise);
+      filtered = filtered.filter(trainer => {
+        // Check if selected expertise is in the trainer's areasOfExpertise array
+        const areasOfExpertise = (trainer as any).areasOfExpertise || [];
+        if (Array.isArray(areasOfExpertise) && areasOfExpertise.length > 0) {
+          return areasOfExpertise.includes(selectedExpertise);
+        }
+        // Fallback to specialization (first element) for backward compatibility
+        return trainer.specialization === selectedExpertise;
+      });
     }
 
     if (selectedState !== 'all') {

@@ -238,6 +238,16 @@ export const EnhancedCoursesPage: React.FC = () => {
     }
   };
 
+  const getStatusVariant = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'approved': return 'success';
+      case 'pending_approval': return 'warning';
+      case 'draft': return 'default';
+      case 'denied': return 'danger';
+      default: return 'default';
+    }
+  };
+
   // Filter trainer-created courses that are pending approval
   const trainerCreatedCourses = filteredCourses.filter(c => 
     !c.created_by_admin && 
@@ -450,9 +460,15 @@ export const EnhancedCoursesPage: React.FC = () => {
                       <Button
                         variant="primary"
                         size="sm"
-                        onClick={() => {
-                          setSelectedCourse(course);
-                          setShowApprovalModal(true);
+                        onClick={async () => {
+                          try {
+                            // Fetch full course data with all fields
+                            const courseData = await apiClient.getAdminCourse(course.id);
+                            setSelectedCourse(courseData.course as any);
+                            setShowApprovalModal(true);
+                          } catch (error: any) {
+                            showToast(error.message || 'Error loading course details', 'error');
+                          }
                         }}
                         className="flex-1"
                       >
@@ -629,21 +645,209 @@ export const EnhancedCoursesPage: React.FC = () => {
         title={`Review Course - ${selectedCourse?.title || ''}`}
       >
         {selectedCourse && (
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto">
             <div>
-              <h3 className="font-semibold text-gray-800 mb-2">Course Details</h3>
-              <p className="text-sm text-gray-600 mb-4">{selectedCourse.description}</p>
-              <div className="space-y-2 text-sm">
+              <h3 className="font-semibold text-gray-800 mb-4">Course Details</h3>
+              
+              {/* Basic Information */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Title</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedCourse.title}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Status</label>
+                  <p className="mt-1">
+                    <Badge variant={getStatusVariant((selectedCourse as any).status || selectedCourse.status)}>
+                      {((selectedCourse as any).status || selectedCourse.status || '').replace('_', ' ')}
+                    </Badge>
+                  </p>
+                </div>
                 {(selectedCourse as any).category && (
-                  <p><span className="font-medium">Category:</span> {(selectedCourse as any).category}</p>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Category</label>
+                    <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).category}</p>
+                  </div>
                 )}
-                {(selectedCourse as any).event_date && (
-                  <p><span className="font-medium">Date:</span> {formatDate((selectedCourse as any).event_date)}</p>
+                {selectedCourse.price !== null && selectedCourse.price !== undefined && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Price</label>
+                    <p className="mt-1 text-sm text-gray-900">{formatCurrency(selectedCourse.price)}</p>
+                  </div>
+                )}
+                {selectedCourse.duration_hours !== null && selectedCourse.duration_hours !== undefined && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Duration</label>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {selectedCourse.duration_hours} {(selectedCourse as any).durationUnit || 'hours'}
+                    </p>
+                  </div>
+                )}
+                {(selectedCourse as any).courseType && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Course Type</label>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {Array.isArray((selectedCourse as any).courseType) 
+                        ? (selectedCourse as any).courseType.join(', ')
+                        : (selectedCourse as any).courseType}
+                    </p>
+                  </div>
+                )}
+                {(selectedCourse as any).courseMode && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Course Mode</label>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {Array.isArray((selectedCourse as any).courseMode) 
+                        ? (selectedCourse as any).courseMode.join(', ')
+                        : (selectedCourse as any).courseMode}
+                    </p>
+                  </div>
                 )}
                 {selectedCourse.venue && (
-                  <p><span className="font-medium">Venue:</span> {selectedCourse.venue}</p>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Venue</label>
+                    <p className="mt-1 text-sm text-gray-900">{selectedCourse.venue}</p>
+                  </div>
+                )}
+                {(selectedCourse as any).city && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">City</label>
+                    <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).city}</p>
+                  </div>
+                )}
+                {(selectedCourse as any).state && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">State</label>
+                    <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).state}</p>
+                  </div>
+                )}
+                {selectedCourse.start_date && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Start Date</label>
+                    <p className="mt-1 text-sm text-gray-900">{formatDate(selectedCourse.start_date)}</p>
+                  </div>
+                )}
+                {selectedCourse.end_date && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">End Date</label>
+                    <p className="mt-1 text-sm text-gray-900">{formatDate(selectedCourse.end_date)}</p>
+                  </div>
+                )}
+                {(selectedCourse as any).event_date && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Event Date</label>
+                    <p className="mt-1 text-sm text-gray-900">{formatDate((selectedCourse as any).event_date)}</p>
+                  </div>
+                )}
+                {selectedCourse.hrdc_claimable !== undefined && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">HRDC Claimable</label>
+                    <p className="mt-1 text-sm text-gray-900">{selectedCourse.hrdc_claimable ? 'Yes' : 'No'}</p>
+                  </div>
+                )}
+                {(selectedCourse as any).certificate && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Certificate</label>
+                    <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).certificate}</p>
+                  </div>
+                )}
+                {(selectedCourse as any).professionalDevelopmentPoints && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Professional Development Points</label>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {(selectedCourse as any).professionalDevelopmentPoints}
+                      {(selectedCourse as any).professionalDevelopmentPointsOther && (
+                        <span className="block text-xs text-gray-600 mt-1">
+                          {(selectedCourse as any).professionalDevelopmentPointsOther}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                {(selectedCourse as any).assessment !== undefined && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Assessment</label>
+                    <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).assessment ? 'Yes' : 'No'}</p>
+                  </div>
                 )}
               </div>
+
+              {/* Description */}
+              {selectedCourse.description && (
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700">Description</label>
+                  <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{selectedCourse.description}</p>
+                </div>
+              )}
+
+              {/* Learning Objectives */}
+              {(selectedCourse as any).learningObjectives && (
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700">Learning Objectives</label>
+                  <ul className="mt-1 list-disc list-inside text-sm text-gray-900 space-y-1">
+                    {Array.isArray((selectedCourse as any).learningObjectives) 
+                      ? (selectedCourse as any).learningObjectives.map((obj: string, idx: number) => (
+                          <li key={idx}>{obj}</li>
+                        ))
+                      : <li>{(selectedCourse as any).learningObjectives}</li>}
+                  </ul>
+                </div>
+              )}
+
+              {/* Learning Outcomes */}
+              {(selectedCourse as any).learningOutcomes && (
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700">Learning Outcomes</label>
+                  <ul className="mt-1 list-disc list-inside text-sm text-gray-900 space-y-1">
+                    {Array.isArray((selectedCourse as any).learningOutcomes) 
+                      ? (selectedCourse as any).learningOutcomes.map((outcome: string, idx: number) => (
+                          <li key={idx}>{outcome}</li>
+                        ))
+                      : <li>{(selectedCourse as any).learningOutcomes}</li>}
+                  </ul>
+                </div>
+              )}
+
+              {/* Target Audience */}
+              {(selectedCourse as any).targetAudience && (
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700">Target Audience</label>
+                  <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).targetAudience}</p>
+                </div>
+              )}
+
+              {/* Methodology */}
+              {(selectedCourse as any).methodology && (
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700">Methodology</label>
+                  <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).methodology}</p>
+                </div>
+              )}
+
+              {/* Prerequisite */}
+              {(selectedCourse as any).prerequisite && (
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700">Prerequisite</label>
+                  <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).prerequisite}</p>
+                </div>
+              )}
+
+              {/* Brochure URL */}
+              {selectedCourse.brochure_url && (
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700">Brochure</label>
+                  <p className="mt-1 text-sm">
+                    <a 
+                      href={selectedCourse.brochure_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-teal-600 hover:text-teal-700 underline"
+                    >
+                      View Brochure
+                    </a>
+                  </p>
+                </div>
+              )}
             </div>
             <Textarea
               label="Rejection Reason (if rejecting)"

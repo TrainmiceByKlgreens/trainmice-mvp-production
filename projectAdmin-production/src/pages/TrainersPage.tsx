@@ -6,7 +6,7 @@ import { Badge } from '../components/common/Badge';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { TrainerForm } from '../components/trainers/TrainerForm';
 import { TrainerTabs } from '../components/trainers/TrainerTabs';
-import { supabase } from '../utils/supabaseClient';
+import { apiClient } from '../lib/api-client';
 import { Trainer } from '../types';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 
@@ -25,15 +25,30 @@ export const TrainersPage: React.FC = () => {
 
   const fetchTrainers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('trainers')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const response = await apiClient.getTrainers();
+      const trainersData = response.trainers || [];
 
-      if (error) throw error;
-      setTrainers(data || []);
-    } catch (error) {
+      // Map backend camelCase to frontend snake_case
+      const mappedTrainers: Trainer[] = trainersData.map((t: any) => ({
+        id: t.id,
+        user_id: t.userId || null,
+        email: t.email || '',
+        full_name: t.fullName || '',
+        phone: t.phoneNumber || null,
+        specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0 
+          ? t.areasOfExpertise[0] 
+          : null,
+        bio: t.professionalBio || null,
+        hourly_rate: t.hourlyRate ? parseFloat(t.hourlyRate) : null,
+        hrdc_certified: !!t.hrdcAccreditationId,
+        created_at: t.createdAt || new Date().toISOString(),
+        updated_at: t.updatedAt || new Date().toISOString(),
+      }));
+
+      setTrainers(mappedTrainers);
+    } catch (error: any) {
       console.error('Error fetching trainers:', error);
+      alert(error.message || 'Error fetching trainers');
     } finally {
       setLoading(false);
     }
@@ -41,12 +56,22 @@ export const TrainersPage: React.FC = () => {
 
   const handleAddTrainer = async (data: Partial<Trainer>) => {
     try {
-      const { error } = await supabase.from('trainers').insert(data);
-      if (error) throw error;
+      // Map frontend snake_case to backend camelCase
+      const trainerData: any = {
+        fullName: data.full_name,
+        email: data.email,
+        phoneNumber: data.phone,
+        professionalBio: data.bio,
+      };
+      if (data.specialization) {
+        trainerData.areasOfExpertise = [data.specialization];
+      }
+      await apiClient.addTrainer(trainerData);
       setShowAddModal(false);
       fetchTrainers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding trainer:', error);
+      alert(error.message || 'Error adding trainer');
     }
   };
 
@@ -54,17 +79,23 @@ export const TrainersPage: React.FC = () => {
     if (!editingTrainer) return;
 
     try {
-      const { error } = await supabase
-        .from('trainers')
-        .update(data)
-        .eq('id', editingTrainer.id);
-
-      if (error) throw error;
+      // Map frontend snake_case to backend expected format
+      // Backend expects 'bio' (not 'professionalBio') and maps it internally
+      const updateData: any = {};
+      if (data.bio !== undefined) updateData.bio = data.bio;
+      if (data.email !== undefined) updateData.email = data.email;
+      
+      // Only send the fields that are actually being updated
+      if (Object.keys(updateData).length > 0) {
+        await apiClient.updateTrainer(editingTrainer.id, updateData);
+      }
+      
       setShowEditModal(false);
       setEditingTrainer(null);
       fetchTrainers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating trainer:', error);
+      alert(error.message || 'Error updating trainer');
     }
   };
 
@@ -72,11 +103,11 @@ export const TrainersPage: React.FC = () => {
     if (!confirm('Are you sure you want to delete this trainer?')) return;
 
     try {
-      const { error } = await supabase.from('trainers').delete().eq('id', id);
-      if (error) throw error;
+      await apiClient.deleteTrainer(id);
       fetchTrainers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting trainer:', error);
+      alert(error.message || 'Error deleting trainer');
     }
   };
 
