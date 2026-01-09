@@ -13,6 +13,7 @@ interface CourseData {
   venue?: string | null;
   description?: string | null;
   learningObjectives?: string[] | null;
+  learningOutcomes?: string[] | null;
   targetAudience?: string | null;
   methodology?: string | null;
   hrdcClaimable?: boolean;
@@ -33,19 +34,74 @@ export const generateCourseBrochure = async (course: CourseData) => {
   const contentWidth = pageWidth - (2 * margin);
   const maxY = pageHeight - margin;
 
-  // Helper function to check if we need a new page
-  const checkPageBreak = (currentY: number, spaceNeeded: number = 20): number => {
-    if (currentY + spaceNeeded > maxY) {
-      doc.addPage();
+  // Cache for the second page background image
+  let secondPageBgImage: string | null = null;
+  let secondPageBgLoaded = false;
+
+  // Helper function to load second page background image
+  const loadSecondPageBackground = async (): Promise<string | null> => {
+    if (secondPageBgLoaded) {
+      return secondPageBgImage;
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            const imgData = canvas.toDataURL('image/jpeg');
+            secondPageBgImage = imgData;
+            secondPageBgLoaded = true;
+            resolve(imgData);
+          } else {
+            resolve(null);
+          }
+        } catch (error) {
+          console.error('Error processing second page background:', error);
+          resolve(null);
+        }
+      };
+      
+      img.onerror = () => {
+        console.error('Error loading second page background image');
+        secondPageBgLoaded = true; // Mark as loaded to prevent retries
+        resolve(null);
+      };
+      
+      img.src = '/Brochure2ndpage.jpeg';
+    });
+  };
+
+  // Helper function to apply second page background to a new page
+  const applySecondPageBackground = async () => {
+    const bgImage = await loadSecondPageBackground();
+    if (bgImage) {
+      doc.addImage(bgImage, 'JPEG', 0, 0, pageWidth, pageHeight);
+    } else {
       doc.setFillColor(255, 255, 255);
       doc.rect(0, 0, pageWidth, pageHeight, 'F');
+    }
+  };
+
+  // Helper function to check if we need a new page
+  const checkPageBreak = async (currentY: number, spaceNeeded: number = 20): Promise<number> => {
+    if (currentY + spaceNeeded > maxY) {
+      doc.addPage();
+      await applySecondPageBackground();
       return margin;
     }
     return currentY;
   };
 
   // Helper function to add text with word wrap and page breaks
-  const addText = (
+  const addText = async (
     text: string,
     x: number,
     y: number,
@@ -53,7 +109,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
     fontSize: number = 10,
     fontStyle: string = 'normal',
     lineHeight: number = 1.5
-  ): number => {
+  ): Promise<number> => {
     doc.setFontSize(fontSize);
     doc.setFont('helvetica', fontStyle);
     const lines = doc.splitTextToSize(text, maxWidth);
@@ -61,7 +117,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
     
     let currentY = y;
     for (let i = 0; i < lines.length; i++) {
-      currentY = checkPageBreak(currentY, lineSpacing);
+      currentY = await checkPageBreak(currentY, lineSpacing);
       doc.text(lines[i], x, currentY);
       currentY += lineSpacing;
     }
@@ -87,8 +143,8 @@ export const generateCourseBrochure = async (course: CourseData) => {
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0);
-            const imgData = canvas.toDataURL('image/png');
-            doc.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+            const imgData = canvas.toDataURL('image/jpeg');
+            doc.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
             resolve(true);
           } else {
             throw new Error('Could not get canvas context');
@@ -106,7 +162,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
         doc.rect(0, 0, pageWidth, pageHeight, 'F');
         resolve(false);
       };
-      img.src = '/BrochureFrontPage.png';
+      img.src = '/BrochureFrontPage.jpeg';
     });
   } catch (error) {
     console.error('Error loading background image:', error);
@@ -193,47 +249,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   // PAGE 2: COURSE DETAILS WITH BACKGROUND IMAGE
   // ============================================================================
   doc.addPage();
-  
-  // Load and add background image for second page
-  try {
-    const secondPageImg = new Image();
-    secondPageImg.crossOrigin = 'anonymous';
-    
-    await new Promise((resolve) => {
-      secondPageImg.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = secondPageImg.width;
-          canvas.height = secondPageImg.height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(secondPageImg, 0, 0);
-            const imgData = canvas.toDataURL('image/jpeg');
-            doc.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
-            resolve(true);
-          } else {
-            throw new Error('Could not get canvas context');
-          }
-        } catch (error) {
-          console.error('Error adding second page image to PDF:', error);
-          doc.setFillColor(255, 255, 255);
-          doc.rect(0, 0, pageWidth, pageHeight, 'F');
-          resolve(false);
-        }
-      };
-      secondPageImg.onerror = () => {
-        console.error('Error loading second page image');
-        doc.setFillColor(255, 255, 255);
-        doc.rect(0, 0, pageWidth, pageHeight, 'F');
-        resolve(false);
-      };
-      secondPageImg.src = '/Brochure2ndpage.jpeg';
-    });
-  } catch (error) {
-    console.error('Error loading second page background image:', error);
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, pageWidth, pageHeight, 'F');
-  }
+  await applySecondPageBackground();
 
   let currentY = margin;
 
@@ -254,48 +270,48 @@ export const generateCourseBrochure = async (course: CourseData) => {
   currentY += 7;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  currentY = addText(course.title, margin, currentY, contentWidth, 10);
+  currentY = await addText(course.title, margin, currentY, contentWidth, 10);
   currentY += 8;
 
   // Date
-  currentY = checkPageBreak(currentY, 15);
+  currentY = await checkPageBreak(currentY, 15);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('DATE:', margin, currentY);
   currentY += 7;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  currentY = addText(dateText, margin, currentY, contentWidth, 10);
+  currentY = await addText(dateText, margin, currentY, contentWidth, 10);
   currentY += 8;
 
   // Venue
-  currentY = checkPageBreak(currentY, 15);
+  currentY = await checkPageBreak(currentY, 15);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('VENUE:', margin, currentY);
   currentY += 7;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  currentY = addText(course.venue || 'TBA', margin, currentY, contentWidth, 10);
+  currentY = await addText(course.venue || 'TBA', margin, currentY, contentWidth, 10);
   currentY += 8;
 
   // Certificate (only if HRDC claimable)
   if (course.hrdcClaimable) {
-    currentY = checkPageBreak(currentY, 15);
+    currentY = await checkPageBreak(currentY, 15);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('CERTIFICATE:', margin, currentY);
     currentY += 7;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    currentY = addText('CERTIFICATE OF ATTENDANCE', margin, currentY, contentWidth, 10);
+    currentY = await addText('CERTIFICATE OF ATTENDANCE', margin, currentY, contentWidth, 10);
     currentY += 8;
   }
 
   currentY += 5;
 
   // Introduction
-  currentY = checkPageBreak(currentY, 20);
+  currentY = await checkPageBreak(currentY, 20);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('Introduction:', margin, currentY);
@@ -303,7 +319,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   if (course.description) {
-    currentY = addText(course.description, margin, currentY, contentWidth, 10);
+    currentY = await addText(course.description, margin, currentY, contentWidth, 10);
   } else {
     doc.text('N/A', margin, currentY);
     currentY += 6;
@@ -311,7 +327,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   currentY += 10;
 
   // Course Objectives
-  currentY = checkPageBreak(currentY, 20);
+  currentY = await checkPageBreak(currentY, 20);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('Course Objectives:', margin, currentY);
@@ -320,9 +336,30 @@ export const generateCourseBrochure = async (course: CourseData) => {
   doc.setFont('helvetica', 'normal');
   if (course.learningObjectives && course.learningObjectives.length > 0) {
     for (const obj of course.learningObjectives) {
-      currentY = checkPageBreak(currentY, 15);
+      currentY = await checkPageBreak(currentY, 15);
       const bulletText = `• ${obj}`;
-      currentY = addText(bulletText, margin + 2, currentY, contentWidth - 2, 10);
+      currentY = await addText(bulletText, margin + 2, currentY, contentWidth - 2, 10);
+      currentY += 2;
+    }
+  } else {
+    doc.text('N/A', margin + 5, currentY);
+    currentY += 6;
+  }
+  currentY += 10;
+
+  // Learning Outcomes
+  currentY = await checkPageBreak(currentY, 20);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Learning Outcomes:', margin, currentY);
+  currentY += 7;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  if (course.learningOutcomes && course.learningOutcomes.length > 0) {
+    for (const outcome of course.learningOutcomes) {
+      currentY = await checkPageBreak(currentY, 15);
+      const bulletText = `• ${outcome}`;
+      currentY = await addText(bulletText, margin + 2, currentY, contentWidth - 2, 10);
       currentY += 2;
     }
   } else {
@@ -332,7 +369,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   currentY += 10;
 
   // Target Audience
-  currentY = checkPageBreak(currentY, 20);
+  currentY = await checkPageBreak(currentY, 20);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('Target Audience:', margin, currentY);
@@ -340,7 +377,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   if (course.targetAudience) {
-    currentY = addText(course.targetAudience, margin, currentY, contentWidth, 10);
+    currentY = await addText(course.targetAudience, margin, currentY, contentWidth, 10);
   } else {
     doc.text('N/A', margin, currentY);
     currentY += 6;
@@ -348,7 +385,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   currentY += 10;
 
   // Methodology
-  currentY = checkPageBreak(currentY, 20);
+  currentY = await checkPageBreak(currentY, 20);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('Methodology:', margin, currentY);
@@ -356,7 +393,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   if (course.methodology) {
-    currentY = addText(course.methodology, margin, currentY, contentWidth, 10);
+    currentY = await addText(course.methodology, margin, currentY, contentWidth, 10);
   } else {
     doc.text('N/A', margin, currentY);
     currentY += 6;
@@ -366,8 +403,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   // COURSE SCHEDULE (with automatic page breaks, no table)
   // ============================================================================
   doc.addPage();
-  doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, pageWidth, pageHeight, 'F');
+  await applySecondPageBackground();
 
   currentY = margin;
 
@@ -391,11 +427,12 @@ export const generateCourseBrochure = async (course: CourseData) => {
     });
 
     // Display schedule by day
-    Object.keys(scheduleByDay).sort((a, b) => parseInt(a) - parseInt(b)).forEach(day => {
+    const sortedDays = Object.keys(scheduleByDay).sort((a, b) => parseInt(a) - parseInt(b));
+    for (const day of sortedDays) {
       const dayItems = scheduleByDay[parseInt(day)];
       
       // Day header
-      currentY = checkPageBreak(currentY, 30);
+      currentY = await checkPageBreak(currentY, 30);
       doc.setFillColor(0, 51, 102);
       doc.roundedRect(margin, currentY, contentWidth, 8, 2, 2, 'F');
       doc.setTextColor(255, 255, 255);
@@ -406,9 +443,9 @@ export const generateCourseBrochure = async (course: CourseData) => {
       doc.setTextColor(0, 0, 0);
 
       // Schedule items for this day
-      dayItems.forEach(item => {
+      for (const item of dayItems) {
         // Check if we need space for this item
-        currentY = checkPageBreak(currentY, 25);
+        currentY = await checkPageBreak(currentY, 25);
 
         // Time
         doc.setFontSize(10);
@@ -418,20 +455,20 @@ export const generateCourseBrochure = async (course: CourseData) => {
 
         // Module title
         doc.setFont('helvetica', 'bold');
-        currentY = addText(item.moduleTitle, margin + 5, currentY, contentWidth - 5, 10, 'bold');
+        currentY = await addText(item.moduleTitle, margin + 5, currentY, contentWidth - 5, 10, 'bold');
 
         // Submodule title (if exists)
         if (item.submoduleTitle) {
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
-          currentY = addText(item.submoduleTitle, margin + 5, currentY, contentWidth - 5, 9);
+          currentY = await addText(item.submoduleTitle, margin + 5, currentY, contentWidth - 5, 9);
         }
 
         currentY += 8;
-      });
+      }
 
       currentY += 5;
-    });
+    }
   } else {
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
