@@ -137,77 +137,83 @@ export function ScheduleBuilder({ scheduleItems, onChange, requiredDurationHours
     return items;
   };
 
-  const sessionMap = groupScheduleBySession();
-
   const addModule = (day: number, startTime: string) => {
+    const currentMap = groupScheduleBySession();
     const key = `${day}-${startTime}`;
-    const session = sessionMap.get(key);
+    const session = currentMap.get(key);
     if (session) {
       session.modules.push({
         id: `module-${Date.now()}-${Math.random()}`,
         moduleTitle: '',
         submodules: [],
       });
-      onChange(flattenSchedule(sessionMap));
+      onChange(flattenSchedule(currentMap));
     }
   };
 
   const removeModule = (day: number, startTime: string, moduleId: string) => {
+    const currentMap = groupScheduleBySession();
     const key = `${day}-${startTime}`;
-    const session = sessionMap.get(key);
+    const session = currentMap.get(key);
     if (session) {
       session.modules = session.modules.filter(m => m.id !== moduleId);
-      onChange(flattenSchedule(sessionMap));
+      onChange(flattenSchedule(currentMap));
     }
   };
 
   const updateModuleTitle = (day: number, startTime: string, moduleId: string, title: string) => {
+    const currentMap = groupScheduleBySession();
     const key = `${day}-${startTime}`;
-    const session = sessionMap.get(key);
+    const session = currentMap.get(key);
     if (session) {
       const module = session.modules.find(m => m.id === moduleId);
       if (module) {
         module.moduleTitle = title;
-        onChange(flattenSchedule(sessionMap));
+        onChange(flattenSchedule(currentMap));
       }
     }
   };
 
   const addSubmodule = (day: number, startTime: string, moduleId: string) => {
+    const currentMap = groupScheduleBySession();
     const key = `${day}-${startTime}`;
-    const session = sessionMap.get(key);
+    const session = currentMap.get(key);
     if (session) {
       const module = session.modules.find(m => m.id === moduleId);
       if (module) {
         module.submodules.push('');
-        onChange(flattenSchedule(sessionMap));
+        onChange(flattenSchedule(currentMap));
       }
     }
   };
 
   const removeSubmodule = (day: number, startTime: string, moduleId: string, submoduleIndex: number) => {
+    const currentMap = groupScheduleBySession();
     const key = `${day}-${startTime}`;
-    const session = sessionMap.get(key);
+    const session = currentMap.get(key);
     if (session) {
       const module = session.modules.find(m => m.id === moduleId);
       if (module) {
         module.submodules = module.submodules.filter((_, i) => i !== submoduleIndex);
-        onChange(flattenSchedule(sessionMap));
+        onChange(flattenSchedule(currentMap));
       }
     }
   };
 
   const updateSubmodule = (day: number, startTime: string, moduleId: string, submoduleIndex: number, value: string) => {
+    const currentMap = groupScheduleBySession();
     const key = `${day}-${startTime}`;
-    const session = sessionMap.get(key);
+    const session = currentMap.get(key);
     if (session) {
       const module = session.modules.find(m => m.id === moduleId);
       if (module) {
         module.submodules[submoduleIndex] = value;
-        onChange(flattenSchedule(sessionMap));
+        onChange(flattenSchedule(currentMap));
       }
     }
   };
+
+  const sessionMap = groupScheduleBySession();
 
   // Initialize if empty (but only if we have duration info)
   React.useEffect(() => {
