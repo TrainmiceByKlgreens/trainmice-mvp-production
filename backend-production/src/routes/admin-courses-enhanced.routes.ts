@@ -276,10 +276,13 @@ router.put(
         where: { courseId: req.params.id },
       });
 
-      // Create new schedule
-      const scheduleItems = req.body.schedule.map((item: any) => {
-        // Ensure moduleTitle is an array
-        const moduleTitleArray = Array.isArray(item.moduleTitle) 
+      // New structure: one module per row, multiple rows can share same session
+      // Each item can have multiple modules, we need to expand them into separate rows
+      const scheduleRows: any[] = [];
+      
+      req.body.schedule.forEach((item: any) => {
+        // Get modules - can be array or single string
+        const modules = Array.isArray(item.moduleTitle) 
           ? item.moduleTitle 
           : (item.moduleTitle ? [item.moduleTitle] : []);
         
@@ -293,19 +296,24 @@ router.put(
           }
         }
 
-        return {
-          courseId: req.params.id,
-          dayNumber: item.dayNumber,
-          startTime: item.startTime,
-          endTime: item.endTime,
-          moduleTitle: moduleTitleArray,
-          submoduleTitle: submoduleTitleArray,
-          durationMinutes: item.durationMinutes || 120,
-        };
+        // Create one row per module
+        modules.forEach((moduleTitle: string) => {
+          if (moduleTitle && moduleTitle.trim()) {
+            scheduleRows.push({
+              courseId: req.params.id,
+              dayNumber: item.dayNumber,
+              startTime: item.startTime,
+              endTime: item.endTime,
+              moduleTitle: moduleTitle.trim(), // String, not array
+              submoduleTitle: submoduleTitleArray, // JSON array
+              durationMinutes: item.durationMinutes || 120,
+            });
+          }
+        });
       });
 
       const schedule = await prisma.courseSchedule.createMany({
-        data: scheduleItems,
+        data: scheduleRows,
       });
 
       await createActivityLog({

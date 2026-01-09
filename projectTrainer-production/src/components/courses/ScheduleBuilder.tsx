@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { ScheduleItemData } from '../../lib/courseService';
@@ -30,18 +30,31 @@ const HOUR_SESSIONS = [
   { name: 'Session 2', startTime: '11:00', endTime: '14:00' },
 ];
 
+// New structure: Module with submodules
+interface ModuleData {
+  id: string;
+  moduleTitle: string;
+  submodules: string[]; // Array of submodule strings
+}
+
+// Session data: contains multiple modules
+interface SessionData {
+  dayNumber: number;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  modules: ModuleData[];
+}
+
 export function ScheduleBuilder({ scheduleItems, onChange, requiredDurationHours, durationUnit }: ScheduleBuilderProps) {
   // Determine which sessions to show and how many days
   const getSessionsAndDays = () => {
     if (durationUnit === 'half_day') {
       return { sessions: HALF_DAY_SESSIONS, daysCount: 1 };
     } else if (durationUnit === 'days') {
-      // duration_hours now contains the raw day count (e.g., 2 for 2 days)
-      // Use it directly without conversion
       const daysCount = requiredDurationHours > 0 ? Math.round(requiredDurationHours) : 1;
       return { sessions: FULL_DAY_SESSIONS, daysCount };
     } else {
-      // For hours: show 1 session if <= 2 hours, 2 sessions if > 2 hours
       const sessionsCount = requiredDurationHours > 2 ? 2 : 1;
       return { 
         sessions: HOUR_SESSIONS.slice(0, sessionsCount), 
@@ -51,181 +64,262 @@ export function ScheduleBuilder({ scheduleItems, onChange, requiredDurationHours
   };
 
   const { sessions, daysCount } = getSessionsAndDays();
-  
-  // Initialize schedule structure if empty
-  const initializeSchedule = () => {
-    const newItems: Array<ScheduleItemData & { id: string; submodules: string[]; module_titles?: string[] }> = [];
-    
+
+  // Convert scheduleItems to grouped structure by day and session
+  const groupScheduleBySession = (): Map<string, SessionData> => {
+    const sessionMap = new Map<string, SessionData>();
+
+    // Initialize all sessions
     for (let day = 1; day <= daysCount; day++) {
-      sessions.forEach((session, sessionIndex) => {
-        // Calculate duration in minutes (standardized: 2 hours per session)
-        const durationMinutes = 120; // 2 hours = 120 minutes
-        
-        newItems.push({
-          id: `day-${day}-session-${sessionIndex}`,
-          day_number: day,
-          start_time: session.startTime,
-          end_time: session.endTime,
-          module_title: '', // Keep for backward compatibility
-          module_titles: [], // New array format
-          submodule_title: null,
-          duration_minutes: durationMinutes,
-          submodules: [],
+      sessions.forEach((session) => {
+        const key = `${day}-${session.startTime}`;
+        sessionMap.set(key, {
+          dayNumber: day,
+          startTime: session.startTime,
+          endTime: session.endTime,
+          durationMinutes: 120,
+          modules: [],
         });
       });
     }
-    
-    onChange(newItems);
-  };
 
-  // Get or create item for a specific day and session
-  const getItem = (day: number, sessionIndex: number) => {
-    const session = sessions[sessionIndex];
-    const item = scheduleItems.find(
-      (item) => item.day_number === day && item.start_time === session.startTime
-    );
-    
-    if (!item) {
-      const durationMinutes = 120; // Standardized 2 hours
-      const newItem: ScheduleItemData & { id: string; submodules: string[]; module_titles?: string[] } = {
-        id: `day-${day}-session-${sessionIndex}`,
-        day_number: day,
-        start_time: session.startTime,
-        end_time: session.endTime,
-        module_title: '', // Keep for backward compatibility
-        module_titles: [], // New array format
-        submodule_title: null,
-        duration_minutes: durationMinutes,
-        submodules: [],
-      };
-      
-      const updatedItems = [...scheduleItems, newItem];
-      onChange(updatedItems);
-      return newItem;
-    }
-    
-    return item;
-  };
-
-  const updateItem = (day: number, sessionIndex: number, updates: Partial<ScheduleItemData & { submodules: string[]; module_titles?: string[] }>) => {
-    const session = sessions[sessionIndex];
-    const updatedItems = scheduleItems.map((item) => {
-      if (item.day_number === day && item.start_time === session.startTime) {
-        return { ...item, ...updates };
+    // Group existing schedule items by day and session
+    scheduleItems.forEach((item) => {
+      const key = `${item.day_number}-${item.start_time}`;
+      const session = sessionMap.get(key);
+      if (session) {
+        // moduleTitle is now a string (one module per row)
+        const moduleTitle = typeof item.module_title === 'string' ? item.module_title : '';
+        if (moduleTitle) {
+          // Get submodules from item
+          const submodules = Array.isArray(item.submodules) ? item.submodules : [];
+          
+          session.modules.push({
+            id: item.id || `module-${Date.now()}-${Math.random()}`,
+            moduleTitle,
+            submodules,
+          });
+        }
       }
-      return item;
     });
-    onChange(updatedItems);
+
+    return sessionMap;
   };
 
-  const addSubmodule = (day: number, sessionIndex: number) => {
-    const item = getItem(day, sessionIndex);
-    updateItem(day, sessionIndex, {
-      submodules: [...item.submodules, ''],
+  // Convert grouped structure back to flat scheduleItems
+  const flattenSchedule = (sessionMap: Map<string, SessionData>) => {
+    const items: Array<ScheduleItemData & { id: string; submodules: string[]; module_titles?: string[] }> = [];
+    
+    sessionMap.forEach((session) => {
+      session.modules.forEach((module) => {
+        items.push({
+          id: module.id,
+          day_number: session.dayNumber,
+          start_time: session.startTime,
+          end_time: session.endTime,
+          module_title: module.moduleTitle,
+          submodule_title: module.submodules.length > 0 ? module.submodules : null,
+          duration_minutes: session.durationMinutes,
+          submodules: module.submodules,
+        });
+      });
     });
+
+    return items;
   };
 
-  const removeSubmodule = (day: number, sessionIndex: number, submoduleIndex: number) => {
-    const item = getItem(day, sessionIndex);
-    updateItem(day, sessionIndex, {
-      submodules: item.submodules.filter((_, i) => i !== submoduleIndex),
-    });
+  const sessionMap = groupScheduleBySession();
+
+  const addModule = (day: number, startTime: string) => {
+    const key = `${day}-${startTime}`;
+    const session = sessionMap.get(key);
+    if (session) {
+      session.modules.push({
+        id: `module-${Date.now()}-${Math.random()}`,
+        moduleTitle: '',
+        submodules: [],
+      });
+      onChange(flattenSchedule(sessionMap));
+    }
   };
 
-  const updateSubmodule = (day: number, sessionIndex: number, submoduleIndex: number, value: string) => {
-    const item = getItem(day, sessionIndex);
-    const newSubmodules = [...item.submodules];
-    newSubmodules[submoduleIndex] = value;
-    updateItem(day, sessionIndex, { submodules: newSubmodules });
+  const removeModule = (day: number, startTime: string, moduleId: string) => {
+    const key = `${day}-${startTime}`;
+    const session = sessionMap.get(key);
+    if (session) {
+      session.modules = session.modules.filter(m => m.id !== moduleId);
+      onChange(flattenSchedule(sessionMap));
+    }
+  };
+
+  const updateModuleTitle = (day: number, startTime: string, moduleId: string, title: string) => {
+    const key = `${day}-${startTime}`;
+    const session = sessionMap.get(key);
+    if (session) {
+      const module = session.modules.find(m => m.id === moduleId);
+      if (module) {
+        module.moduleTitle = title;
+        onChange(flattenSchedule(sessionMap));
+      }
+    }
+  };
+
+  const addSubmodule = (day: number, startTime: string, moduleId: string) => {
+    const key = `${day}-${startTime}`;
+    const session = sessionMap.get(key);
+    if (session) {
+      const module = session.modules.find(m => m.id === moduleId);
+      if (module) {
+        module.submodules.push('');
+        onChange(flattenSchedule(sessionMap));
+      }
+    }
+  };
+
+  const removeSubmodule = (day: number, startTime: string, moduleId: string, submoduleIndex: number) => {
+    const key = `${day}-${startTime}`;
+    const session = sessionMap.get(key);
+    if (session) {
+      const module = session.modules.find(m => m.id === moduleId);
+      if (module) {
+        module.submodules = module.submodules.filter((_, i) => i !== submoduleIndex);
+        onChange(flattenSchedule(sessionMap));
+      }
+    }
+  };
+
+  const updateSubmodule = (day: number, startTime: string, moduleId: string, submoduleIndex: number, value: string) => {
+    const key = `${day}-${startTime}`;
+    const session = sessionMap.get(key);
+    if (session) {
+      const module = session.modules.find(m => m.id === moduleId);
+      if (module) {
+        module.submodules[submoduleIndex] = value;
+        onChange(flattenSchedule(sessionMap));
+      }
+    }
   };
 
   // Initialize if empty
   if (scheduleItems.length === 0) {
-    initializeSchedule();
+    const initialItems = flattenSchedule(sessionMap);
+    if (initialItems.length === 0) {
+      // Add one empty module per session to start
+      sessionMap.forEach((session) => {
+        session.modules.push({
+          id: `module-${Date.now()}-${Math.random()}`,
+          moduleTitle: '',
+          submodules: [],
+        });
+      });
+      onChange(flattenSchedule(sessionMap));
+    }
     return null;
   }
 
   return (
     <div className="space-y-6">
-      <div className="space-y-6">
-        {Array.from({ length: daysCount }, (_, dayIndex) => {
-          const day = dayIndex + 1;
-          return (
-            <div key={day} className="border border-gray-200 rounded-lg p-6 bg-white">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Day {day}</h3>
-              
-              <div className="space-y-4">
-                {sessions.map((session, sessionIndex) => {
-                  const item = getItem(day, sessionIndex);
-                  
-                  return (
-                    <div key={sessionIndex} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-gray-900">
-                          {session.name} ({session.startTime} - {session.endTime})
-                        </h4>
-                      </div>
+      {Array.from({ length: daysCount }, (_, dayIndex) => {
+        const day = dayIndex + 1;
+        return (
+          <div key={day} className="border border-gray-200 rounded-lg p-6 bg-white">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Day {day}</h3>
+            
+            <div className="space-y-4">
+              {sessions.map((session) => {
+                const key = `${day}-${session.startTime}`;
+                const sessionData = sessionMap.get(key);
+                const modules = sessionData?.modules || [];
 
-                      <div className="space-y-3">
-                        <Input
-                          label="Module Title"
-                          value={item.module_title || ''}
-                          onChange={(e) => {
-                            const moduleTitle = e.target.value;
-                            // Update both old format (for backward compatibility) and new array format
-                            updateItem(day, sessionIndex, { 
-                              module_title: moduleTitle,
-                              module_titles: moduleTitle ? [moduleTitle] : []
-                            });
-                          }}
-                          placeholder={`Enter module title for ${session.name}`}
-                        />
+                return (
+                  <div key={session.startTime} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium text-gray-900">
+                        {session.name} ({session.startTime} - {session.endTime})
+                      </h4>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => addModule(day, session.startTime)}
+                        className="text-xs py-1 px-2"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add Module
+                      </Button>
+                    </div>
 
-                        <div>
+                    <div className="space-y-4">
+                      {modules.map((module, moduleIndex) => (
+                        <div key={module.id} className="border border-gray-300 rounded-lg p-3 bg-white">
                           <div className="flex items-center justify-between mb-2">
-                            <label className="block text-sm font-medium text-gray-700">Submodules (Optional)</label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => addSubmodule(day, sessionIndex)}
-                              className="text-xs py-1 px-2"
-                            >
-                              <Plus className="w-3 h-3 mr-1" />
-                              Add Submodule
-                            </Button>
+                            <span className="text-sm font-medium text-gray-700">Module {moduleIndex + 1}</span>
+                            {modules.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => removeModule(day, session.startTime, module.id)}
+                                className="px-2 py-1 text-xs text-red-600 hover:text-red-700"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            )}
                           </div>
 
-                          {item.submodules.length > 0 && (
+                          <Input
+                            label="Module Title"
+                            value={module.moduleTitle}
+                            onChange={(e) => updateModuleTitle(day, session.startTime, module.id, e.target.value)}
+                            placeholder="Enter module title"
+                            className="mb-3"
+                          />
+
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-sm font-medium text-gray-700">Submodules</label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => addSubmodule(day, session.startTime, module.id)}
+                                className="text-xs py-1 px-2"
+                              >
+                                <Plus className="w-3 h-3 mr-1" />
+                                Add Submodule
+                              </Button>
+                            </div>
+
                             <div className="space-y-2">
-                              {item.submodules.map((submodule, submoduleIndex) => (
+                              {module.submodules.map((submodule, submoduleIndex) => (
                                 <div key={submoduleIndex} className="flex gap-2">
                                   <Input
                                     value={submodule}
-                                    onChange={(e) => updateSubmodule(day, sessionIndex, submoduleIndex, e.target.value)}
+                                    onChange={(e) => updateSubmodule(day, session.startTime, module.id, submoduleIndex, e.target.value)}
                                     placeholder={`Submodule ${submoduleIndex + 1}`}
                                   />
                                   <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => removeSubmodule(day, sessionIndex, submoduleIndex)}
+                                    onClick={() => removeSubmodule(day, session.startTime, module.id, submoduleIndex)}
                                     className="px-2"
                                   >
-                                    <span className="text-red-600">×</span>
+                                    <X className="w-4 h-4 text-red-600" />
                                   </Button>
                                 </div>
                               ))}
+                              {module.submodules.length === 0 && (
+                                <p className="text-sm text-gray-500 italic">No submodules added</p>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

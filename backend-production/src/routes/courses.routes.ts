@@ -199,33 +199,44 @@ router.put(
         where: { courseId },
       });
 
-      const created = await prisma.courseSchedule.createMany({
-        data: (items || []).map((i) => {
-          // Ensure moduleTitle is an array
-          const moduleTitleArray = Array.isArray(i.moduleTitle) 
-            ? i.moduleTitle 
-            : (i.moduleTitle ? [i.moduleTitle] : []);
-          
-          // Ensure submoduleTitle is an array or undefined (Prisma JSON fields use undefined, not null)
-          let submoduleTitleArray: string[] | undefined = undefined;
-          if (i.submoduleTitle) {
-            if (Array.isArray(i.submoduleTitle)) {
-              submoduleTitleArray = i.submoduleTitle;
-            } else {
-              submoduleTitleArray = [i.submoduleTitle];
-            }
+      // New structure: one module per row, multiple rows can share same session
+      // Each item can have multiple modules, we need to expand them into separate rows
+      const scheduleRows: any[] = [];
+      
+      (items || []).forEach((i) => {
+        // Get modules - can be array or single string
+        const modules = Array.isArray(i.moduleTitle) 
+          ? i.moduleTitle 
+          : (i.moduleTitle ? [i.moduleTitle] : []);
+        
+        // Ensure submoduleTitle is an array or undefined (Prisma JSON fields use undefined, not null)
+        let submoduleTitleArray: string[] | undefined = undefined;
+        if (i.submoduleTitle) {
+          if (Array.isArray(i.submoduleTitle)) {
+            submoduleTitleArray = i.submoduleTitle;
+          } else {
+            submoduleTitleArray = [i.submoduleTitle];
           }
+        }
 
-          return {
-            courseId,
-            dayNumber: i.dayNumber,
-            startTime: i.startTime,
-            endTime: i.endTime,
-            moduleTitle: moduleTitleArray,
-            submoduleTitle: submoduleTitleArray,
-            durationMinutes: i.durationMinutes,
-          };
-        }),
+        // Create one row per module
+        modules.forEach((moduleTitle: string) => {
+          if (moduleTitle && moduleTitle.trim()) {
+            scheduleRows.push({
+              courseId,
+              dayNumber: i.dayNumber,
+              startTime: i.startTime,
+              endTime: i.endTime,
+              moduleTitle: moduleTitle.trim(), // String, not array
+              submoduleTitle: submoduleTitleArray, // JSON array
+              durationMinutes: i.durationMinutes,
+            });
+          }
+        });
+      });
+
+      const created = await prisma.courseSchedule.createMany({
+        data: scheduleRows,
       });
 
       const schedule = await prisma.courseSchedule.findMany({

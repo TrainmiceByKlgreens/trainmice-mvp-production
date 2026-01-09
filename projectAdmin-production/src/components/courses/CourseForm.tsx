@@ -283,78 +283,37 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       const schedule = response.schedule || [];
 
       // Transform schedule items to match ScheduleBuilder format
-      // Handle both old format (string) and new format (array)
-      const scheduleWithSubmodules = schedule.reduce((acc: any[], item: any) => {
-        // Parse module_title - can be string or array
-        let moduleTitles: string[] = [];
-        if (Array.isArray(item.moduleTitle)) {
-          moduleTitles = item.moduleTitle;
-        } else if (typeof item.moduleTitle === 'string' && item.moduleTitle) {
-          moduleTitles = [item.moduleTitle];
-        } else if (item.module_title) {
-          // Handle snake_case from backend
-          if (Array.isArray(item.module_title)) {
-            moduleTitles = item.module_title;
-          } else if (typeof item.module_title === 'string') {
-            moduleTitles = [item.module_title];
-          }
-        }
+      // New structure: one module per row (moduleTitle is string, not array)
+      const scheduleWithSubmodules = schedule.map((item: any) => {
+        // moduleTitle is now a string (one module per row)
+        const moduleTitle = typeof item.moduleTitle === 'string' 
+          ? item.moduleTitle 
+          : (typeof item.module_title === 'string' ? item.module_title : '');
 
-        // Parse submodule_title - can be string, array, or null
-        let submoduleTitles: string[] = [];
+        // Parse submodule_title - can be array or string
+        let submodules: string[] = [];
         if (Array.isArray(item.submoduleTitle)) {
-          submoduleTitles = item.submoduleTitle;
+          submodules = item.submoduleTitle;
         } else if (typeof item.submoduleTitle === 'string' && item.submoduleTitle) {
-          submoduleTitles = [item.submoduleTitle];
-        } else if (item.submodule_title) {
-          // Handle snake_case from backend
-          if (Array.isArray(item.submodule_title)) {
-            submoduleTitles = item.submodule_title;
-          } else if (typeof item.submodule_title === 'string') {
-            submoduleTitles = [item.submodule_title];
-          }
+          submodules = [item.submoduleTitle];
+        } else if (Array.isArray(item.submodule_title)) {
+          submodules = item.submodule_title;
+        } else if (typeof item.submodule_title === 'string' && item.submodule_title) {
+          submodules = [item.submodule_title];
         }
 
-        // Find existing item with same day and time
-        const existingItem = acc.find(
-          (i) =>
-            i.day_number === item.dayNumber || i.day_number === item.day_number &&
-            i.start_time === (item.startTime || item.start_time)
-        );
-
-        if (existingItem) {
-          // Merge modules and submodules
-          moduleTitles.forEach(moduleTitle => {
-            if (moduleTitle && !existingItem.module_titles?.includes(moduleTitle)) {
-              if (!existingItem.module_titles) existingItem.module_titles = [];
-              existingItem.module_titles.push(moduleTitle);
-            }
-          });
-          submoduleTitles.forEach(submoduleTitle => {
-            if (submoduleTitle && !existingItem.submodules.includes(submoduleTitle)) {
-              existingItem.submodules.push(submoduleTitle);
-            }
-          });
-          // Update display module_title to first one
-          if (moduleTitles.length > 0) {
-            existingItem.module_title = moduleTitles[0];
-          }
-        } else {
-          acc.push({
-            id: item.id || `day-${item.dayNumber || item.day_number}-${item.startTime || item.start_time}`,
-            day_number: item.dayNumber || item.day_number,
-            start_time: item.startTime || item.start_time,
-            end_time: item.endTime || item.end_time,
-            module_title: moduleTitles[0] || '', // Display first module
-            module_titles: moduleTitles, // All modules
-            submodule_title: null,
-            duration_minutes: item.durationMinutes || item.duration_minutes || 120,
-            submodules: submoduleTitles,
-          });
-        }
-
-        return acc;
-      }, []);
+        return {
+          id: item.id || `schedule-${Date.now()}-${Math.random()}`,
+          day_number: item.dayNumber || item.day_number,
+          start_time: item.startTime || item.start_time,
+          end_time: item.endTime || item.end_time,
+          module_title: moduleTitle,
+          module_titles: [moduleTitle], // Array for backward compat
+          submodule_title: submodules.length > 0 ? submodules[0] : null,
+          submodules: submodules,
+          duration_minutes: item.durationMinutes || item.duration_minutes || 120,
+        };
+      });
 
       setScheduleItems(scheduleWithSubmodules);
     } catch (error) {
@@ -474,22 +433,21 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         .filter((out: string) => out.length > 0);
 
 
-      // Prepare schedule to save - use camelCase to match backend expectations
+      // Prepare schedule to save - new structure: one module per row
       const scheduleToSave: any[] = [];
       scheduleItems.forEach((item) => {
-        // Get module titles - use new array format if available, otherwise use single module_title
-        const moduleTitles = (item as any).module_titles && Array.isArray((item as any).module_titles) 
-          ? (item as any).module_titles.filter((m: string) => m && m.trim())
-          : (item.module_title && item.module_title.trim() ? [item.module_title] : []);
-
-        // Only save if there's at least one module title
-        if (moduleTitles.length > 0) {
-          // Save one row per day/session with arrays
+        // module_title is now a string (one module per row)
+        const moduleTitle = typeof item.module_title === 'string' 
+          ? item.module_title.trim()
+          : '';
+        
+        // Only save if module title is not empty
+        if (moduleTitle) {
           scheduleToSave.push({
             dayNumber: item.day_number,
             startTime: item.start_time,
             endTime: item.end_time,
-            moduleTitle: moduleTitles, // Array format
+            moduleTitle: moduleTitle, // String, not array
             submoduleTitle: item.submodules && item.submodules.length > 0 
               ? item.submodules.filter((s: string) => s && s.trim()) // Array format
               : null,

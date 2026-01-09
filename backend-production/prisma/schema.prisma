@@ -183,7 +183,7 @@ model CourseSchedule {
   dayNumber       Int      @map("day_number")
   startTime       String   @map("start_time")
   endTime         String   @map("end_time")
-  moduleTitle     Json     @map("module_title")
+  moduleTitle     String   @map("module_title")
   submoduleTitle  Json?    @map("submodule_title")
   durationMinutes Int      @map("duration_minutes")
   createdAt       DateTime @default(now()) @map("created_at")

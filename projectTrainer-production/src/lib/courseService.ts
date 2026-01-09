@@ -331,11 +331,12 @@ export async function deleteCourse(courseId: string) {
 
 export async function saveCourseSchedule(courseId: string, scheduleItems: ScheduleItemData[]) {
   try {
+    // New structure: each item is one module (module_title is a string, not array)
     const payload = scheduleItems.map((item) => {
-      // Ensure module_title is an array
-      const moduleTitleArray = Array.isArray(item.module_title) 
+      // module_title is now a string (one module per row)
+      const moduleTitle = typeof item.module_title === 'string' 
         ? item.module_title 
-        : (item.module_title ? [item.module_title] : []);
+        : (Array.isArray(item.module_title) && item.module_title.length > 0 ? item.module_title[0] : '');
       
       // Ensure submodule_title is an array or null
       let submoduleTitleArray: string[] | null = null;
@@ -345,13 +346,16 @@ export async function saveCourseSchedule(courseId: string, scheduleItems: Schedu
         } else {
           submoduleTitleArray = [item.submodule_title];
         }
+      } else if (item.submodules && Array.isArray(item.submodules) && item.submodules.length > 0) {
+        // Also check submodules field
+        submoduleTitleArray = item.submodules;
       }
 
       return {
         dayNumber: item.day_number,
         startTime: item.start_time,
         endTime: item.end_time,
-        moduleTitle: moduleTitleArray,
+        moduleTitle: moduleTitle, // String, not array
         submoduleTitle: submoduleTitleArray,
         durationMinutes: item.duration_minutes,
       };
@@ -360,8 +364,8 @@ export async function saveCourseSchedule(courseId: string, scheduleItems: Schedu
       items: payload,
     });
     return (result.schedule || []).map((s) => {
-      // Parse arrays from backend response
-      const moduleTitle = Array.isArray(s.moduleTitle) ? s.moduleTitle : (s.moduleTitle ? [s.moduleTitle] : []);
+      // Backend now returns moduleTitle as string (one module per row)
+      const moduleTitle = typeof s.moduleTitle === 'string' ? s.moduleTitle : '';
       const submoduleTitle = Array.isArray(s.submoduleTitle) 
         ? s.submoduleTitle 
         : (s.submoduleTitle ? [s.submoduleTitle] : null);
@@ -372,10 +376,10 @@ export async function saveCourseSchedule(courseId: string, scheduleItems: Schedu
         day_number: s.dayNumber,
         start_time: s.startTime,
         end_time: s.endTime,
-        module_title: moduleTitle.length > 0 ? moduleTitle[0] : '', // Backward compat
-        module_titles: moduleTitle, // New format
+        module_title: moduleTitle, // String
+        module_titles: [moduleTitle], // Array for backward compat
         submodule_title: submoduleTitle && submoduleTitle.length > 0 ? submoduleTitle[0] : null, // Backward compat
-        submodules: submoduleTitle || [], // New format
+        submodules: submoduleTitle || [], // Array
         duration_minutes: s.durationMinutes,
         created_at: s.createdAt,
       };
@@ -391,8 +395,8 @@ export async function fetchCourseSchedule(courseId: string) {
     const result = await apiClient.get<{ course: any }>(`/courses/${courseId}`);
     const schedule = result.course?.courseSchedule || [];
     return schedule.map((s: any) => {
-      // Parse arrays from backend - handle both old (string) and new (array) formats
-      const moduleTitle = Array.isArray(s.moduleTitle) ? s.moduleTitle : (s.moduleTitle ? [s.moduleTitle] : []);
+      // Backend now returns moduleTitle as string (one module per row)
+      const moduleTitle = typeof s.moduleTitle === 'string' ? s.moduleTitle : '';
       const submoduleTitle = Array.isArray(s.submoduleTitle) 
         ? s.submoduleTitle 
         : (s.submoduleTitle ? [s.submoduleTitle] : null);
@@ -403,10 +407,10 @@ export async function fetchCourseSchedule(courseId: string) {
         day_number: s.dayNumber,
         start_time: s.startTime,
         end_time: s.endTime,
-        module_title: moduleTitle.length > 0 ? moduleTitle[0] : '', // Backward compat
-        module_titles: moduleTitle, // New format
+        module_title: moduleTitle, // String
+        module_titles: [moduleTitle], // Array for backward compat
         submodule_title: submoduleTitle && submoduleTitle.length > 0 ? submoduleTitle[0] : null, // Backward compat
-        submodules: submoduleTitle || [], // New format
+        submodules: submoduleTitle || [], // Array
         duration_minutes: s.durationMinutes,
         created_at: s.createdAt,
       };

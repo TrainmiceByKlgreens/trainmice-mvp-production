@@ -21,8 +21,8 @@ interface CourseData {
     dayNumber: number;
     startTime: string;
     endTime: string;
-    moduleTitle: string;
-    submoduleTitle?: string | null;
+    moduleTitle: string; // Now a string (one module per row)
+    submoduleTitle?: string[] | null; // JSON array of submodules
   }>;
 }
 
@@ -417,19 +417,34 @@ export const generateCourseBrochure = async (course: CourseData) => {
   doc.setTextColor(0, 0, 0);
 
   if (course.schedule && course.schedule.length > 0) {
-    // Group schedule by day
-    const scheduleByDay: { [day: number]: typeof course.schedule } = {};
+    // Group schedule by day, then by session (startTime, endTime)
+    // New structure: one module per row, multiple modules can share same session
+    const scheduleByDayAndSession: { [key: string]: typeof course.schedule } = {};
     course.schedule.forEach(item => {
-      if (!scheduleByDay[item.dayNumber]) {
-        scheduleByDay[item.dayNumber] = [];
+      const key = `${item.dayNumber}-${item.startTime}-${item.endTime}`;
+      if (!scheduleByDayAndSession[key]) {
+        scheduleByDayAndSession[key] = [];
       }
-      scheduleByDay[item.dayNumber].push(item);
+      scheduleByDayAndSession[key].push(item);
+    });
+
+    // Group by day first
+    const scheduleByDay: { [day: number]: { sessionKey: string; items: typeof course.schedule }[] } = {};
+    Object.keys(scheduleByDayAndSession).forEach(sessionKey => {
+      const items = scheduleByDayAndSession[sessionKey];
+      if (items.length > 0) {
+        const day = items[0].dayNumber;
+        if (!scheduleByDay[day]) {
+          scheduleByDay[day] = [];
+        }
+        scheduleByDay[day].push({ sessionKey, items });
+      }
     });
 
     // Display schedule by day
     const sortedDays = Object.keys(scheduleByDay).sort((a, b) => parseInt(a) - parseInt(b));
     for (const day of sortedDays) {
-      const dayItems = scheduleByDay[parseInt(day)];
+      const daySessions = scheduleByDay[parseInt(day)];
       
       // Day header
       currentY = await checkPageBreak(currentY, 30);
@@ -442,32 +457,67 @@ export const generateCourseBrochure = async (course: CourseData) => {
       currentY += 12;
       doc.setTextColor(0, 0, 0);
 
-      // Schedule items for this day
-      for (const item of dayItems) {
-        // Check if we need space for this item
+      // Sort sessions by start time
+      daySessions.sort((a, b) => {
+        const timeA = a.items[0]?.startTime || '';
+        const timeB = b.items[0]?.startTime || '';
+        return timeA.localeCompare(timeB);
+      });
+
+      // Display each session
+      for (const session of daySessions) {
+        const firstItem = session.items[0];
+        if (!firstItem) continue;
+
+        // Check if we need space for this session
         currentY = await checkPageBreak(currentY, 25);
 
-        // Time
+        // Session time header
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${item.startTime} - ${item.endTime}`, margin, currentY);
+        doc.text(`${firstItem.startTime} - ${firstItem.endTime}`, margin, currentY);
         currentY += 6;
 
-        // Module title
-        doc.setFont('helvetica', 'bold');
-        currentY = await addText(item.moduleTitle, margin + 5, currentY, contentWidth - 5, 10, 'bold');
+        // Display all modules for this session
+        for (const item of session.items) {
+          // Module title (now a string, not array)
+          const moduleTitle = typeof item.moduleTitle === 'string' 
+            ? item.moduleTitle 
+            : (Array.isArray(item.moduleTitle) ? item.moduleTitle.join(', ') : '');
+          
+          if (moduleTitle) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            currentY = await addText(moduleTitle, margin + 5, currentY, contentWidth - 5, 10, 'bold');
+          }
 
-        // Submodule title (if exists)
-        if (item.submoduleTitle) {
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9);
-          currentY = await addText(item.submoduleTitle, margin + 5, currentY, contentWidth - 5, 9);
+          // Submodules (JSON array)
+          if (item.submoduleTitle) {
+            let submodules: string[] = [];
+            if (Array.isArray(item.submoduleTitle)) {
+              submodules = item.submoduleTitle;
+            } else if (typeof item.submoduleTitle === 'string') {
+              submodules = [item.submoduleTitle];
+            }
+
+            if (submodules.length > 0) {
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(9);
+              for (const submodule of submodules) {
+                if (submodule && submodule.trim()) {
+                  currentY = await addText(`• ${submodule}`, margin + 10, currentY, contentWidth - 10, 9);
+                }
+              }
+            }
+          }
+
+          currentY += 4; // Space between modules
         }
 
-        currentY += 8;
+        currentY += 8; // Space between sessions
       }
 
-      currentY += 5;
+      currentY += 5; // Space between days
     }
   } else {
     doc.setFontSize(11);
