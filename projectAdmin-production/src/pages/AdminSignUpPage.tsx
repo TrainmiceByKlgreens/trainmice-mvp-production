@@ -97,10 +97,8 @@ export const AdminSignUpPage: React.FC = () => {
           <img
             src="/TrainmiceTwinleaf.png"
             alt="Trainmice"
-            className="h-64 w-auto mb-6 object-contain"
+            className="h-64 w-auto object-contain"
           />
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Create Admin Account</h1>
-          <p className="text-gray-600">Set up your administrator credentials</p>
         </div>
 
         {/* Mobile Logo */}
@@ -110,12 +108,14 @@ export const AdminSignUpPage: React.FC = () => {
             alt="Trainmice"
             className="h-32 w-auto mb-4 object-contain"
           />
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Create Admin Account</h1>
-          <p className="text-gray-600 text-sm">Set up your administrator credentials</p>
         </div>
 
         {/* Right Side - Form */}
         <div className="w-full">
+          <div className="mb-6 text-center md:text-left">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Create Admin Account</h1>
+            <p className="text-gray-600 text-sm md:text-base">Set up your administrator credentials</p>
+          </div>
           <Card>
           <div className="p-8">
             <form onSubmit={handleSubmit} className="space-y-6">

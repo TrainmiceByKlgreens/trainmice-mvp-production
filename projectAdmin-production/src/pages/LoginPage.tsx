@@ -67,10 +67,8 @@ export const LoginPage: React.FC = () => {
           <img
             src="/TrainmiceTwinleaf.png"
             alt="Trainmice"
-            className="h-64 w-auto mb-6 object-contain"
+            className="h-64 w-auto object-contain"
           />
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Admin Dashboard</h1>
-          <p className="text-gray-600">Sign in to manage your training platform</p>
         </div>
 
         {/* Mobile Logo */}
@@ -80,12 +78,14 @@ export const LoginPage: React.FC = () => {
             alt="Trainmice"
             className="h-32 w-auto mb-4 object-contain"
           />
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Admin Dashboard</h1>
-          <p className="text-gray-600 text-sm">Sign in to manage your training platform</p>
         </div>
 
         {/* Right Side - Form */}
         <div className="w-full">
+          <div className="mb-6 text-center md:text-left">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Admin Dashboard</h1>
+            <p className="text-gray-600 text-sm md:text-base">Sign in to manage your training platform</p>
+          </div>
           <Card>
           <div className="p-8">
             {!showForgotPassword ? (
