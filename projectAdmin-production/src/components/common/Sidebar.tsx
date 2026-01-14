@@ -33,7 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, onLog
   ];
 
   return (
-    <div className="w-64 bg-gradient-to-b from-white to-green-600 text-gray-800 h-screen fixed left-0 top-0 flex flex-col">
+    <div className="w-64 bg-gradient-to-b from-green-50 to-green-200 text-gray-800 h-screen fixed left-0 top-0 flex flex-col">
       <div className="p-6 border-b border-green-200 flex items-center justify-center">
         <img
           src="/TrainmiceTwinleaf.png"
