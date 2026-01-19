@@ -51,21 +51,27 @@ router.post(
       // Hash password
       const passwordHash = await hashPassword(password);
 
-      // Create user
-      // Admins don't need email verification - set emailVerified to true
+      // Generate verification token for all roles (including ADMIN)
+      const verificationToken = generateVerificationToken();
+      const tokenExpiry = getTokenExpiry();
+
+      // Create user with verification token
       const user = await prisma.user.create({
         data: {
           email,
           passwordHash,
           fullName,
           role,
-          emailVerified: role === 'ADMIN' ? true : false, // Auto-verify admin accounts
+          emailVerified: false, // All roles require email verification
+          verificationToken,
+          tokenExpiry,
         },
         select: {
           id: true,
           email: true,
           fullName: true,
           role: true,
+          emailVerified: true,
           createdAt: true,
         },
       });
@@ -107,33 +113,25 @@ router.post(
         });
       }
 
-      // Generate token
-      const token = generateToken({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      });
-
-      // Send welcome email for admin accounts
-      if (role === 'ADMIN') {
-        try {
-          const adminFrontendUrl = process.env.FRONTEND_URL_ADMIN || 'http://localhost:5175';
-          const loginUrl = `${adminFrontendUrl}/`;
-          await sendAdminWelcomeEmail({
-            email: user.email,
-            fullName: user.fullName || undefined,
-            loginUrl,
-          });
-        } catch (emailError) {
-          console.error('Failed to send admin welcome email:', emailError);
-          // Don't fail registration if email fails
-        }
+      // Send verification email for all roles (including ADMIN)
+      try {
+        await sendVerificationEmail({
+          email,
+          token: verificationToken,
+          role: role === 'ADMIN' ? 'ADMIN' : (role === 'CLIENT' ? 'CLIENT' : 'TRAINER'),
+        });
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        // Don't fail registration if email fails - user can request resend
       }
 
       return res.status(201).json({
-        message: 'User registered successfully',
-        user,
-        token,
+        message: 'Account created successfully. Please verify your email to activate your account.',
+        user: {
+          ...user,
+          emailVerified: false,
+        },
+        requiresVerification: true,
       });
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -458,9 +456,14 @@ const handleEmailVerification = async (token: string, res: Response) => {
   });
 
   // Redirect to frontend home page (success page will auto-close/redirect)
-  const frontendUrl = user.role === 'CLIENT' 
-    ? process.env.FRONTEND_URL_CLIENT || 'http://localhost:5173'
-    : process.env.FRONTEND_URL_TRAINER || 'http://localhost:5174';
+  let frontendUrl: string;
+  if (user.role === 'CLIENT') {
+    frontendUrl = process.env.FRONTEND_URL_CLIENT || 'http://localhost:5173';
+  } else if (user.role === 'ADMIN') {
+    frontendUrl = process.env.FRONTEND_URL_ADMIN || 'http://localhost:5175';
+  } else {
+    frontendUrl = process.env.FRONTEND_URL_TRAINER || 'http://localhost:5174';
+  }
 
   return res.redirect(`${frontendUrl}/verify-email-success`);
 };
@@ -537,7 +540,7 @@ router.post(
         await sendVerificationEmail({
           email,
           token: verificationToken,
-          role: user.role as 'CLIENT' | 'TRAINER',
+          role: user.role as 'CLIENT' | 'TRAINER' | 'ADMIN',
         });
       } catch (emailError) {
         console.error('Failed to send verification email:', emailError);

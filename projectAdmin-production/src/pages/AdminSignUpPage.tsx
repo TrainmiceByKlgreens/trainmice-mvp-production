@@ -62,21 +62,41 @@ export const AdminSignUpPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const { error: signUpError } = await signUp(
+      const result = await signUp(
         formData.email,
         formData.password,
         formData.fullName
       );
 
-      if (signUpError) {
-        setError(signUpError.message || 'An error occurred during sign up');
+      if (result.error) {
+        setError(result.error.message || 'An error occurred during sign up');
         return;
       }
 
-      setSuccess('Admin account created successfully! Redirecting to login...');
-      setTimeout(() => {
-        navigate('/');
-      }, 2000);
+      // Check if verification is required
+      if ((result as any).requiresVerification || (result as any).data?.requiresVerification) {
+        setSuccess(
+          (result as any).message || 
+          (result as any).data?.message || 
+          'Verification email sent. Please verify your email to activate your account. Check your inbox for the verification link.'
+        );
+        // Clear form after showing message
+        setTimeout(() => {
+          setFormData({
+            email: '',
+            password: '',
+            confirmPassword: '',
+            fullName: '',
+          });
+          setSuccess('');
+          navigate('/');
+        }, 5000);
+      } else {
+        setSuccess('Admin account created successfully! Redirecting to login...');
+        setTimeout(() => {
+          navigate('/');
+        }, 2000);
+      }
     } catch (err: any) {
       setError(err.message || 'An error occurred during sign up');
     } finally {

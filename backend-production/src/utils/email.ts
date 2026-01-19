@@ -9,7 +9,7 @@ const resend = config.email.resendApiKey
 interface SendVerificationEmailParams {
   email: string;
   token: string;
-  role: 'CLIENT' | 'TRAINER';
+  role: 'CLIENT' | 'TRAINER' | 'ADMIN';
 }
 
 export async function sendVerificationEmail({
