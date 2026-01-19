@@ -21,24 +21,14 @@ function App() {
   const { user, loading, signOut } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [route, setRoute] = useState(window.location.pathname);
-  const [updateTrigger, setUpdateTrigger] = useState(0);
 
   useEffect(() => {
     const handlePopState = () => {
       setRoute(window.location.pathname);
     };
 
-    // Listen for login success to force re-render
-    const handleLoginSuccess = () => {
-      setUpdateTrigger(prev => prev + 1);
-    };
-
     window.addEventListener('popstate', handlePopState);
-    window.addEventListener('auth:login-success', handleLoginSuccess);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('auth:login-success', handleLoginSuccess);
-    };
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   if (loading) {

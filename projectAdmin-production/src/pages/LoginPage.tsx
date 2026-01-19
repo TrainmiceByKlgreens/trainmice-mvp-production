@@ -26,12 +26,12 @@ export const LoginPage: React.FC = () => {
         setError(signInError.message);
         setLoading(false);
       } else if (data) {
-        // The signIn function already sets the user state in useAuth
-        // Dispatch event to notify App component to re-render
-        // Use requestAnimationFrame to ensure state update is processed first
-        requestAnimationFrame(() => {
+        // Dispatch event to notify all useAuth hooks to re-check auth state
+        // This ensures the App component's useAuth hook updates its user state
+        // Use setTimeout to ensure the token is saved and state is ready
+        setTimeout(() => {
           window.dispatchEvent(new CustomEvent('auth:login-success'));
-        });
+        }, 50);
         setLoading(false);
       }
     } catch (err) {

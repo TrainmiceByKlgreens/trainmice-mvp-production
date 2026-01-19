@@ -44,8 +44,18 @@ export const useAuth = () => {
       setUser(null);
     };
 
+    // Listen for login success events to re-check auth state
+    const handleLoginSuccess = async () => {
+      // Re-check auth state after login
+      await checkAuth();
+    };
+
     window.addEventListener('auth:logout', handleLogout);
-    return () => window.removeEventListener('auth:logout', handleLogout);
+    window.addEventListener('auth:login-success', handleLoginSuccess);
+    return () => {
+      window.removeEventListener('auth:logout', handleLogout);
+      window.removeEventListener('auth:login-success', handleLoginSuccess);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
