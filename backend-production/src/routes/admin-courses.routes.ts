@@ -180,6 +180,8 @@ router.post(
     body('description').optional().trim(),
   ],
   async (req: AuthRequest, res: Response) => {
+    console.log('POST /admin/courses - Create course route hit');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -622,7 +624,68 @@ router.put('/:id/reject', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Assign trainer to course
+// Assign trainer to course (via CourseTrainer relationship)
+router.post('/:id/trainers', async (req: AuthRequest, res: Response) => {
+  try {
+    const { trainerId } = req.body;
+
+    if (!trainerId) {
+      return res.status(400).json({ error: 'Trainer ID is required' });
+    }
+
+    const course = await prisma.course.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!course) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    // Check if trainer is already assigned
+    const existing = await prisma.courseTrainer.findFirst({
+      where: {
+        courseId: req.params.id,
+        trainerId: trainerId,
+      },
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'Trainer is already assigned to this course' });
+    }
+
+    // Create CourseTrainer relationship
+    const courseTrainer = await prisma.courseTrainer.create({
+      data: {
+        courseId: req.params.id,
+        trainerId: trainerId,
+      },
+      include: {
+        trainer: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    await createActivityLog({
+      userId: req.user!.id,
+      actionType: 'UPDATE',
+      entityType: 'course',
+      entityId: course.id,
+      description: `Assigned trainer to course: ${course.title}`,
+    });
+
+    return res.status(201).json({ courseTrainer, message: 'Trainer assigned successfully' });
+  } catch (error: any) {
+    console.error('Assign trainer error:', error);
+    return res.status(500).json({ error: 'Failed to assign trainer', details: error.message });
+  }
+});
+
+// Assign trainer to course (legacy route - sets trainerId directly)
 router.put('/:id/assign-trainer', async (req: AuthRequest, res: Response) => {
   try {
     const { trainerId } = req.body;
