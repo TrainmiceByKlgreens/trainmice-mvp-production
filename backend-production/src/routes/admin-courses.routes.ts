@@ -259,11 +259,10 @@ router.post(
 
       // Handle trainer assignments for admin-created courses
       if (trainerIds && Array.isArray(trainerIds) && trainerIds.length > 0) {
-        // For admin-created courses with multiple trainers, don't set trainerId directly
-        // Instead, use CourseTrainer relationships
-        updateData.trainerId = null;
+        // Set the first trainer as the primary trainer_id
+        updateData.trainerId = trainerIds[0];
       } else if (updateData.trainerId) {
-        // Single trainer assignment
+        // Single trainer assignment - already set in updateData
       }
 
       const course = await prisma.course.create({
@@ -483,6 +482,17 @@ router.put(
               trainerId: trainerId,
             })),
           });
+          // Update course's trainer_id to the first trainer
+          await prisma.course.update({
+            where: { id: course.id },
+            data: { trainerId: trainerIds[0] },
+          });
+        } else {
+          // If no trainers assigned, clear trainer_id
+          await prisma.course.update({
+            where: { id: course.id },
+            data: { trainerId: null },
+          });
         }
       }
 
@@ -497,7 +507,31 @@ router.put(
         description: `Updated course: ${course.title}`,
       });
 
-      return res.json({ course });
+      // Fetch the updated course to include trainer_id changes
+      const updatedCourse = await prisma.course.findUnique({
+        where: { id: course.id },
+        include: {
+          trainer: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          courseTrainers: {
+            include: {
+              trainer: {
+                select: {
+                  id: true,
+                  fullName: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return res.json({ course: updatedCourse });
     } catch (error: any) {
       console.error('Update course error:', error);
       return res.status(500).json({ error: 'Failed to update course', details: error.message });
@@ -653,6 +687,9 @@ router.post('/:id/trainers', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Trainer is already assigned to this course' });
     }
 
+    // Check if course already has a trainer_id set
+    const hasPrimaryTrainer = !!course.trainerId;
+    
     // Create CourseTrainer relationship
     const courseTrainer = await prisma.courseTrainer.create({
       data: {
@@ -669,6 +706,14 @@ router.post('/:id/trainers', async (req: AuthRequest, res: Response) => {
         },
       },
     });
+
+    // Update course's trainer_id if it's not set yet (set first assigned trainer as primary)
+    if (!hasPrimaryTrainer) {
+      await prisma.course.update({
+        where: { id: req.params.id },
+        data: { trainerId: trainerId },
+      });
+    }
 
     await createActivityLog({
       userId: req.user!.id,
