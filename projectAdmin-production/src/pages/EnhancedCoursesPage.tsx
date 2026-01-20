@@ -133,7 +133,11 @@ export const EnhancedCoursesPage: React.FC = () => {
     }
 
     if (selectedStatus !== 'all') {
-      filtered = filtered.filter(course => course.status === selectedStatus);
+      if (selectedStatus === 'WITHOUT_TRAINER') {
+        filtered = filtered.filter(course => !course.trainer_id);
+      } else {
+        filtered = filtered.filter(course => course.status === selectedStatus);
+      }
     }
 
     setFilteredCourses(filtered);
@@ -408,6 +412,7 @@ export const EnhancedCoursesPage: React.FC = () => {
               { value: 'PENDING_APPROVAL', label: 'Pending Approval' },
               { value: 'APPROVED', label: 'Approved' },
               { value: 'DENIED', label: 'Denied' },
+              { value: 'WITHOUT_TRAINER', label: 'Without Trainer' },
             ]}
           />
         </div>
@@ -535,27 +540,82 @@ export const EnhancedCoursesPage: React.FC = () => {
                       try {
                         const courseData = await apiClient.getAdminCourse(course.id);
                         const fullCourse = courseData.course;
+                        
+                        // Debug: Log the course data to see what's available
+                        console.log('Full course data:', fullCourse);
+                        console.log('Learning Objectives:', fullCourse.learningObjectives);
+                        console.log('Learning Outcomes:', fullCourse.learningOutcomes);
+                        console.log('Schedule:', fullCourse.courseSchedule);
+                        
+                        // Helper function to extract and parse JSON fields
+                        const extractJsonField = (obj: any, camelKey: string, snakeKey: string): any[] => {
+                          // Try camelCase first
+                          let value = obj?.[camelKey];
+                          if (!value) {
+                            // Try snake_case
+                            value = obj?.[snakeKey];
+                          }
+                          
+                          // If still not found, try from the course object (fallback)
+                          if (!value && course) {
+                            const courseAny = course as any;
+                            value = courseAny[camelKey] || courseAny[snakeKey];
+                          }
+                          
+                          // Parse if it's a string
+                          if (typeof value === 'string') {
+                            try {
+                              value = JSON.parse(value);
+                            } catch {
+                              // If parsing fails, try splitting by newlines
+                              value = value.split('\n').filter((s: string) => s.trim());
+                            }
+                          }
+                          
+                          // Return as array
+                          if (Array.isArray(value)) {
+                            return value.filter(item => item && item.trim && item.trim());
+                          }
+                          if (value) {
+                            return [String(value)];
+                          }
+                          return [];
+                        };
+                        
+                        // Extract courseType as string (take first if array)
+                        const getCourseType = (): string => {
+                          if (Array.isArray(fullCourse.courseType) && fullCourse.courseType.length > 0) {
+                            return fullCourse.courseType[0];
+                          }
+                          if (fullCourse.courseType) {
+                            return fullCourse.courseType;
+                          }
+                          if (Array.isArray((course as any).course_type) && (course as any).course_type.length > 0) {
+                            return (course as any).course_type[0];
+                          }
+                          if ((course as any).course_type) {
+                            return (course as any).course_type;
+                          }
+                          return 'IN_HOUSE';
+                        };
+                        
                         await generateCourseBrochure({
                           title: fullCourse.title || course.title,
-                          courseType: Array.isArray(fullCourse.courseType) 
-                            ? fullCourse.courseType 
-                            : (fullCourse.courseType 
-                              ? [fullCourse.courseType] 
-                              : (Array.isArray((course as any).course_type) 
-                                ? (course as any).course_type 
-                                : ((course as any).course_type ? [(course as any).course_type] : []))),
+                          courseType: getCourseType(),
                           startDate: fullCourse.startDate || course.start_date,
                           endDate: fullCourse.endDate || course.end_date,
                           venue: fullCourse.venue || course.venue,
                           description: fullCourse.description || course.description,
-                          learningObjectives: fullCourse.learningObjectives || [],
-                          targetAudience: fullCourse.targetAudience || null,
+                          learningObjectives: extractJsonField(fullCourse, 'learningObjectives', 'learning_objectives'),
+                          learningOutcomes: extractJsonField(fullCourse, 'learningOutcomes', 'learning_outcomes'),
+                          targetAudience: fullCourse.targetAudience || (course as any).target_audience || null,
                           methodology: fullCourse.methodology || null,
                           hrdcClaimable: fullCourse.hrdcClaimable || course.hrdc_claimable,
                           schedule: fullCourse.courseSchedule || [],
                         });
                         showToast('Brochure generated successfully', 'success');
                       } catch (error: any) {
+                        console.error('Error generating brochure:', error);
                         showToast(error.message || 'Error generating brochure', 'error');
                       }
                     }}
