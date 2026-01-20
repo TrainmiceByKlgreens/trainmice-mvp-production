@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Card, CardHeader } from '../components/ui/Card';
+import { Card } from '../components/ui/Card';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EngagementCard } from '../components/dashboard/EngagementCard';
 import { TrainingRequestCard } from '../components/dashboard/TrainingRequestCard';
@@ -15,13 +15,13 @@ import { Calendar, Inbox } from 'lucide-react';
 interface EventEngagement {
   id: string;
   eventDate: string;
-  course: {
+  course?: {
     id: string;
     title: string;
     courseCode: string | null;
   };
   venue: string | null;
-  _count: {
+  _count?: {
     registrations: number;
   };
   type: 'event';
@@ -53,7 +53,7 @@ export function Dashboard() {
       const response = await apiClient.get<{ bookingRequests: BookingWithCourse[] }>('/bookings');
       const all = response.bookingRequests || [];
 
-      const trainerBookings = all.filter((b) => b.trainer_id === user.id || b.trainerId === user.id);
+      const trainerBookings = all.filter((b) => b.trainer_id === user.id);
 
       const upcomingBookings = trainerBookings
         .filter((b) => (b.status || '').toLowerCase() === 'booked')
@@ -67,7 +67,7 @@ export function Dashboard() {
           return cb - ca;
         });
 
-      // Fetch events (booked events with future dates)
+      // Fetch events (booked events with future dates and ACTIVE status only)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -75,12 +75,14 @@ export function Dashboard() {
       const upcomingEvents: any[] = events
         .filter((e: any) => {
           const eventDate = e.eventDate ? new Date(e.eventDate) : null;
-          return eventDate && eventDate >= today;
+          const eventStatus = (e.status || 'ACTIVE').toUpperCase();
+          // Only include events that are ACTIVE and have future dates
+          return eventDate && eventDate >= today && eventStatus === 'ACTIVE';
         })
         .map((e: any) => ({
           id: e.id,
           eventDate: e.eventDate || e.event_date || e.startDate || e.start_date,
-          course: e.course || { id: e.courseId || e.course_id, title: e.title, courseCode: e.courseCode || e.course_code || null, description: e.description },
+          course: e.course ? { title: e.course.title } : (e.title ? { title: e.title } : undefined),
           venue: e.venue,
           price: e.price,
           durationHours: e.durationHours || e.duration_hours,
@@ -231,9 +233,9 @@ export function Dashboard() {
               engagements.map((engagement) => (
                 <EngagementCard
                   key={engagement.id}
-                  engagement={engagement}
-                  onViewDetails={setSelectedEngagement}
-                  onMessage={handleMessageAdmin}
+                  engagement={engagement as any}
+                  onViewDetails={(eng) => setSelectedEngagement(eng as CombinedEngagement)}
+                  onMessage={handleMessageAdmin as any}
                 />
               ))
             )}
@@ -282,7 +284,12 @@ export function Dashboard() {
 
       {messageEngagement && messageEngagement.type !== 'event' && (
         <MessageAdminModal
-          engagement={messageEngagement}
+          engagement={{
+            id: messageEngagement.id,
+            type: messageEngagement.type || 'booking',
+            courses: messageEngagement.courses ? { title: messageEngagement.courses.title } : undefined,
+            requested_date: messageEngagement.requested_date || undefined,
+          }}
           onClose={() => setMessageEngagement(null)}
           onSuccess={() => {
             // Optionally refresh data or show success message
@@ -290,12 +297,15 @@ export function Dashboard() {
         />
       )}
 
-      {eventChatEngagement && (
+      {eventChatEngagement && eventChatEngagement.course && (
         <EventChatModal
           event={{
             id: eventChatEngagement.id,
             eventDate: eventChatEngagement.eventDate,
-            course: eventChatEngagement.course,
+            course: {
+              id: eventChatEngagement.course.id || '',
+              title: eventChatEngagement.course.title,
+            },
             venue: eventChatEngagement.venue,
           }}
           onClose={() => setEventChatEngagement(null)}

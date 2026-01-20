@@ -18,7 +18,7 @@ const navItems = [
   { path: '/calendar', label: 'My Calendar', icon: Calendar },
   { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/courses', label: 'My Courses', icon: BookOpen },
-  { path: '/events', label: 'Event Overlook', icon: CalendarDays },
+  { path: '/events', label: 'Event Overview', icon: CalendarDays },
   { path: '/profile', label: 'Profile', icon: User }
 ];
 
