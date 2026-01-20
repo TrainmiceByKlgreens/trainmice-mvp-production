@@ -635,5 +635,127 @@ router.get('/:id/registrations', authenticate, async (req: AuthRequest, res: Res
   }
 });
 
+// Update event status (trainer can update their own events)
+router.put(
+  '/:id/status',
+  authenticate,
+  [
+    body('status')
+      .isIn(['ACTIVE', 'COMPLETED', 'CANCELLED'])
+      .withMessage('Invalid event status. Events can only be ACTIVE, COMPLETED, or CANCELLED'),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const event = await prisma.event.findUnique({
+        where: { id },
+        include: {
+          course: {
+            select: {
+              title: true,
+            },
+          },
+        },
+      });
+
+      if (!event) {
+        return res.status(404).json({ error: 'Event not found' });
+      }
+
+      // Trainers can only update their own events
+      if (req.user!.role === 'TRAINER' && event.trainerId !== req.user!.id) {
+        return res.status(403).json({ error: 'Not authorized to update this event' });
+      }
+
+      const updated = await prisma.event.update({
+        where: { id },
+        data: { status },
+        include: {
+          trainer: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          course: {
+            select: {
+              id: true,
+              title: true,
+              courseCode: true,
+            },
+          },
+          _count: {
+            select: {
+              registrations: true,
+            },
+          },
+        },
+      });
+
+      // If event status is changed to CANCELLED, update trainer availability to AVAILABLE
+      if (status === 'CANCELLED' && event.trainerId && event.eventDate) {
+        try {
+          const eventDate = new Date(event.eventDate);
+          eventDate.setHours(0, 0, 0, 0);
+
+          // Find trainer availability for this date
+          const availability = await prisma.trainerAvailability.findFirst({
+            where: {
+              trainerId: event.trainerId,
+              date: eventDate,
+              status: 'BOOKED',
+            },
+          });
+
+          if (availability) {
+            // Update availability to AVAILABLE
+            await prisma.trainerAvailability.update({
+              where: { id: availability.id },
+              data: { status: 'AVAILABLE' },
+            });
+
+            console.log(`Updated trainer availability to AVAILABLE for trainer ${event.trainerId} on ${eventDate.toISOString()}`);
+          } else {
+            // If no availability record exists, create one as AVAILABLE
+            await prisma.trainerAvailability.create({
+              data: {
+                trainerId: event.trainerId,
+                date: eventDate,
+                status: 'AVAILABLE',
+              },
+            });
+
+            console.log(`Created AVAILABLE availability for trainer ${event.trainerId} on ${eventDate.toISOString()}`);
+          }
+        } catch (availabilityError) {
+          // Log error but don't fail the request
+          console.error('Error updating trainer availability when cancelling event:', availabilityError);
+        }
+      }
+
+      await createActivityLog({
+        userId: req.user!.id,
+        actionType: 'UPDATE',
+        entityType: 'event',
+        entityId: event.id,
+        description: `Updated event status to ${status} for: ${event.title || event.course?.title || 'Event'}`,
+      });
+
+      return res.json({ event: updated, message: `Event status updated to ${status}` });
+    } catch (error: any) {
+      console.error('Update event status error:', error);
+      return res.status(500).json({ error: 'Failed to update event status', details: error.message });
+    }
+  }
+);
+
 export default router;
 

@@ -277,6 +277,47 @@ router.put(
         },
       });
 
+      // If event status is changed to CANCELLED, update trainer availability to AVAILABLE
+      if (status === 'CANCELLED' && event.trainerId && event.eventDate) {
+        try {
+          const eventDate = new Date(event.eventDate);
+          eventDate.setHours(0, 0, 0, 0);
+
+          // Find trainer availability for this date
+          const availability = await prisma.trainerAvailability.findFirst({
+            where: {
+              trainerId: event.trainerId,
+              date: eventDate,
+              status: 'BOOKED',
+            },
+          });
+
+          if (availability) {
+            // Update availability to AVAILABLE
+            await prisma.trainerAvailability.update({
+              where: { id: availability.id },
+              data: { status: 'AVAILABLE' },
+            });
+
+            console.log(`Updated trainer availability to AVAILABLE for trainer ${event.trainerId} on ${eventDate.toISOString()}`);
+          } else {
+            // If no availability record exists, create one as AVAILABLE
+            await prisma.trainerAvailability.create({
+              data: {
+                trainerId: event.trainerId,
+                date: eventDate,
+                status: 'AVAILABLE',
+              },
+            });
+
+            console.log(`Created AVAILABLE availability for trainer ${event.trainerId} on ${eventDate.toISOString()}`);
+          }
+        } catch (availabilityError) {
+          // Log error but don't fail the request
+          console.error('Error updating trainer availability when cancelling event:', availabilityError);
+        }
+      }
+
       await createActivityLog({
         userId: req.user!.id,
         actionType: 'UPDATE',
