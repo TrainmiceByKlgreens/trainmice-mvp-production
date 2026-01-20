@@ -234,6 +234,11 @@ export class ApiClient {
     return response.event;
   }
 
+  async updateEventStatus(eventId: string, status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED') {
+    const response = await this.put<{ event: any; message: string }>(`/events/${eventId}/status`, { status });
+    return response;
+  }
+
   async getCourse(id: string) {
     const response = await this.get<{ course: any }>(`/courses/${id}`);
     return response.course;
