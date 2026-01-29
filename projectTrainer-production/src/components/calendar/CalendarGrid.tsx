@@ -8,6 +8,9 @@ interface CalendarGridProps {
 }
 
 export function CalendarGrid({ days, onDayClick }: CalendarGridProps) {
+  // Get the first day of the month to determine the starting day of week
+  const firstDay = days.length > 0 ? days[0].date.getDay() : 0;
+  
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-7 gap-2">
@@ -22,6 +25,12 @@ export function CalendarGrid({ days, onDayClick }: CalendarGridProps) {
       </div>
 
       <div className="grid grid-cols-7 gap-2">
+        {/* Add empty cells for days before the first day of the month */}
+        {Array.from({ length: firstDay }).map((_, index) => (
+          <div key={`empty-${index}`} className="min-h-24" />
+        ))}
+        
+        {/* Render only current month days */}
         {days.map((day, index) => (
           <CalendarDayCell
             key={`${day.dateString}-${index}`}

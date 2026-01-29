@@ -35,23 +35,12 @@ export function getDaysInMonth(year: number, month: number): Date[] {
 }
 
 export function getCalendarGrid(year: number, month: number): Date[] {
-  const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const startDay = firstDay.getDay();
   const grid: Date[] = [];
 
-  for (let i = 0; i < startDay; i++) {
-    const prevDate = new Date(year, month, -i);
-    grid.unshift(prevDate);
-  }
-
+  // Only include dates from the current month
   for (let day = 1; day <= lastDay.getDate(); day++) {
     grid.push(new Date(year, month, day));
-  }
-
-  const remainingDays = 42 - grid.length;
-  for (let i = 1; i <= remainingDays; i++) {
-    grid.push(new Date(year, month + 1, i));
   }
 
   return grid;
