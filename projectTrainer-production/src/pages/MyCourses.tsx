@@ -55,10 +55,10 @@ const initialFormData: FormData = {
   learning_objectives: [''],
   learning_outcomes: [''],
   target_audience: '',
-  methodology: '',
-  prerequisite: '',
-  end_date: null
-};
+      methodology: '',
+      prerequisite: '',
+      end_date: null
+    };
 
 export function MyCourses() {
   const { user } = useAuth();

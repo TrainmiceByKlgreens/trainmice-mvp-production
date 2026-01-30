@@ -490,7 +490,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
           // Module title (now a string, not array)
           const moduleTitle =
             typeof item.moduleTitle === 'string'
-              ? item.moduleTitle
+            ? item.moduleTitle 
               : Array.isArray(item.moduleTitle)
                 ? (item.moduleTitle as any[]).join(', ')
                 : '';

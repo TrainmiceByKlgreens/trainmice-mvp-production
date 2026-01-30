@@ -203,6 +203,7 @@ export interface Event {
   _count?: {
     registrations: number;
   };
+  totalParticipants?: number;
   registrations?: Array<{
     id: string;
     status: string;

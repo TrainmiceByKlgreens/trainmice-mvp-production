@@ -586,14 +586,7 @@ export const BookingsPage: React.FC = () => {
                     </div>
                     
                     <div className="space-y-4">
-                      {Object.values(trainerGroup.events).map((eventGroup: any) => {
-                        // Calculate total participants from all registrations in this event
-                        const totalParticipants = eventGroup.registrations.reduce(
-                          (sum: number, reg: EventRegistration) => sum + (reg.numberOfParticipants || 1),
-                          0
-                        );
-
-                        return (
+                      {Object.values(trainerGroup.events).map((eventGroup: any) => (
                         <div key={eventGroup.eventId} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                           <div className="mb-3 pb-2 border-b border-gray-300">
                             <h4 className="font-semibold text-gray-800">{eventGroup.eventTitle}</h4>
@@ -606,9 +599,6 @@ export const BookingsPage: React.FC = () => {
                                 {formatDate(eventGroup.eventDate)}
                               </p>
                             )}
-                            <p className="text-sm text-gray-600 mt-1">
-                              {totalParticipants} participant{totalParticipants !== 1 ? 's' : ''}
-                            </p>
                           </div>
                           
                           <div className="space-y-2">
@@ -696,8 +686,7 @@ export const BookingsPage: React.FC = () => {
                             ))}
                           </div>
                         </div>
-                        );
-                      })}
+                      ))}
                     </div>
                   </div>
                 </Card>

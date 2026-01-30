@@ -140,7 +140,7 @@ export const EnhancedCoursesPage: React.FC = () => {
       if (selectedStatus === 'WITHOUT_TRAINER') {
         filtered = filtered.filter(course => !course.trainer_id);
       } else {
-        filtered = filtered.filter(course => course.status === selectedStatus);
+      filtered = filtered.filter(course => course.status === selectedStatus);
       }
     }
 

@@ -338,7 +338,7 @@ export const EventsPage: React.FC = () => {
                     <Users size={16} className="mr-2 text-teal-600" />
                     <span className="font-medium">Registrations:</span>
                     <span className="ml-2">
-                      {event._count?.registrations || 0}
+                      {event.totalParticipants || 0}
                       {event.maxPacks && ` / ${event.maxPacks}`}
                     </span>
                   </div>
