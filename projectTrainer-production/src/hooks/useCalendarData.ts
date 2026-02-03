@@ -170,8 +170,45 @@ export function useCalendarData(trainerId: string, startDate: Date, endDate: Dat
           return false;
         });
 
-      // Combine bookings and events
-      const allCalendarBookings = [...filteredBookings, ...eventBookings];
+      // Create a set of event identifiers (courseId + eventDate) for matching
+      // This helps us filter out confirmed bookings that have corresponding events
+      const eventIdentifiers = new Set<string>();
+      eventBookings.forEach((eventBooking) => {
+        if (eventBooking.course_id && eventBooking.requested_date) {
+          const courseId = eventBooking.course_id;
+          const eventDate = eventBooking.requested_date.split('T')[0]; // Ensure YYYY-MM-DD format
+          eventIdentifiers.add(`${courseId}:${eventDate}`);
+        }
+      });
+
+      // Filter out confirmed bookings that have a corresponding event
+      // This eliminates duplicates where both a booking request and event exist for the same course/date
+      const deduplicatedBookings = filteredBookings.filter((booking) => {
+        const bookingStatus = (booking.status || '').toLowerCase();
+        
+        // Only filter out confirmed bookings
+        if (bookingStatus !== 'confirmed') {
+          return true; // Keep all non-confirmed bookings
+        }
+        
+        // For confirmed bookings, check if there's a matching event
+        if (booking.course_id && booking.requested_date) {
+          const courseId = booking.course_id;
+          const bookingDate = booking.requested_date.split('T')[0]; // Ensure YYYY-MM-DD format
+          const identifier = `${courseId}:${bookingDate}`;
+          
+          // If there's a matching event, exclude this booking (event will be shown instead)
+          if (eventIdentifiers.has(identifier)) {
+            return false; // Exclude - event will be shown instead
+          }
+        }
+        
+        // Keep confirmed bookings that don't have a matching event (edge case)
+        return true;
+      });
+
+      // Combine deduplicated bookings and events
+      const allCalendarBookings = [...deduplicatedBookings, ...eventBookings];
 
       // Fetch availability from backend API
       const availabilityResponse = await apiClient.getTrainerAvailability(trainerId, {
