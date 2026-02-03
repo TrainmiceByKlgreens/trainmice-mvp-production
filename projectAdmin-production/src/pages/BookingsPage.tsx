@@ -299,11 +299,11 @@ export const BookingsPage: React.FC = () => {
       
       const availabilityArray = availabilityResponse?.availability || [];
       
-      // Filter only AVAILABLE dates (matching EventCreationForm.tsx)
+      // Filter AVAILABLE and TENTATIVE dates (admin can use tentative dates)
       const available = availabilityArray.filter(
         (avail: any) => {
           const status = avail.status?.toUpperCase();
-          return status === 'AVAILABLE';
+          return status === 'AVAILABLE' || status === 'TENTATIVE';
         }
       );
       

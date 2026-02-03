@@ -102,11 +102,11 @@ export const EventCreationForm: React.FC<EventCreationFormProps> = ({
         
         const availabilityArray = availabilityResponse?.availability || [];
         
-        // Filter only AVAILABLE dates
+        // Filter AVAILABLE and TENTATIVE dates (admin can use tentative dates)
         const available = availabilityArray.filter(
           (avail: any) => {
             const status = avail.status?.toUpperCase();
-            return status === 'AVAILABLE';
+            return status === 'AVAILABLE' || status === 'TENTATIVE';
           }
         );
         
