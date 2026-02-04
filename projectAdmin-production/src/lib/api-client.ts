@@ -762,10 +762,10 @@ export class ApiClient {
   }
 
   async getFeedbackAnalytics(params?: {
+    eventCode?: string;
+    courseCode?: string;
     trainerId?: string;
-    courseId?: string;
     courseDate?: string;
-    eventId?: string;
   }) {
     return this.get<{
       feedbacks: any[];

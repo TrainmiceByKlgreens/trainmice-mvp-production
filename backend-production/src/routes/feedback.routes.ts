@@ -260,18 +260,46 @@ router.get('/qr/:eventId', authenticate, authorize('ADMIN'), async (req: AuthReq
 // Get feedback analytics (admin only)
 router.get('/analytics', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
-    const { trainerId, courseId, courseDate, eventId } = req.query;
+    const { eventCode, courseCode, trainerId, courseDate } = req.query;
 
     const where: any = {};
+    
+    // Filter by Event Code
+    // Logic: eventCode → find event.id where event.eventCode = eventCode → filter by eventId
+    if (eventCode) {
+      const event = await prisma.event.findUnique({
+        where: { eventCode: eventCode as string },
+        select: { id: true }
+      });
+      if (event) {
+        where.eventId = event.id;
+      } else {
+        // If event code not found, return empty results
+        return res.json({ feedbacks: [], summary: { total: 0, averages: {} } });
+      }
+    }
+    
+    // Filter by Course Code
+    // Logic: courseCode → find course.id where course.courseCode = courseCode → filter by courseId
+    if (courseCode) {
+      const course = await prisma.course.findFirst({
+        where: { courseCode: courseCode as string },
+        select: { id: true }
+      });
+      if (course) {
+        where.courseId = course.id;
+      } else {
+        // If course code not found, return empty results
+        return res.json({ feedbacks: [], summary: { total: 0, averages: {} } });
+      }
+    }
+    
+    // Filter by Trainer ID (direct - already supported)
     if (trainerId) {
       where.trainerId = trainerId as string;
     }
-    if (courseId) {
-      where.courseId = courseId as string;
-    }
-    if (eventId) {
-      where.eventId = eventId as string;
-    }
+    
+    // Filter by Course Date (direct - already supported)
     if (courseDate) {
       where.courseDate = new Date(courseDate as string);
     }
@@ -284,6 +312,7 @@ router.get('/analytics', authenticate, authorize('ADMIN'), async (req: AuthReque
             id: true,
             title: true,
             eventDate: true,
+            eventCode: true,
           },
         },
         trainer: {
@@ -296,6 +325,7 @@ router.get('/analytics', authenticate, authorize('ADMIN'), async (req: AuthReque
           select: {
             id: true,
             title: true,
+            courseCode: true,
           },
         },
       },
