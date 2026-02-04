@@ -6,8 +6,9 @@ import { Select } from '../components/common/Select';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiClient } from '../lib/api-client';
 import { showToast } from '../components/common/Toast';
-import { Filter, X, TrendingUp, Users, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { TrendingUp, Users, Star, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { formatDate } from '../utils/helpers';
+import { Modal } from '../components/common/Modal';
 
 interface Feedback {
   id: string;
@@ -95,6 +96,23 @@ export const FeedbackAnalyticsPage: React.FC = () => {
     courseDate: '',
   });
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [activeMainTab, setActiveMainTab] = useState<'summary' | 'event-based'>('summary');
+  const [activeEventTab, setActiveEventTab] = useState<'summary' | 'individual'>('summary');
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [selectedEventForExport, setSelectedEventForExport] = useState<EventGroup | null>(null);
+  const [selectedSections, setSelectedSections] = useState<{
+    sectionA: boolean;
+    sectionB: boolean;
+    sectionC: boolean;
+    sectionD: boolean;
+    sectionE: boolean;
+  }>({
+    sectionA: true,
+    sectionB: true,
+    sectionC: true,
+    sectionD: true,
+    sectionE: true,
+  });
 
   useEffect(() => {
     fetchAllData();
@@ -221,6 +239,135 @@ export const FeedbackAnalyticsPage: React.FC = () => {
     });
   };
 
+  const escapeCSV = (value: any): string => {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const handleExport = (eventGroup: EventGroup, sections: typeof selectedSections) => {
+    const headers: string[] = [];
+    const rows: string[][] = [];
+
+    // Basic information headers
+    headers.push('Participant Name', 'Submission Date', 'Course Date', 'Trainer', 'Course', 'Event', 'Event Code');
+
+    // Section A headers
+    if (sections.sectionA) {
+      headers.push('Content Clarity', 'Objectives Achieved', 'Materials Helpful');
+    }
+
+    // Section B headers
+    if (sections.sectionB) {
+      headers.push('Learning Environment', 'Trainer Knowledge', 'Trainer Engagement', 'Knowledge Exposure');
+    }
+
+    // Section C headers
+    if (sections.sectionC) {
+      headers.push('Knowledge Application', 'Duration Suitable', 'Recommend Course');
+    }
+
+    // Section D headers
+    if (sections.sectionD) {
+      headers.push('Liked Most', 'Improvement Suggestion', 'Additional Comments');
+    }
+
+    // Section E headers
+    if (sections.sectionE) {
+      headers.push('Recommend Colleagues', 'Referral Details', 'Future Training Topics', 'In-House Training Needs', 'Team Building Interest');
+    }
+
+    // Generate rows
+    eventGroup.feedbacks.forEach((feedback) => {
+      const row: string[] = [];
+
+      // Basic information
+      row.push(
+        escapeCSV(feedback.participantName || 'Anonymous'),
+        escapeCSV(formatDate(feedback.createdAt.toString())),
+        escapeCSV(feedback.courseDate ? formatDate(feedback.courseDate.toString()) : ''),
+        escapeCSV(feedback.trainer?.fullName || ''),
+        escapeCSV(feedback.course?.title || ''),
+        escapeCSV(feedback.event?.title || ''),
+        escapeCSV(feedback.event?.eventCode || '')
+      );
+
+      // Section A
+      if (sections.sectionA) {
+        row.push(
+          escapeCSV(formatRating(feedback.contentClarity)),
+          escapeCSV(formatRating(feedback.objectivesAchieved)),
+          escapeCSV(formatRating(feedback.materialsHelpful))
+        );
+      }
+
+      // Section B
+      if (sections.sectionB) {
+        row.push(
+          escapeCSV(formatRating(feedback.learningEnvironment)),
+          escapeCSV(formatRating(feedback.trainerKnowledge)),
+          escapeCSV(formatRating(feedback.trainerEngagement)),
+          escapeCSV(formatRating(feedback.knowledgeExposure))
+        );
+      }
+
+      // Section C
+      if (sections.sectionC) {
+        row.push(
+          escapeCSV(formatRating(feedback.knowledgeApplication)),
+          escapeCSV(formatRating(feedback.durationSuitable)),
+          escapeCSV(formatRating(feedback.recommendCourse))
+        );
+      }
+
+      // Section D
+      if (sections.sectionD) {
+        row.push(
+          escapeCSV(feedback.likedMost || ''),
+          escapeCSV(feedback.improvementSuggestion || ''),
+          escapeCSV(feedback.additionalComments || '')
+        );
+      }
+
+      // Section E
+      if (sections.sectionE) {
+        row.push(
+          escapeCSV(feedback.recommendColleagues ? 'Yes' : 'No'),
+          escapeCSV(feedback.referralDetails || ''),
+          escapeCSV(feedback.futureTrainingTopics || ''),
+          escapeCSV(feedback.inhouseTrainingNeeds || ''),
+          escapeCSV(feedback.teamBuildingInterest || '')
+        );
+      }
+
+      rows.push(row);
+    });
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => row.join(',')),
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    const fileName = `Feedback_Export_${eventGroup.eventCode || eventGroup.eventId}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setExportModalOpen(false);
+    showToast('Feedback data exported successfully', 'success');
+  };
+
   const eventGroups = groupFeedbacksByEvent(filteredFeedbacks);
 
   if (loading && allFeedbacks.length === 0) {
@@ -242,9 +389,37 @@ export const FeedbackAnalyticsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Section 1: Summary of All Feedbacks */}
-      <div>
-        <h2 className="text-2xl font-semibold text-gray-800 mb-4">Summary of All Feedbacks</h2>
+      {/* Main Tabs */}
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveMainTab('summary')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeMainTab === 'summary'
+                ? 'border-teal-500 text-teal-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Summary of All Feedbacks
+          </button>
+          <button
+            onClick={() => setActiveMainTab('event-based')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeMainTab === 'event-based'
+                ? 'border-teal-500 text-teal-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Event-Based Feedbacks
+          </button>
+        </nav>
+      </div>
+
+      {/* Main Tab Content */}
+      {activeMainTab === 'summary' && (
+        <div>
+          {/* Section 1: Summary of All Feedbacks */}
+          <div>
         
         {/* Summary Cards */}
         {summary && (
@@ -386,20 +561,44 @@ export const FeedbackAnalyticsPage: React.FC = () => {
             </div>
           </Card>
         )}
-      </div>
-
-      {/* Section 2: Event-Based Feedbacks */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-semibold text-gray-800">Event-Based Feedbacks</h2>
+          </div>
         </div>
+      )}
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">Event-Based Feedback Filters</h3>
-            </div>
+      {activeMainTab === 'event-based' && (
+        <div>
+          {/* Sub-Tabs */}
+          <div className="border-b border-gray-200 mb-6">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveEventTab('summary')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeEventTab === 'summary'
+                    ? 'border-teal-500 text-teal-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Feedback Summary
+              </button>
+              <button
+                onClick={() => setActiveEventTab('individual')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeEventTab === 'individual'
+                    ? 'border-teal-500 text-teal-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Individual Responses
+              </button>
+            </nav>
+          </div>
+
+          {/* Filters (shared) */}
+          <Card className="mb-6">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Event-Based Feedback Filters</h3>
+              </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Event Code"
@@ -440,16 +639,19 @@ export const FeedbackAnalyticsPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* Event Groups */}
-        {eventGroups.length === 0 ? (
-          <Card>
-            <div className="p-6 text-center py-12 text-gray-500">
-              No event-based feedbacks found. Try adjusting your filters.
-            </div>
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            {eventGroups.map((group) => {
+          {/* Sub-Tab Content */}
+          {activeEventTab === 'summary' && (
+            <>
+              {/* Event Groups - Feedback Summary */}
+              {eventGroups.length === 0 ? (
+                <Card>
+                  <div className="p-6 text-center py-12 text-gray-500">
+                    No event-based feedbacks found. Try adjusting your filters.
+                  </div>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  {eventGroups.map((group) => {
               const sectionAAvg = {
                 contentClarity: calculateSectionAverage(group.feedbacks, 'contentClarity'),
                 objectivesAchieved: calculateSectionAverage(group.feedbacks, 'objectivesAchieved'),
@@ -503,14 +705,29 @@ export const FeedbackAnalyticsPage: React.FC = () => {
                   <div className="p-6">
                     {/* Event Header */}
                     <div className="mb-6 pb-4 border-b">
-                      <h3 className="text-xl font-semibold text-gray-800">
-                        {group.eventTitle}
-                      </h3>
-                      <div className="mt-2 text-sm text-gray-600 space-y-1">
-                        {group.eventCode && <p>Event Code: {group.eventCode}</p>}
-                        <p>Date: {formatDate(group.eventDate.toString())}</p>
-                        {group.trainer && <p>Trainer: {group.trainer.fullName}</p>}
-                        <p>Total Feedbacks: {group.feedbacks.length}</p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-xl font-semibold text-gray-800">
+                            {group.eventTitle}
+                          </h3>
+                          <div className="mt-2 text-sm text-gray-600 space-y-1">
+                            {group.eventCode && <p>Event Code: {group.eventCode}</p>}
+                            <p>Date: {formatDate(group.eventDate.toString())}</p>
+                            {group.trainer && <p>Trainer: {group.trainer.fullName}</p>}
+                            <p>Total Feedbacks: {group.feedbacks.length}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedEventForExport(group);
+                            setExportModalOpen(true);
+                          }}
+                        >
+                          <Download size={16} className="mr-2" />
+                          Export
+                        </Button>
                       </div>
                     </div>
 
@@ -710,6 +927,63 @@ export const FeedbackAnalyticsPage: React.FC = () => {
                       )}
                     </div>
 
+                    {/* Individual Responses Table - Only show message in summary sub-tab, full table in individual sub-tab */}
+                    {activeEventTab === 'summary' && (
+                      <div className="text-sm text-gray-600 italic">
+                        View individual responses in the "Individual Responses" tab
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+        </>
+      )}
+
+      {activeEventTab === 'individual' && (
+        <>
+          {/* Event Groups - Individual Responses */}
+          {eventGroups.length === 0 ? (
+            <Card>
+              <div className="p-6 text-center py-12 text-gray-500">
+                No event-based feedbacks found. Try adjusting your filters.
+              </div>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {eventGroups.map((group) => (
+                <Card key={group.eventId}>
+                  <div className="p-6">
+                    {/* Event Header */}
+                    <div className="mb-6 pb-4 border-b">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-xl font-semibold text-gray-800">
+                            {group.eventTitle}
+                          </h3>
+                          <div className="mt-2 text-sm text-gray-600 space-y-1">
+                            {group.eventCode && <p>Event Code: {group.eventCode}</p>}
+                            <p>Date: {formatDate(group.eventDate.toString())}</p>
+                            {group.trainer && <p>Trainer: {group.trainer.fullName}</p>}
+                            <p>Total Feedbacks: {group.feedbacks.length}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedEventForExport(group);
+                            setExportModalOpen(true);
+                          }}
+                        >
+                          <Download size={16} className="mr-2" />
+                          Export
+                        </Button>
+                      </div>
+                    </div>
+
                     {/* Individual Responses Table */}
                     <div>
                       <h4 className="text-lg font-semibold text-gray-700 mb-4">Individual Responses</h4>
@@ -883,11 +1157,127 @@ export const FeedbackAnalyticsPage: React.FC = () => {
                     </div>
                   </div>
                 </Card>
-              );
-            })}
+              ))}
+            </div>
+          )}
+        </>
+      )}
+        </div>
+      )}
+
+      {/* Export Modal */}
+      <Modal
+        isOpen={exportModalOpen}
+        onClose={() => {
+          setExportModalOpen(false);
+          setSelectedEventForExport(null);
+        }}
+        title="Export Feedback Data"
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Select which sections to include in the export for{' '}
+            <span className="font-semibold">{selectedEventForExport?.eventTitle}</span>
+          </p>
+          
+          <div className="space-y-3">
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedSections.sectionA}
+                onChange={(e) =>
+                  setSelectedSections({ ...selectedSections, sectionA: e.target.checked })
+                }
+                className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Section A — Course Quality
+              </span>
+            </label>
+            
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedSections.sectionB}
+                onChange={(e) =>
+                  setSelectedSections({ ...selectedSections, sectionB: e.target.checked })
+                }
+                className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Section B — Training Experience
+              </span>
+            </label>
+            
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedSections.sectionC}
+                onChange={(e) =>
+                  setSelectedSections({ ...selectedSections, sectionC: e.target.checked })
+                }
+                className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Section C — Duration & Impact
+              </span>
+            </label>
+            
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedSections.sectionD}
+                onChange={(e) =>
+                  setSelectedSections({ ...selectedSections, sectionD: e.target.checked })
+                }
+                className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Section D — Comments
+              </span>
+            </label>
+            
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedSections.sectionE}
+                onChange={(e) =>
+                  setSelectedSections({ ...selectedSections, sectionE: e.target.checked })
+                }
+                className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Section E — Referrals & Future Training
+              </span>
+            </label>
           </div>
-        )}
-      </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setExportModalOpen(false);
+                setSelectedEventForExport(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (selectedEventForExport) {
+                  handleExport(selectedEventForExport, selectedSections);
+                }
+              }}
+              disabled={!selectedSections.sectionA && !selectedSections.sectionB && !selectedSections.sectionC && !selectedSections.sectionD && !selectedSections.sectionE}
+            >
+              <Download size={18} className="mr-2" />
+              Export CSV
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
