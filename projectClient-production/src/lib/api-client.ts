@@ -425,6 +425,16 @@ export class ApiClient {
     };
   }
 
+  /**
+   * Get trainer blocked weekdays
+   */
+  async getTrainerBlockedDays(trainerId: string) {
+    const response = await this.get<{ blockedDays: number[] }>(
+      `/availability/trainer/${trainerId}/blocked-days`
+    );
+    return response;
+  }
+
   // ============================================================================
   // BOOKING METHODS
   // ============================================================================

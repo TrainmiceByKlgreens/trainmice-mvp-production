@@ -37,6 +37,7 @@ export function InHouseCalendarBookingModal({
   const [availability, setAvailability] = useState<TrainerAvailability[]>([]);
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [tentativeCounts, setTentativeCounts] = useState<Record<string, number>>({});
+  const [blockedWeekdays, setBlockedWeekdays] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
@@ -55,6 +56,7 @@ export function InHouseCalendarBookingModal({
   useEffect(() => {
     if (isOpen) {
       fetchAvailability();
+      fetchBlockedDays();
       fetchUserData();
     }
   }, [isOpen, currentMonth]);
@@ -122,6 +124,18 @@ export function InHouseCalendarBookingModal({
     }
   };
 
+  const fetchBlockedDays = async () => {
+    if (!trainer) return;
+    
+    try {
+      const response = await apiClient.getTrainerBlockedDays(trainer.id);
+      setBlockedWeekdays(response.blockedDays || []);
+    } catch (error) {
+      console.error('Error fetching blocked days:', error);
+      // Fail silently - blocked days check is optional
+    }
+  };
+
   const getDateAvailabilityMap = (): DateAvailabilityMap => {
     const map: DateAvailabilityMap = {};
     availability.forEach(avail => {
@@ -135,6 +149,11 @@ export function InHouseCalendarBookingModal({
       }
     });
     return map;
+  };
+
+  const isDateBlocked = (date: Date): boolean => {
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+    return blockedWeekdays.includes(dayOfWeek);
   };
 
   const handlePrevMonth = () => {
@@ -457,13 +476,16 @@ export function InHouseCalendarBookingModal({
                     const dateString = `${year}-${month}-${dayNum}`;
                     const dateAvail = dateAvailMap[dateString] || [];
                     const isCurrentMonth = isSameMonth(day, currentMonth);
+                    const isBlocked = isDateBlocked(day);
                     // Use simple full-day status based on normalized availability status
-                    const hasAvailable = dateAvail.some(
+                    const hasAvailable = !isBlocked && dateAvail.some(
                       (a) => a.status === 'available' || a.status === 'tentative'
                     );
                     const isBooked = dateAvail.every((a) => a.status === 'booked');
                     const status =
-                      dateAvail.length === 0
+                      isBlocked // Check blocked first (highest priority)
+                        ? 'unavailable'
+                        : dateAvail.length === 0
                         ? 'unavailable'
                         : isBooked
                         ? 'booked'
@@ -482,7 +504,7 @@ export function InHouseCalendarBookingModal({
                       ? 'bg-gray-200'
                       : 'bg-gray-300';
 
-                    const canClick = isCurrentMonth && (status === 'available' || status === 'tentative');
+                    const canClick = isCurrentMonth && !isBlocked && (status === 'available' || status === 'tentative');
 
                     return (
                       <button
