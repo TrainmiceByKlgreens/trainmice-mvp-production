@@ -3,6 +3,7 @@ import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
+import { admin } from '../config/firebaseAdmin';
 
 const router = express.Router();
 
@@ -222,6 +223,35 @@ router.post(
           isRead: false, // Trainer needs to read it
         },
       });
+
+      console.log('✅ Message saved to database:', newMessage.id);
+
+      // Trigger Firebase Cloud Messaging if receiver has fcmToken
+      try {
+        const receiver = await prisma.user.findUnique({
+          where: { id: trainerId },
+          select: { fcmToken: true }
+        });
+
+        if (receiver?.fcmToken) {
+          await admin.messaging().send({
+            token: receiver.fcmToken,
+            data: {
+              type: 'MESSAGE',
+              title: 'You have a new message',
+              body: message.trim()
+            },
+            notification: {
+              title: 'You have a new message',
+              body: message.trim()
+            }
+          });
+          console.log('✅ FCM push notification sent to trainer:', trainerId);
+        }
+      } catch (fcmError) {
+        console.error('❌ FCM push notification failed:', fcmError);
+        // Do not break the message creation flow if FCM fails
+      }
 
       await createActivityLog({
         userId: adminId,
