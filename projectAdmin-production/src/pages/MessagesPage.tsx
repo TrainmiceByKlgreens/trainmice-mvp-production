@@ -8,9 +8,43 @@ import { Textarea } from '../components/common/Textarea';
 import { Select } from '../components/common/Select';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiClient } from '../lib/api-client';
-import { MessageSquare, Mail, Send, CheckCircle, XCircle } from 'lucide-react';
+import { MessageSquare, Mail, Send, CheckCircle, XCircle, Search } from 'lucide-react';
 import { showToast } from '../components/common/Toast';
 import { formatDate } from '../utils/helpers';
+
+// Helper function for WhatsApp-style time formatting
+const formatMessageTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const diffTime = today.getTime() - messageDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    // Today - show time only
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } else if (diffDays === 1) {
+    // Yesterday
+    return 'Yesterday';
+  } else if (diffDays < 7) {
+    // This week - show day name
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  } else {
+    // Older - show date
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+};
 
 interface ContactSubmission {
   id: string;
@@ -139,6 +173,10 @@ export const MessagesPage: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'INFO' | 'WARNING' | 'SUCCESS' | 'ERROR' | 'unread' | 'read'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedTrainerId, setSelectedTrainerId] = useState<string | null>(null);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const [contactSearchTerm, setContactSearchTerm] = useState('');
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   const [sendForm, setSendForm] = useState({
     title: '',
@@ -283,6 +321,124 @@ export const MessagesPage: React.FC = () => {
     }
     return true;
   });
+
+  // Helper to check if contact is a MessageThread
+  const isMessageThread = (contact: MessageThread | TrainerMessage): contact is MessageThread => {
+    return 'unreadCount' in contact;
+  };
+
+  // Get all contacts (combine threads and legacy messages)
+  const allContacts = React.useMemo(() => {
+    const contactsMap = new Map<string, MessageThread | TrainerMessage>();
+
+    // Add threads
+    messageThreads.forEach((thread) => {
+      contactsMap.set(thread.trainerId, thread);
+    });
+
+    // Add legacy messages (only if not already in threads)
+    trainerMessages.forEach((msg) => {
+      if (!contactsMap.has(msg.trainerId)) {
+        contactsMap.set(msg.trainerId, msg);
+      }
+    });
+
+    return Array.from(contactsMap.values());
+  }, [messageThreads, trainerMessages]);
+
+  // Filter contacts by search term
+  const filteredContacts = allContacts.filter((contact) => {
+    if (contactSearchTerm) {
+      const trainer = contact.trainer;
+      const lastMessage = isMessageThread(contact) ? contact.lastMessage : contact.lastMessage;
+      return (
+        trainer.fullName.toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
+        trainer.email.toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
+        (lastMessage && lastMessage.toLowerCase().includes(contactSearchTerm.toLowerCase()))
+      );
+    }
+    return true;
+  });
+
+  // Sort contacts by last message time (most recent first)
+  const sortedContacts = [...filteredContacts].sort((a, b) => {
+    const timeA = isMessageThread(a) ? a.lastMessageTime : a.lastMessageTime;
+    const timeB = isMessageThread(b) ? b.lastMessageTime : b.lastMessageTime;
+    if (!timeA && !timeB) return 0;
+    if (!timeA) return 1;
+    if (!timeB) return -1;
+    return new Date(timeB).getTime() - new Date(timeA).getTime();
+  });
+
+  // Handle contact selection
+  const handleContactSelect = async (trainerId: string) => {
+    setSelectedTrainerId(trainerId);
+    setIsLoadingConversation(true);
+    try {
+      const response = await apiClient.getTrainerThread(trainerId);
+      const thread = response.thread || {
+        id: '',
+        trainerId,
+        lastMessage: null,
+        lastMessageTime: null,
+        lastMessageBy: null,
+        unreadCount: 0,
+        trainer: response.trainer || allContacts.find(c => c.trainer.id === trainerId)?.trainer || { id: trainerId, fullName: 'Trainer', email: '' },
+      };
+      setSelectedThread(thread);
+      setThreadMessages(response.messages || []);
+      fetchData(); // Refresh to update unread counts
+    } catch (error: any) {
+      showToast(error.message || 'Error loading conversation', 'error');
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  };
+
+  // Get initials for avatar
+  const getInitials = (name: string): string => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Handle sending reply
+  const handleSendReply = async () => {
+    if (!replyMessage.trim() || !selectedThread) return;
+
+    try {
+      setReplying(true);
+      await apiClient.replyToTrainer(selectedThread.trainerId, replyMessage.trim());
+      showToast('Reply sent successfully', 'success');
+      setReplyMessage('');
+
+      // Refresh thread messages
+      const response = await apiClient.getTrainerThread(selectedThread.trainerId);
+      setThreadMessages(response.messages || []);
+      fetchData();
+      
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (error: any) {
+      showToast(error.message || 'Error sending reply', 'error');
+    } finally {
+      setReplying(false);
+    }
+  };
+
+  // Auto-scroll to bottom when messages change
+  React.useEffect(() => {
+    if (threadMessages.length > 0) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [threadMessages.length]);
 
   const getTypeBadgeVariant = (type: string) => {
     switch (type) {
@@ -547,197 +703,320 @@ export const MessagesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Trainer Messages Tab */}
+      {/* Trainer Messages Tab - WhatsApp Style */}
       {activeTab === 'trainer-messages' && (
-        <div className="space-y-4">
-          {loading ? (
-            <div className="flex items-center justify-center h-96">
-              <LoadingSpinner size="lg" />
-            </div>
-          ) : messageThreads.length === 0 && trainerMessages.length === 0 ? (
-            <Card>
-              <div className="text-center py-12">
-                <MessageSquare className="mx-auto text-gray-400 mb-4" size={48} />
-                <p className="text-gray-600">No messages from trainers</p>
+        <div className="flex h-[calc(100vh-300px)] border border-gray-200 rounded-lg overflow-hidden bg-white">
+          {/* Left Sidebar - Contact List */}
+          <div className="w-full md:w-1/3 border-r border-gray-200 flex flex-col bg-gray-50">
+            {/* Search Bar */}
+            <div className="p-4 border-b border-gray-200 bg-white">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Search contacts..."
+                  value={contactSearchTerm}
+                  onChange={(e) => setContactSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                />
               </div>
-            </Card>
-          ) : (
-            <>
-              {/* New Thread-based Messages */}
-              {messageThreads
-                .filter((thread) => {
-                  if (searchTerm) {
-                    return (
-                      thread.trainer.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      thread.trainer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      (thread.lastMessage && thread.lastMessage.toLowerCase().includes(searchTerm.toLowerCase()))
-                    );
-                  }
-                  return true;
-                })
-                .map((thread) => (
-                  <Card key={thread.id} className={`hover:shadow-md transition-shadow ${
-                    thread.unreadCount > 0 ? 'border-l-4 border-l-blue-500 bg-blue-50' : ''
-                  }`}>
-                    <div className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="text-lg font-semibold text-gray-800">{thread.trainer.fullName}</h3>
-                            <Badge variant="info">{thread.trainer.email}</Badge>
-                            {thread.unreadCount > 0 && (
-                              <Badge className="bg-blue-600 text-white">
-                                {thread.unreadCount} new
-                              </Badge>
-                            )}
-                          </div>
-                          {thread.lastMessage && (
-                            <p className="text-gray-700 mb-3 whitespace-pre-wrap line-clamp-2">
-                              {thread.lastMessage}
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-500">
-                            {thread.lastMessageTime && `Last: ${formatDate(thread.lastMessageTime)}`}
-                            {thread.lastMessageBy && ` • ${thread.lastMessageBy === 'TRAINER' ? 'From trainer' : 'From admin'}`}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                const response = await apiClient.getTrainerThread(thread.trainerId);
-                                setSelectedThread(response.thread || { ...thread, trainer: response.trainer });
-                                setThreadMessages(response.messages || []);
-                                setShowThreadModal(true);
-                                fetchData();
-                              } catch (error: any) {
-                                showToast(error.message || 'Error loading conversation', 'error');
-                              }
-                            }}
-                          >
-                            <MessageSquare size={16} className="mr-1" />
-                            Reply
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
+            </div>
 
-              {/* Legacy Messages (for backward compatibility) */}
-              {trainerMessages
-                .filter((msg) => {
-                  if (searchTerm) {
-                    return (
-                      msg.trainer.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      msg.trainer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      msg.lastMessage.toLowerCase().includes(searchTerm.toLowerCase())
-                    );
+            {/* Contacts List */}
+            <div className="flex-1 overflow-y-auto">
+              {loading ? (
+                <div className="flex items-center justify-center h-96">
+                  <LoadingSpinner size="lg" />
+                </div>
+              ) : sortedContacts.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <MessageSquare className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-600">No messages from trainers</p>
+                </div>
+              ) : (
+                sortedContacts.map((contact) => {
+                  const trainer = contact.trainer;
+                  let lastMessage: string | null;
+                  let lastMessageTime: string | null;
+                  let unreadCount: number;
+                  
+                  if (isMessageThread(contact)) {
+                    lastMessage = contact.lastMessage;
+                    lastMessageTime = contact.lastMessageTime;
+                    unreadCount = contact.unreadCount;
+                  } else {
+                    lastMessage = contact.lastMessage;
+                    lastMessageTime = contact.lastMessageTime;
+                    unreadCount = !contact.isRead ? 1 : 0;
                   }
-                  return true;
-                })
-                .map((msg) => (
-                  <Card key={msg.id} className={`hover:shadow-md transition-shadow ${
-                    !msg.isRead ? 'border-l-4 border-l-blue-500 bg-blue-50' : ''
-                  }`}>
-                    <div className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="text-lg font-semibold text-gray-800">{msg.trainer.fullName}</h3>
-                            <Badge variant="info">{msg.trainer.email}</Badge>
-                            {!msg.isRead && <Badge className="bg-blue-600 text-white">New</Badge>}
-                          </div>
-                          <p className="text-gray-700 mb-3 whitespace-pre-wrap">{msg.lastMessage}</p>
-                          <p className="text-xs text-gray-500">
-                            Sent: {formatDate(msg.lastMessageTime)}
-                          </p>
+                  
+                  const isSelected = selectedTrainerId === trainer.id;
+                  const hasUnread = unreadCount > 0;
+
+                  return (
+                    <div
+                      key={trainer.id}
+                      onClick={() => handleContactSelect(trainer.id)}
+                      className={`flex items-center p-4 cursor-pointer border-b border-gray-100 hover:bg-gray-100 transition-colors ${
+                        isSelected ? 'bg-teal-50 border-l-4 border-l-teal-500' : ''
+                      } ${hasUnread ? 'bg-blue-50' : ''}`}
+                    >
+                      {/* Avatar */}
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm mr-3">
+                        {getInitials(trainer.fullName)}
+                      </div>
+
+                      {/* Contact Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="text-sm font-semibold text-gray-900 truncate">
+                            {trainer.fullName}
+                          </h3>
+                          {lastMessageTime && (
+                            <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
+                              {formatMessageTime(lastMessageTime)}
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                // Get or create thread for this trainer
-                                const response = await apiClient.getTrainerThread(msg.trainerId);
-                                setSelectedThread(response.thread || { 
-                                  id: '',
-                                  trainerId: msg.trainerId,
-                                  lastMessage: null,
-                                  lastMessageTime: null,
-                                  lastMessageBy: null,
-                                  unreadCount: 0,
-                                  trainer: response.trainer || msg.trainer
-                                });
-                                setThreadMessages(response.messages || []);
-                                setShowThreadModal(true);
-                                fetchData();
-                              } catch (error: any) {
-                                showToast(error.message || 'Error loading conversation', 'error');
-                              }
-                            }}
-                          >
-                            <MessageSquare size={16} className="mr-1" />
-                            Reply
-                          </Button>
-                          {!msg.isRead && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={async () => {
-                                try {
-                                  await apiClient.markMessageAsRead(msg.id);
-                                  showToast('Message marked as read', 'success');
-                                  fetchData();
-                                } catch (error: any) {
-                                  showToast(error.message || 'Error marking message as read', 'error');
-                                }
-                              }}
-                            >
-                              <CheckCircle size={16} className="mr-1" />
-                              Mark as Read
-                            </Button>
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-gray-600 truncate flex-1">
+                            {lastMessage || 'No messages yet'}
+                          </p>
+                          {hasUnread && (
+                            <span className="ml-2 flex-shrink-0 bg-teal-600 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+                              {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
                           )}
                         </div>
                       </div>
                     </div>
-                  </Card>
-                ))}
-            </>
-          )}
+                  );
+                })
+              )}
+            </div>
+          </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <Card>
-              <div className="p-4 flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Page {currentPage} of {totalPages}
-                </p>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
-                  >
-                    Next
-                  </button>
+          {/* Right Panel - Conversation View */}
+          <div className="hidden md:flex flex-col flex-1 bg-gray-100">
+            {!selectedTrainerId ? (
+              <div className="flex-1 flex items-center justify-center bg-gray-50">
+                <div className="text-center">
+                  <MessageSquare className="mx-auto text-gray-400 mb-4" size={64} />
+                  <p className="text-gray-600 text-lg">Select a contact to start conversation</p>
                 </div>
               </div>
-            </Card>
+            ) : isLoadingConversation ? (
+              <div className="flex-1 flex items-center justify-center">
+                <LoadingSpinner size="lg" />
+              </div>
+            ) : selectedThread ? (
+              <>
+                {/* Conversation Header */}
+                <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm mr-3">
+                      {getInitials(selectedThread.trainer?.fullName || 'T')}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {selectedThread.trainer?.fullName || 'Trainer'}
+                      </h3>
+                      <p className="text-sm text-gray-500">{selectedThread.trainer?.email}</p>
+                    </div>
+                  </div>
+                  {selectedThread.unreadCount > 0 && (
+                    <Badge className="bg-teal-600 text-white">
+                      {selectedThread.unreadCount} unread
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                  {threadMessages.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                      <p>No messages yet. Start the conversation!</p>
+                    </div>
+                  ) : (
+                    <>
+                      {threadMessages.map((msg) => {
+                        const isAdmin = msg.senderType === 'ADMIN';
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div
+                              className={`max-w-[70%] rounded-2xl px-4 py-2 shadow-sm ${
+                                isAdmin
+                                  ? 'bg-teal-600 text-white rounded-tr-sm'
+                                  : 'bg-white text-gray-900 rounded-tl-sm border border-gray-200'
+                              }`}
+                            >
+                              <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.message}</p>
+                              <p
+                                className={`text-xs mt-1 ${
+                                  isAdmin ? 'text-teal-100' : 'text-gray-500'
+                                }`}
+                              >
+                                {formatMessageTime(msg.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </>
+                  )}
+                </div>
+
+                {/* Input Area */}
+                <div className="bg-white border-t border-gray-200 p-4">
+                  <div className="flex items-end space-x-3">
+                    <div className="flex-1">
+                      <textarea
+                        value={replyMessage}
+                        onChange={(e) => {
+                          setReplyMessage(e.target.value);
+                          // Auto-resize textarea
+                          e.target.style.height = 'auto';
+                          e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (replyMessage.trim() && !replying) {
+                              handleSendReply();
+                            }
+                          }
+                        }}
+                        placeholder="Type a message..."
+                        rows={1}
+                        disabled={replying}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                        style={{ minHeight: '44px', maxHeight: '120px', overflowY: 'auto' }}
+                      />
+                    </div>
+                    <Button
+                      variant="primary"
+                      onClick={handleSendReply}
+                      disabled={!replyMessage.trim() || replying}
+                      className="px-6 py-2 rounded-lg"
+                    >
+                      <Send size={18} className="mr-1" />
+                      {replying ? 'Sending...' : 'Send'}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          {/* Mobile View - Show modal when contact selected */}
+          {selectedTrainerId && (
+            <div className="md:hidden fixed inset-0 z-50 bg-white flex flex-col">
+              {/* Mobile Header */}
+              <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center">
+                  <button
+                    onClick={() => {
+                      setSelectedTrainerId(null);
+                      setSelectedThread(null);
+                      setThreadMessages([]);
+                      setReplyMessage('');
+                    }}
+                    className="mr-3 text-gray-600"
+                  >
+                    ← Back
+                  </button>
+                  <div className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-xs mr-2">
+                    {selectedThread?.trainer && getInitials(selectedThread.trainer.fullName)}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {selectedThread?.trainer?.fullName || 'Trainer'}
+                    </h3>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+                {isLoadingConversation ? (
+                  <div className="flex items-center justify-center h-full">
+                    <LoadingSpinner size="lg" />
+                  </div>
+                ) : threadMessages.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                    <p>No messages yet. Start the conversation!</p>
+                  </div>
+                ) : (
+                  <>
+                    {threadMessages.map((msg) => {
+                      const isAdmin = msg.senderType === 'ADMIN';
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[80%] rounded-2xl px-4 py-2 shadow-sm ${
+                              isAdmin
+                                ? 'bg-teal-600 text-white rounded-tr-sm'
+                                : 'bg-white text-gray-900 rounded-tl-sm border border-gray-200'
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.message}</p>
+                            <p
+                              className={`text-xs mt-1 ${
+                                isAdmin ? 'text-teal-100' : 'text-gray-500'
+                              }`}
+                            >
+                              {formatMessageTime(msg.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={messagesEndRef} />
+                  </>
+                )}
+              </div>
+
+              {/* Mobile Input */}
+              <div className="bg-white border-t border-gray-200 p-3">
+                <div className="flex items-end space-x-2">
+                  <textarea
+                    value={replyMessage}
+                    onChange={(e) => {
+                      setReplyMessage(e.target.value);
+                      // Auto-resize textarea
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`;
+                    }}
+                    placeholder="Type a message..."
+                    rows={1}
+                    disabled={replying}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                    style={{ minHeight: '40px', maxHeight: '100px', overflowY: 'auto' }}
+                  />
+                  <Button
+                    variant="primary"
+                    onClick={handleSendReply}
+                    disabled={!replyMessage.trim() || replying}
+                    size="sm"
+                  >
+                    <Send size={16} />
+                  </Button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}
+
 
       {/* Event Enquiries Tab */}
       {activeTab === 'event-enquiries' && (
