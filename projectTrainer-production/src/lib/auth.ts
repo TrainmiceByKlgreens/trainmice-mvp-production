@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './api-client';
+import { requestForToken } from './firebase';
 
 export interface User {
   id: string;
@@ -26,6 +27,21 @@ class AuthService {
 
   private notifyListeners() {
     this.listeners.forEach((callback) => callback(this.currentUser));
+  }
+
+  /**
+   * Register FCM token with backend
+   */
+  private async registerFcmToken() {
+    try {
+      const token = await requestForToken();
+      if (token) {
+        await apiClient.updateFcmToken(token);
+        console.log('✅ FCM token registered with backend');
+      }
+    } catch (error) {
+      console.error('Failed to register FCM token:', error);
+    }
   }
 
   async getSession(): Promise<{ user: User | null; session: { access_token: string } | null }> {
@@ -67,6 +83,11 @@ class AuthService {
       this.currentUser = response.user;
       this.notifyListeners();
 
+      // Automatically register FCM token after signup
+      if (typeof window !== 'undefined') {
+        this.registerFcmToken();
+      }
+
       return {
         data: {
           user: response.user,
@@ -96,6 +117,11 @@ class AuthService {
 
       this.currentUser = response.user;
       this.notifyListeners();
+
+      // Automatically register FCM token after sign-in
+      if (typeof window !== 'undefined') {
+        this.registerFcmToken();
+      }
 
       return {
         data: {
@@ -135,6 +161,11 @@ class AuthService {
     if (user) {
       this.currentUser = user;
       this.notifyListeners();
+
+      // Register FCM token if user is already logged in
+      if (typeof window !== 'undefined') {
+        this.registerFcmToken();
+      }
     }
   }
 }
