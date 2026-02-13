@@ -6,7 +6,7 @@
 // Get API URL from environment variable
 // In production, VITE_API_URL must be set
 // In development, falls back to localhost
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD 
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
   ? window.location.origin + '/api'  // Fallback to same origin in production
   : 'http://localhost:3000/api');    // Development fallback
 
@@ -54,7 +54,7 @@ export class ApiClient {
       if (contentType && contentType.includes('application/json')) {
         return await response.json();
       }
-      
+
       return {} as T;
     } catch (error: any) {
       if (error.message.includes('401') || error.message.includes('Unauthorized')) {
@@ -74,7 +74,7 @@ export class ApiClient {
         }
       });
     }
-    
+
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
@@ -436,6 +436,10 @@ export class ApiClient {
 
   async markNotificationAsRead(notificationId: string) {
     return this.put<{ notification: any }>(`/notifications/${notificationId}/read`);
+  }
+
+  async updateFcmToken(token: string) {
+    return this.put<{ success: boolean; message: string }>('/notifications/fcm-token', { token });
   }
 
   // ============================================================================
