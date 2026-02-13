@@ -223,5 +223,38 @@ router.post('/admin/send-notification', async (req: AuthRequest, res: Response) 
   }
 });
 
+// Update FCM token for authenticated user
+router.put('/fcm-token', async (req: AuthRequest, res: Response) => {
+  try {
+    const { token } = req.body;
+    const userId = req.user!.id;
+
+    if (!token) {
+      return res.status(400).json({
+        error: 'Missing required field',
+        details: 'FCM token is required'
+      });
+    }
+
+    // Update user's FCM token in database
+    await prisma.user.update({
+      where: { id: userId },
+      data: { fcmToken: token }
+    });
+
+    console.log(`✅ FCM token updated for user ${userId}`);
+    return res.json({
+      success: true,
+      message: 'FCM token updated successfully'
+    });
+  } catch (error: any) {
+    console.error('Update FCM token error:', error);
+    return res.status(500).json({
+      error: 'Failed to update FCM token',
+      details: error.message
+    });
+  }
+});
+
 export default router;
 
