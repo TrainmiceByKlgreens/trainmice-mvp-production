@@ -141,6 +141,12 @@ router.get('/trainer-messages/:trainerId/thread', async (req: AuthRequest, res: 
       },
     });
 
+    // Also mark legacy trainer message as read
+    await prisma.trainerMessage.updateMany({
+      where: { trainerId: thread.trainerId },
+      data: { isRead: true },
+    });
+
     // Update thread unread count
     thread = await prisma.messageThread.update({
       where: { id: thread.id },

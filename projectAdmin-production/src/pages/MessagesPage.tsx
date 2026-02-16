@@ -527,12 +527,6 @@ export const MessagesPage: React.FC = () => {
           unreadCount: !msg.isRead ? 1 : 0,
           hasMessages: true,
         });
-      } else if (!msg.isRead && existing.unreadCount === 0) {
-        // If legacy message says unread but thread says 0, trust legacy
-        contactsMap.set(msg.trainerId, {
-          ...existing,
-          unreadCount: 1,
-        });
       }
     });
 
