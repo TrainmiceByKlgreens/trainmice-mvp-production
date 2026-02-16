@@ -279,17 +279,35 @@ export const MessagesPage: React.FC = () => {
     const isMessagingTab = activeTab === 'trainer-messages' || activeTab === 'event-enquiries' || activeTab === 'contact' || activeTab === 'notifications';
     if (!isMessagingTab) return;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       // Don't refresh if we are already loading or if user is interaction-heavy
       if (!isLoadingConversation && !loading) {
-        fetchData(true);
 
         // Also refresh selected thread if one is open to keep messages up to date
         if (selectedTrainerId && activeTab === 'trainer-messages') {
-          apiClient.getTrainerThread(selectedTrainerId).then(response => {
+          try {
+            const response = await apiClient.getTrainerThread(selectedTrainerId);
             setThreadMessages(response.messages || []);
-          }).catch(console.error);
+
+            // If new unread messages arrived while viewing, mark them as read
+            const unreadMessages = (response.messages || []).filter((m: any) => !m.isRead && m.senderType === 'TRAINER');
+            if (unreadMessages.length > 0) {
+              await Promise.all(unreadMessages.map((m: any) => apiClient.markTrainerMessageAsRead(m.id)));
+              // Force local update to show 0 unread
+              if (response.thread) {
+                response.thread.unreadCount = 0;
+              }
+            }
+
+            if (response.thread) {
+              setSelectedThread(prev => prev ? { ...prev, ...response.thread, unreadCount: 0 } : response.thread);
+            }
+          } catch (error) {
+            console.error('Error polling thread:', error);
+          }
         }
+
+        fetchData(true);
       }
     }, 30000); // Poll every 30 seconds
 
@@ -567,16 +585,33 @@ export const MessagesPage: React.FC = () => {
         unreadCount: 0,
         trainer: response.trainer || foundContact?.trainer || { id: trainerId, fullName: 'Trainer', email: '' },
       };
+
+      // Force unread count to 0 in local state immediately
+      thread.unreadCount = 0;
       setSelectedThread(thread);
       setThreadMessages(response.messages || []);
 
-      // Mark unread messages as read
+      // Optimistically update sidebar unread count
+      if (activeTab === 'trainer-messages') {
+        setMessageThreads(prev => prev.map(t =>
+          t.trainerId === trainerId ? { ...t, unreadCount: 0 } : t
+        ));
+        // Also update legacy messages if they exist
+        setTrainerMessages(prev => prev.map(m =>
+          m.trainerId === trainerId ? { ...m, isRead: true } : m
+        ));
+      }
+
+      // Mark unread messages as read in background
       const unreadMessages = (response.messages || []).filter((m: any) => !m.isRead && m.senderType === 'TRAINER');
       if (unreadMessages.length > 0) {
         await Promise.all(unreadMessages.map((m: any) => apiClient.markTrainerMessageAsRead(m.id)));
       }
 
-      fetchData(); // Refresh to update unread counts
+      // Don't fetch immediately to avoid race condition, let the background poller handle it or next action
+      // But verify in background
+      fetchData(true);
+
     } catch (error: any) {
       showToast(error.message || 'Error loading conversation', 'error');
     } finally {
