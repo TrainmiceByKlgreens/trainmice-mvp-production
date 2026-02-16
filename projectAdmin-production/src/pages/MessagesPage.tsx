@@ -315,7 +315,7 @@ export const MessagesPage: React.FC = () => {
     try {
       if (!isBackground) setLoading(true);
 
-      // Always fetch all trainers to ensure they are available for notifications/contact list
+      // Always fetch all trainers
       try {
         const trainersResponse = await apiClient.getTrainers();
         const trainersList = (trainersResponse.trainers || []).map((t: any) => ({
@@ -343,27 +343,41 @@ export const MessagesPage: React.FC = () => {
         setTotalPages(response.totalPages || 1);
       } else if (activeTab === 'trainer-messages') {
         const params: any = { page: currentPage };
+
+        // CRITICAL: Only pass isRead filter when NOT viewing 'all'
         if (filterType === 'unread') {
           params.isRead = false;
         } else if (filterType === 'read') {
           params.isRead = true;
         }
+        // When filterType === 'all', don't pass isRead param at all
+
         const response = await apiClient.getTrainerMessages(params);
 
-        // Preserve unread count for currently selected thread to avoid race condition
+        // CRITICAL: Always update the global unread status map FIRST
+        const newUnreadStatusMap = response.unreadStatus || {};
+        setUnreadStatusMap(newUnreadStatusMap);
+
+        // CRITICAL: Use the backend's calculated total unread count
+        setTrainerMessagesUnreadCount(response.unreadCount || 0);
+
+        // Process threads with proper unread counts from global map
         const updatedThreads = (response.threads || []).map((t: any) => {
+          // If currently selected, keep as 0 (we're viewing it)
           if (selectedTrainerId && t.trainerId === selectedTrainerId) {
-            // Keep unreadCount as 0 for the currently open thread
             return { ...t, unreadCount: 0 };
           }
-          return t;
+          // Otherwise, use global status map as source of truth
+          return {
+            ...t,
+            unreadCount: newUnreadStatusMap[t.trainerId] || t.unreadCount || 0
+          };
         });
 
         setMessageThreads(updatedThreads);
-        setTrainerMessages(response.legacyMessages || []); // For backward compatibility
-        setTrainerMessagesUnreadCount(response.unreadCount || 0);
-        setUnreadStatusMap(response.unreadStatus || {});
+        setTrainerMessages(response.legacyMessages || []);
         setTotalPages(response.totalPages || 1);
+
       } else if (activeTab === 'event-enquiries') {
         const params: any = { page: currentPage };
         if (filterType === 'unread') {
@@ -1080,9 +1094,7 @@ export const MessagesPage: React.FC = () => {
                             {lastMessage || 'No messages yet'}
                           </p>
                           {hasUnread && (
-                            <span className="ml-2 flex-shrink-0 bg-green-500 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center shadow-sm">
-                              {unreadCount > 9 ? '9+' : unreadCount}
-                            </span>
+                            <div className="ml-2 flex-shrink-0 bg-green-500 rounded-full w-3 h-3 shadow-sm" title="Unread messages" />
                           )}
                         </div>
                       </div>
