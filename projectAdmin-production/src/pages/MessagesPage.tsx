@@ -276,12 +276,33 @@ export const MessagesPage: React.FC = () => {
   });
 
   useEffect(() => {
+    const isMessagingTab = activeTab === 'trainer-messages' || activeTab === 'event-enquiries' || activeTab === 'contact' || activeTab === 'notifications';
+    if (!isMessagingTab) return;
+
+    const interval = setInterval(() => {
+      // Don't refresh if we are already loading or if user is interaction-heavy
+      if (!isLoadingConversation && !loading) {
+        fetchData(true);
+
+        // Also refresh selected thread if one is open to keep messages up to date
+        if (selectedTrainerId && activeTab === 'trainer-messages') {
+          apiClient.getTrainerThread(selectedTrainerId).then(response => {
+            setThreadMessages(response.messages || []);
+          }).catch(console.error);
+        }
+      }
+    }, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [activeTab, selectedTrainerId, isLoadingConversation, loading, currentPage, filterType]);
+
+  useEffect(() => {
     fetchData();
   }, [activeTab, currentPage, filterType]);
 
-  const fetchData = async () => {
+  const fetchData = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
 
       // Always fetch all trainers to ensure they are available for notifications/contact list
       try {
@@ -548,6 +569,13 @@ export const MessagesPage: React.FC = () => {
       };
       setSelectedThread(thread);
       setThreadMessages(response.messages || []);
+
+      // Mark unread messages as read
+      const unreadMessages = (response.messages || []).filter((m: any) => !m.isRead && m.senderType === 'TRAINER');
+      if (unreadMessages.length > 0) {
+        await Promise.all(unreadMessages.map((m: any) => apiClient.markTrainerMessageAsRead(m.id)));
+      }
+
       fetchData(); // Refresh to update unread counts
     } catch (error: any) {
       showToast(error.message || 'Error loading conversation', 'error');
@@ -999,7 +1027,7 @@ export const MessagesPage: React.FC = () => {
                             {lastMessage || 'No messages yet'}
                           </p>
                           {hasUnread && (
-                            <span className="ml-2 flex-shrink-0 bg-green-600 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+                            <span className="ml-2 flex-shrink-0 bg-green-500 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center shadow-sm">
                               {unreadCount > 9 ? '9+' : unreadCount}
                             </span>
                           )}
@@ -1267,7 +1295,7 @@ export const MessagesPage: React.FC = () => {
                             {enquiry.subject || 'Event Enquiry'}
                           </h3>
                           {(enquiry.unreadCount > 0 || !enquiry.isRead) && (
-                            <Badge className="bg-green-600 text-white">
+                            <Badge className="bg-green-500 text-white shadow-sm">
                               {enquiry.unreadCount > 0 ? `${enquiry.unreadCount} new` : 'New'}
                             </Badge>
                           )}
@@ -1320,7 +1348,13 @@ export const MessagesPage: React.FC = () => {
                               setSelectedEventEnquiry(response.enquiry);
                               setEventEnquiryMessages(response.messages || []);
                               setShowEventEnquiryModal(true);
-                              fetchData();
+
+                              // Mark as read if unread
+                              if (enquiry.unreadCount > 0 || !enquiry.isRead) {
+                                await apiClient.markEventEnquiryAsRead(enquiry.id);
+                              }
+
+                              fetchData(true);
                             } catch (error: any) {
                               showToast(error.message || 'Error loading conversation', 'error');
                             }
