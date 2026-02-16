@@ -102,7 +102,7 @@ router.post(
             lastMessage: message,
             lastMessageTime: new Date(),
             lastMessageBy: 'TRAINER',
-            unreadCount: 0, // Admin will see this as unread
+            unreadCount: 1, // First unread message for admin
           },
         });
       } else {
@@ -112,7 +112,7 @@ router.post(
             lastMessage: message,
             lastMessageTime: new Date(),
             lastMessageBy: 'TRAINER',
-            unreadCount: 0, // Reset unread count when trainer sends new message
+            unreadCount: { increment: 1 }, // Increment unread count for admin
           },
         });
       }
