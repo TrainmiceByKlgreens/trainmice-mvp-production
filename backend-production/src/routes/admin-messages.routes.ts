@@ -2,6 +2,7 @@ import express, { Response } from 'express';
 import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
+import { admin } from '../config/firebaseAdmin';
 import { createActivityLog } from '../utils/utils/activityLogger';
 
 const router = express.Router();
@@ -154,6 +155,27 @@ router.post(
           },
         });
 
+        // Send FCM notification
+        const receiver = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { fcmToken: true }
+        });
+
+        if (receiver?.fcmToken) {
+          admin.messaging().send({
+            token: receiver.fcmToken,
+            data: {
+              type: 'MESSAGE',
+              title,
+              body: message
+            },
+            notification: {
+              title,
+              body: message
+            }
+          }).catch((err) => console.error(`Failed to send FCM to user ${userId}:`, err));
+        }
+
         await createActivityLog({
           userId: req.user!.id,
           actionType: 'CREATE',
@@ -187,6 +209,29 @@ router.post(
           )
         );
 
+        // Send FCM notifications to all users with tokens
+        const usersWithToken = await prisma.user.findMany({
+          where: { role: userRole, fcmToken: { not: null } },
+          select: { fcmToken: true }
+        });
+
+        if (usersWithToken.length > 0) {
+          Promise.all(usersWithToken.map(u =>
+            admin.messaging().send({
+              token: u.fcmToken!,
+              data: {
+                type: 'MESSAGE',
+                title,
+                body: message
+              },
+              notification: {
+                title,
+                body: message
+              }
+            }).catch(() => null)
+          ));
+        }
+
         await createActivityLog({
           userId: req.user!.id,
           actionType: 'CREATE',
@@ -217,6 +262,29 @@ router.post(
           })
         )
       );
+
+      // Send Global FCM notifications
+      const usersWithToken = await prisma.user.findMany({
+        where: { fcmToken: { not: null } },
+        select: { fcmToken: true }
+      });
+
+      if (usersWithToken.length > 0) {
+        Promise.all(usersWithToken.map(u =>
+          admin.messaging().send({
+            token: u.fcmToken!,
+            data: {
+              type: 'MESSAGE',
+              title,
+              body: message
+            },
+            notification: {
+              title,
+              body: message
+            }
+          }).catch(() => null)
+        ));
+      }
 
       await createActivityLog({
         userId: req.user!.id,
