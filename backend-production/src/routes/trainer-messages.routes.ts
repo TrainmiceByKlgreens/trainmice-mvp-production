@@ -49,7 +49,7 @@ router.post(
               isRead: false,
               lastMessageTime: new Date(),
               lastMessageBy: 'TRAINER',
-              unreadCount: 0,
+              unreadCount: 1,
             },
           });
         } else {
@@ -59,7 +59,7 @@ router.post(
             data: {
               lastMessageTime: new Date(),
               lastMessageBy: 'TRAINER',
-              unreadCount: 0,
+              unreadCount: { increment: 1 },
             },
           });
         }

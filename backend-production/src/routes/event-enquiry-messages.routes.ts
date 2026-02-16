@@ -208,7 +208,7 @@ router.post(
         data: {
           lastMessageTime: new Date(),
           lastMessageBy: 'TRAINER',
-          unreadCount: 0, // Reset unread count when trainer sends new message
+          unreadCount: { increment: 1 }, // Increment unread count when trainer sends new message
         },
       });
 
