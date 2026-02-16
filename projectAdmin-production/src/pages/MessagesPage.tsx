@@ -242,6 +242,7 @@ export const MessagesPage: React.FC = () => {
   const [contactSubmissions, setContactSubmissions] = useState<ContactSubmission[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [trainerMessages, setTrainerMessages] = useState<TrainerMessage[]>([]);
+  const [trainerMessagesUnreadCount, setTrainerMessagesUnreadCount] = useState(0);
   const [messageThreads, setMessageThreads] = useState<MessageThread[]>([]);
   const [eventEnquiries, setEventEnquiries] = useState<EventEnquiry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -360,6 +361,7 @@ export const MessagesPage: React.FC = () => {
 
         setMessageThreads(updatedThreads);
         setTrainerMessages(response.legacyMessages || []); // For backward compatibility
+        setTrainerMessagesUnreadCount(response.unreadCount || 0);
         setTotalPages(response.totalPages || 1);
       } else if (activeTab === 'event-enquiries') {
         const params: any = { page: currentPage };
@@ -578,6 +580,13 @@ export const MessagesPage: React.FC = () => {
       setTrainerMessages((prev: any) => prev.map((m: any) =>
         m.trainerId === trainerId ? { ...m, isRead: true } : m
       ));
+
+      // Optimistically decrement total unread count if we are opening a thread with unread messages
+      // We check if the thread was previously unread
+      const threadWasUnread = messageThreads.some((t: any) => t.trainerId === trainerId && t.unreadCount > 0);
+      if (threadWasUnread) {
+        setTrainerMessagesUnreadCount(prev => Math.max(0, prev - 1));
+      }
     }
 
     try {
@@ -714,6 +723,11 @@ export const MessagesPage: React.FC = () => {
         >
           <MessageSquare size={18} className="inline mr-2" />
           Messages from Trainer
+          {trainerMessagesUnreadCount > 0 && (
+            <span className="ml-2 bg-red-500 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+              {trainerMessagesUnreadCount > 9 ? '9+' : trainerMessagesUnreadCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('event-enquiries')}

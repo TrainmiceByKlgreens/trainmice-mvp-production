@@ -83,6 +83,23 @@ router.get('/trainer-messages', async (req: AuthRequest, res: Response) => {
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
+      unreadCount: await (async () => {
+        // Count unread threads
+        const unreadThreadsCount = await prisma.messageThread.count({
+          where: { unreadCount: { gt: 0 } },
+        });
+
+        // Count unread legacy messages that don't have a corresponding thread
+        // This is an approximation as we can't easily do a "not in" query across different tables efficiently here
+        // But since we sync legacy status on view, this gap should close over time
+        const unreadLegacyCount = await prisma.trainerMessage.count({
+          where: { isRead: false },
+        });
+
+        // Return the max to be safe, or sum if we assume they are disjoint
+        // Best approach: Use thread count as primary source of truth
+        return Math.max(unreadThreadsCount, unreadLegacyCount);
+      })(),
     });
   } catch (error: any) {
     console.error('Get trainer messages error:', error);
