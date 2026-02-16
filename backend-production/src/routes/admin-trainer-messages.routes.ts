@@ -432,6 +432,12 @@ router.put('/event-enquiries/:id/read', async (req: AuthRequest, res: Response) 
       description: 'Marked event enquiry as read',
     });
 
+    // Also update unread count to 0
+    await prisma.eventEnquiry.update({
+      where: { id: req.params.id },
+      data: { unreadCount: 0 },
+    });
+
     res.json({ enquiry });
   } catch (error: any) {
     console.error('Mark event enquiry as read error:', error);

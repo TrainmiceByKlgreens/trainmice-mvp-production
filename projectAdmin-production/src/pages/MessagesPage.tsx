@@ -513,13 +513,16 @@ export const MessagesPage: React.FC = () => {
 
     // Update with threads (overwrite trainers that have messages)
     messageThreads.forEach((thread) => {
+      // Use logic to preserve global unread count if thread says 0 but legacy/global says 1
+      const globalUnread = unreadStatusMap[thread.trainerId] || 0;
+
       contactsMap.set(thread.trainerId, {
         trainerId: thread.trainerId,
         trainer: thread.trainer,
         lastMessage: thread.lastMessage,
         lastMessageTime: thread.lastMessageTime,
         lastMessageBy: thread.lastMessageBy,
-        unreadCount: thread.unreadCount,
+        unreadCount: Math.max(thread.unreadCount, globalUnread), // Use the higher count (Global wins if thread is stale/read but legacy exists)
         hasMessages: true,
       });
     });
