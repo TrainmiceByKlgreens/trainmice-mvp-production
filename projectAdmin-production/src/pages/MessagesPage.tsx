@@ -286,21 +286,13 @@ export const MessagesPage: React.FC = () => {
         // Also refresh selected thread if one is open to keep messages up to date
         if (selectedTrainerId && activeTab === 'trainer-messages') {
           try {
+            // Backend automatically marks messages as read when fetching thread
             const response = await apiClient.getTrainerThread(selectedTrainerId);
             setThreadMessages(response.messages || []);
 
-            // If new unread messages arrived while viewing, mark them as read
-            const unreadMessages = (response.messages || []).filter((m: any) => !m.isRead && m.senderType === 'TRAINER');
-            if (unreadMessages.length > 0) {
-              await Promise.all(unreadMessages.map((m: any) => apiClient.markTrainerMessageAsRead(m.id)));
-              // Force local update to show 0 unread
-              if (response.thread) {
-                response.thread.unreadCount = 0;
-              }
-            }
-
+            // Update selected thread with latest data (backend already marked as read)
             if (response.thread) {
-              setSelectedThread(prev => prev ? { ...prev, ...response.thread, unreadCount: 0 } : response.thread);
+              setSelectedThread(response.thread);
             }
           } catch (error) {
             console.error('Error polling thread:', error);
@@ -573,9 +565,21 @@ export const MessagesPage: React.FC = () => {
   const handleContactSelect = async (trainerId: string) => {
     setSelectedTrainerId(trainerId);
     setIsLoadingConversation(true);
+
+    // Optimistically update UI immediately for instant feedback
+    if (activeTab === 'trainer-messages') {
+      setMessageThreads((prev: any) => prev.map((t: any) =>
+        t.trainerId === trainerId ? { ...t, unreadCount: 0 } : t
+      ));
+      setTrainerMessages((prev: any) => prev.map((m: any) =>
+        m.trainerId === trainerId ? { ...m, isRead: true } : m
+      ));
+    }
+
     try {
+      // Backend automatically marks all trainer messages as read when fetching thread
       const response = await apiClient.getTrainerThread(trainerId);
-      const foundContact = allContacts.find(c => c.trainer.id === trainerId);
+      const foundContact = allContacts.find((c: any) => c.trainer.id === trainerId);
       const thread = response.thread || {
         id: '',
         trainerId,
@@ -586,30 +590,10 @@ export const MessagesPage: React.FC = () => {
         trainer: response.trainer || foundContact?.trainer || { id: trainerId, fullName: 'Trainer', email: '' },
       };
 
-      // Force unread count to 0 in local state immediately
-      thread.unreadCount = 0;
       setSelectedThread(thread);
       setThreadMessages(response.messages || []);
 
-      // Optimistically update sidebar unread count
-      if (activeTab === 'trainer-messages') {
-        setMessageThreads(prev => prev.map(t =>
-          t.trainerId === trainerId ? { ...t, unreadCount: 0 } : t
-        ));
-        // Also update legacy messages if they exist
-        setTrainerMessages(prev => prev.map(m =>
-          m.trainerId === trainerId ? { ...m, isRead: true } : m
-        ));
-      }
-
-      // Mark unread messages as read in background
-      const unreadMessages = (response.messages || []).filter((m: any) => !m.isRead && m.senderType === 'TRAINER');
-      if (unreadMessages.length > 0) {
-        await Promise.all(unreadMessages.map((m: any) => apiClient.markTrainerMessageAsRead(m.id)));
-      }
-
-      // Don't fetch immediately to avoid race condition, let the background poller handle it or next action
-      // But verify in background
+      // Refresh in background to sync sidebar counts
       fetchData(true);
 
     } catch (error: any) {
