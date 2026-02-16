@@ -90,15 +90,41 @@ router.get('/trainer-messages', async (req: AuthRequest, res: Response) => {
         });
 
         // Count unread legacy messages that don't have a corresponding thread
-        // This is an approximation as we can't easily do a "not in" query across different tables efficiently here
-        // But since we sync legacy status on view, this gap should close over time
         const unreadLegacyCount = await prisma.trainerMessage.count({
           where: { isRead: false },
         });
 
-        // Return the max to be safe, or sum if we assume they are disjoint
-        // Best approach: Use thread count as primary source of truth
         return Math.max(unreadThreadsCount, unreadLegacyCount);
+      })(),
+      unreadStatus: await (async () => {
+        // Get all unread thread counts
+        const unreadThreads = await prisma.messageThread.findMany({
+          where: { unreadCount: { gt: 0 } },
+          select: { trainerId: true, unreadCount: true },
+        });
+
+        // Get all unread legacy counts (approximate as 1 per trainer for simplicity or count them)
+        // Grouping by trainerId is ideal, but for now we find distinct trainers with unread legacy
+        const unreadLegacyMessages = await prisma.trainerMessage.findMany({
+          where: { isRead: false },
+          select: { trainerId: true },
+        });
+
+        const statusMap: Record<string, number> = {};
+
+        // Populate with threads first (source of truth)
+        unreadThreads.forEach(t => {
+          statusMap[t.trainerId] = t.unreadCount;
+        });
+
+        // Fill gaps with legacy (if not already set)
+        unreadLegacyMessages.forEach(msg => {
+          if (!statusMap[msg.trainerId]) {
+            statusMap[msg.trainerId] = 1; // Assume 1 for legacy if not threaded
+          }
+        });
+
+        return statusMap;
       })(),
     });
   } catch (error: any) {

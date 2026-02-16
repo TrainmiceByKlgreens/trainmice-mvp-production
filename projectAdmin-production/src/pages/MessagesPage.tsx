@@ -362,6 +362,7 @@ export const MessagesPage: React.FC = () => {
         setMessageThreads(updatedThreads);
         setTrainerMessages(response.legacyMessages || []); // For backward compatibility
         setTrainerMessagesUnreadCount(response.unreadCount || 0);
+        setUnreadStatusMap(response.unreadStatus || {});
         setTotalPages(response.totalPages || 1);
       } else if (activeTab === 'event-enquiries') {
         const params: any = { page: currentPage };
@@ -482,12 +483,19 @@ export const MessagesPage: React.FC = () => {
     hasMessages: boolean;
   }
 
+  const [unreadStatusMap, setUnreadStatusMap] = useState<Record<string, number>>({});
+
+  // ... (existing state)
+
   // Get all contacts (combine threads, legacy messages, and all trainers)
   const allContacts = React.useMemo(() => {
     const contactsMap = new Map<string, Contact>();
 
     // First, add all trainers from database (even without messages)
     allTrainers.forEach((trainer) => {
+      // Use the global unread map to populate unread count even if thread is not in current page
+      const globalUnread = unreadStatusMap[trainer.id] || 0;
+
       contactsMap.set(trainer.id, {
         trainerId: trainer.id,
         trainer: {
@@ -498,8 +506,8 @@ export const MessagesPage: React.FC = () => {
         lastMessage: null,
         lastMessageTime: null,
         lastMessageBy: null,
-        unreadCount: 0,
-        hasMessages: false,
+        unreadCount: globalUnread, // Initialize with global count
+        hasMessages: globalUnread > 0, // If they have unread messages, they have messages
       });
     });
 
@@ -586,6 +594,11 @@ export const MessagesPage: React.FC = () => {
       const threadWasUnread = messageThreads.some((t: any) => t.trainerId === trainerId && t.unreadCount > 0);
       if (threadWasUnread) {
         setTrainerMessagesUnreadCount(prev => Math.max(0, prev - 1));
+        // Also update the map optimistically
+        setUnreadStatusMap(prev => ({
+          ...prev,
+          [trainerId]: 0
+        }));
       }
     }
 
