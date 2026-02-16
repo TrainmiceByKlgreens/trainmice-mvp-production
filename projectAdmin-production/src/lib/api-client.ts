@@ -6,7 +6,7 @@
 // Get API URL from environment variable
 // In production, VITE_API_URL must be set
 // In development, falls back to localhost
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD 
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
   ? window.location.origin + '/api'  // Fallback to same origin in production
   : 'http://localhost:3000/api');    // Development fallback
 
@@ -54,15 +54,15 @@ export class ApiClient {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: response.statusText }));
-        
+
         // Handle validation errors (400) with detailed messages
         if (errorData.errors && Array.isArray(errorData.errors)) {
-          const errorMessages = errorData.errors.map((err: any) => 
+          const errorMessages = errorData.errors.map((err: any) =>
             `${err.param || err.path}: ${err.msg || err.message || 'Invalid value'}`
           ).join(', ');
           throw new Error(errorMessages);
         }
-        
+
         // Handle other errors
         throw new Error(errorData.error || errorData.message || `Request failed: ${response.statusText}`);
       }
@@ -71,7 +71,7 @@ export class ApiClient {
       if (contentType && contentType.includes('application/json')) {
         return await response.json();
       }
-      
+
       return {} as T;
     } catch (error: any) {
       if (error.message.includes('401') || error.message.includes('Unauthorized')) {
@@ -91,7 +91,7 @@ export class ApiClient {
         }
       });
     }
-    
+
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
@@ -328,7 +328,7 @@ export class ApiClient {
   // ============================================================================
 
   async getTrainerMessages(params?: { page?: number; limit?: number; isRead?: boolean; search?: string }) {
-    return this.get<{ threads: any[]; legacyMessages: any[]; total: number; page: number; totalPages: number }>('/admin/trainer-messages', params);
+    return this.get<{ threads: any[]; legacyMessages: any[]; total: number; page: number; totalPages: number; unreadCount: number; unreadStatus: Record<string, number> }>('/admin/trainer-messages', params);
   }
 
   async getTrainerThread(trainerId: string) {
@@ -379,9 +379,9 @@ export class ApiClient {
     return this.put<{ course: any }>(`/admin/courses/${id}`, data);
   }
 
-  async createEventFromCourse(courseId: string, eventData: { 
-    availabilityIds: string[]; 
-    courseType: 'IN_HOUSE' | 'PUBLIC'; 
+  async createEventFromCourse(courseId: string, eventData: {
+    availabilityIds: string[];
+    courseType: 'IN_HOUSE' | 'PUBLIC';
     courseMode: 'PHYSICAL' | 'ONLINE' | 'HYBRID';
     price: string | null;
     venue: string | null;
