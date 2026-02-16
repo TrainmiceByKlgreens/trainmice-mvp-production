@@ -348,7 +348,17 @@ export const MessagesPage: React.FC = () => {
           params.isRead = true;
         }
         const response = await apiClient.getTrainerMessages(params);
-        setMessageThreads(response.threads || []);
+
+        // Preserve unread count for currently selected thread to avoid race condition
+        const updatedThreads = (response.threads || []).map((t: any) => {
+          if (selectedTrainerId && t.trainerId === selectedTrainerId) {
+            // Keep unreadCount as 0 for the currently open thread
+            return { ...t, unreadCount: 0 };
+          }
+          return t;
+        });
+
+        setMessageThreads(updatedThreads);
         setTrainerMessages(response.legacyMessages || []); // For backward compatibility
         setTotalPages(response.totalPages || 1);
       } else if (activeTab === 'event-enquiries') {
