@@ -388,7 +388,8 @@ export const MessagesPage: React.FC = () => {
 
     // Update with legacy messages (only if not already in threads)
     trainerMessages.forEach((msg) => {
-      if (!contactsMap.has(msg.trainerId) || !contactsMap.get(msg.trainerId)?.hasMessages) {
+      const existing = contactsMap.get(msg.trainerId);
+      if (!existing || !existing.hasMessages) {
         contactsMap.set(msg.trainerId, {
           trainerId: msg.trainerId,
           trainer: msg.trainer,
@@ -397,6 +398,12 @@ export const MessagesPage: React.FC = () => {
           lastMessageBy: 'TRAINER',
           unreadCount: !msg.isRead ? 1 : 0,
           hasMessages: true,
+        });
+      } else if (!msg.isRead && existing.unreadCount === 0) {
+        // If legacy message says unread but thread says 0, trust legacy
+        contactsMap.set(msg.trainerId, {
+          ...existing,
+          unreadCount: 1,
         });
       }
     });
@@ -625,8 +632,8 @@ export const MessagesPage: React.FC = () => {
                     setCurrentPage(1);
                   }}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${filterType === 'all'
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
                   All
@@ -637,8 +644,8 @@ export const MessagesPage: React.FC = () => {
                     setCurrentPage(1);
                   }}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${filterType === 'unread'
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
                   Unread
@@ -649,8 +656,8 @@ export const MessagesPage: React.FC = () => {
                     setCurrentPage(1);
                   }}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${filterType === 'read'
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
                   Read
