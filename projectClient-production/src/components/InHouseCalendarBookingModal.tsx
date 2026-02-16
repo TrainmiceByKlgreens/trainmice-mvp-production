@@ -33,7 +33,7 @@ export function InHouseCalendarBookingModal({
   course,
   trainer,
 }: InHouseCalendarBookingModalProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date(2024, 11, 1));
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availability, setAvailability] = useState<TrainerAvailability[]>([]);
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [tentativeCounts, setTentativeCounts] = useState<Record<string, number>>({});
@@ -69,7 +69,7 @@ export function InHouseCalendarBookingModal({
           // Fetch client profile to get company information
           const profileResponse = await apiClient.getClientProfile();
           const client = profileResponse.client;
-          
+
           const userName = user.fullName || client?.userName || user.email?.split('@')[0] || '';
           const userEmail = user.email || client?.companyEmail || '';
           setFormData(prev => ({
@@ -126,7 +126,7 @@ export function InHouseCalendarBookingModal({
 
   const fetchBlockedDays = async () => {
     if (!trainer) return;
-    
+
     try {
       const response = await apiClient.getTrainerBlockedDays(trainer.id);
       setBlockedWeekdays(response.blockedDays || []);
@@ -180,7 +180,7 @@ export function InHouseCalendarBookingModal({
   // Calculate number of days needed based on course duration
   const getCourseDays = (): number => {
     if (!course.duration_hours || !course.duration_unit) return 1;
-    
+
     if (course.duration_unit === 'days') {
       // If duration_unit is 'days', duration_hours contains the raw day value
       // (e.g., if user entered 2 days, duration_hours = 2)
@@ -198,10 +198,10 @@ export function InHouseCalendarBookingModal({
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
-    
+
     // Calculate number of days needed
     const daysNeeded = getCourseDays();
-    
+
     // Generate all dates needed for the course
     const datesToSelect: string[] = [];
     for (let i = 0; i < daysNeeded; i++) {
@@ -212,7 +212,7 @@ export function InHouseCalendarBookingModal({
       const d = String(currentDate.getDate()).padStart(2, '0');
       datesToSelect.push(`${y}-${m}-${d}`);
     }
-    
+
     // Validate availability for all dates
     const allDatesAvailable = datesToSelect.every((dateStr) => {
       const dateAvailForDay = dateAvailMap[dateStr] || [];
@@ -220,7 +220,7 @@ export function InHouseCalendarBookingModal({
         (a) => a.status === 'available' || a.status === 'tentative'
       );
     });
-    
+
     if (!allDatesAvailable) {
       setSubmitMessage({
         type: 'error',
@@ -228,7 +228,7 @@ export function InHouseCalendarBookingModal({
       });
       return;
     }
-    
+
     // If clicking the same start date, deselect
     if (selectedDate === dateString) {
       setSelectedDate(null);
@@ -237,7 +237,7 @@ export function InHouseCalendarBookingModal({
     } else {
       setSelectedDate(dateString);
       setSelectedDates(datesToSelect);
-      
+
       // Capture availability IDs for selected dates
       const availabilityIds: string[] = [];
       datesToSelect.forEach((dateStr) => {
@@ -251,11 +251,11 @@ export function InHouseCalendarBookingModal({
         }
       });
       setSelectedAvailabilityIds(availabilityIds);
-      
+
       // Show queue information if there are pending or tentative bookings
       const queueCount = pendingCounts[dateString] || 0;
       const tentativeCount = tentativeCounts[dateString] || 0;
-      
+
       if (queueCount > 0 || tentativeCount > 0) {
         let message = '';
         if (queueCount > 0 && tentativeCount > 0) {
@@ -310,10 +310,10 @@ export function InHouseCalendarBookingModal({
       // Ensure selectedDate is in YYYY-MM-DD format
       const startDate = selectedDate; // Already in YYYY-MM-DD format from handleDateClick
       const endDate = selectedDates.length > 1 ? selectedDates[selectedDates.length - 1] : startDate;
-      
+
       // Use the first availability ID (for the start date) as the primary trainerAvailabilityId
       const trainerAvailabilityId = selectedAvailabilityIds.length > 0 ? selectedAvailabilityIds[0] : null;
-      
+
       await apiClient.createBookingRequest({
         courseId: course.id,
         trainerId: trainer.id,
@@ -474,65 +474,106 @@ export function InHouseCalendarBookingModal({
                     const month = String(day.getMonth() + 1).padStart(2, '0');
                     const dayNum = String(day.getDate()).padStart(2, '0');
                     const dateString = `${year}-${month}-${dayNum}`;
-                    const dateAvail = dateAvailMap[dateString] || [];
+
+                    // Basic checks
                     const isCurrentMonth = isSameMonth(day, currentMonth);
+                    const isPast = day < new Date().setHours(0, 0, 0, 0);
                     const isBlocked = isDateBlocked(day);
-                    // Use simple full-day status based on normalized availability status
-                    const hasAvailable = !isBlocked && dateAvail.some(
-                      (a) => a.status === 'available' || a.status === 'tentative'
-                    );
-                    const isBooked = dateAvail.every((a) => a.status === 'booked');
+
+                    // Check availability for this specific day
+                    const dateAvail = dateAvailMap[dateString] || [];
+                    const isDayBooked = dateAvail.every((a) => a.status === 'booked') && dateAvail.length > 0;
+
+                    // SEQUENTIAL CHECK: Check if the full course duration is available starting from this day
+                    let isSequenceAvailable = true;
+                    const daysNeeded = getCourseDays();
+
+                    // Only check sequence if the start day itself is potentially valid
+                    if (!isPast && !isBlocked && !isDayBooked) {
+                      for (let i = 0; i < daysNeeded; i++) {
+                        const checkDate = new Date(day);
+                        checkDate.setDate(checkDate.getDate() + i);
+
+                        // Check if this subsequent day is blocked
+                        if (isDateBlocked(checkDate)) {
+                          isSequenceAvailable = false;
+                          break;
+                        }
+
+                        // Check if this subsequent day is booked or unavailable
+                        const checkYear = checkDate.getFullYear();
+                        const checkMonth = String(checkDate.getMonth() + 1).padStart(2, '0');
+                        const checkDay = String(checkDate.getDate()).padStart(2, '0');
+                        const checkDateString = `${checkYear}-${checkMonth}-${checkDay}`;
+
+                        const checkAvail = dateAvailMap[checkDateString] || [];
+                        const checkDayHasSlot = checkAvail.some(
+                          (a) => a.status === 'available' || a.status === 'tentative'
+                        );
+
+                        if (!checkDayHasSlot) {
+                          isSequenceAvailable = false;
+                          break;
+                        }
+                      }
+                    } else {
+                      isSequenceAvailable = false;
+                    }
+
+                    // Determine status for styling
+                    // We prioritize 'unavailable' if the sequence is broken
                     const status =
-                      isBlocked // Check blocked first (highest priority)
-                        ? 'unavailable'
-                        : dateAvail.length === 0
-                        ? 'unavailable'
-                        : isBooked
-                        ? 'booked'
-                        : hasAvailable
-                        ? 'available'
-                        : 'tentative';
+                      isPast
+                        ? 'past'
+                        : isBlocked
+                          ? 'unavailable'
+                          : dateAvail.length === 0
+                            ? 'unavailable'
+                            : isDayBooked
+                              ? 'booked'
+                              : isSequenceAvailable
+                                ? 'available' // Only green if FULL sequence is available
+                                : 'unavailable'; // Otherwise unavailable
+
                     const isSelected = selectedDates.includes(dateString);
 
                     const bgColor = !isCurrentMonth
                       ? 'bg-gray-50 text-gray-300'
-                      : status === 'available'
-                      ? 'bg-green-100 hover:bg-green-200'
-                      : status === 'tentative'
-                      ? 'bg-yellow-100 hover:bg-yellow-200'
-                      : status === 'booked'
-                      ? 'bg-gray-200'
-                      : 'bg-gray-300';
+                      : status === 'past'
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : status === 'available'
+                          ? 'bg-green-100 hover:bg-green-200 cursor-pointer'
+                          : status === 'booked'
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed';
 
-                    const canClick = isCurrentMonth && !isBlocked && (status === 'available' || status === 'tentative');
+                    // Only allow clicking if it's current month AND the full sequence is available
+                    const canClick = isCurrentMonth && status === 'available';
 
                     return (
                       <button
                         key={index}
                         onClick={() => canClick && handleDateClick(day)}
                         disabled={!canClick}
-                        className={`relative min-h-[60px] p-2 rounded-lg border-2 transition-all ${
-                          isSelected
+                        className={`relative min-h-[60px] p-2 rounded-lg border-2 transition-all ${isSelected
                             ? 'border-blue-600 bg-blue-50'
                             : 'border-transparent'
-                        } ${bgColor} ${
-                          canClick ? 'cursor-pointer' : 'cursor-not-allowed'
-                        }`}
+                          } ${bgColor}`}
                       >
                         <div className="text-sm font-medium">{format(day, 'd')}</div>
                         {(pendingCounts[dateString] > 0 || tentativeCounts[dateString] > 0) && (
                           <div className="absolute top-1 right-1 flex flex-col gap-0.5">
                             {pendingCounts[dateString] > 0 && (
-                              <div 
-                                className="bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold" 
+                              <div
+                                className="bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold"
                                 title={`${pendingCounts[dateString]} pending request${pendingCounts[dateString] === 1 ? '' : 's'} before you`}
                               >
                                 {pendingCounts[dateString]}
                               </div>
                             )}
                             {tentativeCounts[dateString] > 0 && (
-                              <div 
-                                className="bg-yellow-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold" 
+                              <div
+                                className="bg-yellow-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold"
                                 title={`${tentativeCounts[dateString]} tentative booking${tentativeCounts[dateString] === 1 ? '' : 's'}`}
                               >
                                 {tentativeCounts[dateString]}
@@ -683,13 +724,12 @@ export function InHouseCalendarBookingModal({
 
               {submitMessage && (
                 <div
-                  className={`p-4 rounded-lg ${
-                    submitMessage.type === 'success'
+                  className={`p-4 rounded-lg ${submitMessage.type === 'success'
                       ? 'bg-green-50 text-green-800 border border-green-200'
                       : submitMessage.type === 'info'
-                      ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                      : 'bg-red-50 text-red-800 border border-red-200'
-                  }`}
+                        ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                        : 'bg-red-50 text-red-800 border border-red-200'
+                    }`}
                 >
                   {submitMessage.text}
                 </div>
