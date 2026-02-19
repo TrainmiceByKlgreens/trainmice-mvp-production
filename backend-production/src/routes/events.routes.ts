@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
 import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ const optionalAuthenticate = async (req: AuthRequest, _res: Response, next: Next
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      
+
       try {
         const decoded = jwt.verify(token, config.jwt.secret) as {
           userId: string;
@@ -57,12 +58,12 @@ const optionalAuthenticate = async (req: AuthRequest, _res: Response, next: Next
 router.get('/', optionalAuthenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { trainerId, courseId, status } = req.query;
-    
+
     // Require authentication if trainerId is provided (trainer/admin only)
     if (trainerId && !req.user) {
       return res.status(401).json({ error: 'Authentication required to view trainer events' });
     }
-    
+
     // If trainerId is provided and user is authenticated, verify they can view these events
     if (trainerId && req.user) {
       // Trainers can only view their own events (admins can view all)
@@ -72,7 +73,7 @@ router.get('/', optionalAuthenticate, async (req: AuthRequest, res: Response) =>
     }
 
     const where: any = {};
-    
+
     // If trainerId is provided, check both direct trainerId and CourseTrainer assignments
     if (trainerId) {
       // Get courses where this trainer is assigned via CourseTrainer
@@ -89,7 +90,7 @@ router.get('/', optionalAuthenticate, async (req: AuthRequest, res: Response) =>
           ...(assignedCourseIds.length > 0 ? [{ courseId: { in: assignedCourseIds } }] : []),
         ],
       };
-      
+
       // Combine with other filters
       if (courseId || status) {
         where.AND = [trainerFilter];
@@ -317,7 +318,7 @@ router.post(
             relatedEntityType: 'event',
             relatedEntityId: event.id,
           },
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       await createActivityLog({
@@ -524,7 +525,7 @@ router.post(
             maxPacks: null,
           },
         });
-        
+
         // Refetch event with _count
         event = await prisma.event.findUnique({
           where: { id: newEvent.id },
@@ -591,7 +592,7 @@ router.post(
             relatedEntityType: 'event',
             relatedEntityId: event.id,
           },
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       await createActivityLog({
@@ -705,7 +706,7 @@ router.put(
         try {
           const startDate = new Date(event.eventDate);
           startDate.setHours(0, 0, 0, 0);
-          
+
           // Determine end date - use event.endDate if available, otherwise just the start date
           let endDate = updated.endDate ? new Date(updated.endDate) : new Date(startDate);
           endDate.setHours(23, 59, 59, 999);
@@ -746,6 +747,20 @@ router.put(
         } catch (availabilityError) {
           // Log error but don't fail the request
           console.error('Error updating trainer availability when cancelling event:', availabilityError);
+        }
+
+        // Notify trainer when event is cancelled (even if they were the one who cancelled it, for audit/confirmation)
+        if (event.trainerId) {
+          await sendNotification({
+            userId: event.trainerId,
+            title: 'Event Cancelled',
+            message: `The event "${event.title || event.course?.title}" has been cancelled.`,
+            type: 'ERROR',
+            relatedEntityType: 'event',
+            relatedEntityId: event.id,
+          }).catch((err) => {
+            console.error('Error sending event cancellation notification:', err);
+          });
         }
       }
 

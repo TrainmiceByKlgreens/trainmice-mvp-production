@@ -3,6 +3,7 @@ import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -142,7 +143,7 @@ router.put(
       });
 
       const currentParticipants = existingRegistrations.reduce(
-        (sum, reg) => sum + (reg.numberOfParticipants || 1), 
+        (sum, reg) => sum + (reg.numberOfParticipants || 1),
         0
       );
 
@@ -155,8 +156,8 @@ router.put(
       // Check if there are enough slots available
       if (registration.event.maxPacks && totalAfterApproval > registration.event.maxPacks) {
         const availableSlots = registration.event.maxPacks - currentParticipants;
-        return res.status(400).json({ 
-          error: `Not enough slots available. Requested: ${participantsNum}, Available: ${availableSlots + currentRegistrationParticipants}` 
+        return res.status(400).json({
+          error: `Not enough slots available. Requested: ${participantsNum}, Available: ${availableSlots + currentRegistrationParticipants}`
         });
       }
 
@@ -177,14 +178,14 @@ router.put(
         description: `Approved ${participantsNum} participant(s) from ${registration.clientName || 'company'} for event: ${registration.event.title}`,
       });
 
-      return res.json({ 
+      return res.json({
         registration: updated,
-        message: `Successfully approved ${participantsNum} participant(s) for this company` 
+        message: `Successfully approved ${participantsNum} participant(s) for this company`
       });
     } catch (error: any) {
       console.error('Approve registration error:', error);
-      return res.status(500).json({ 
-        error: 'Failed to approve registration', 
+      return res.status(500).json({
+        error: 'Failed to approve registration',
         details: error.message,
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
@@ -294,7 +295,7 @@ router.put(
         try {
           const startDate = new Date(event.eventDate);
           startDate.setHours(0, 0, 0, 0);
-          
+
           // Determine end date - use event.endDate if available, otherwise just the start date
           let endDate = updated.endDate ? new Date(updated.endDate) : new Date(startDate);
           endDate.setHours(23, 59, 59, 999);
@@ -335,6 +336,20 @@ router.put(
         } catch (availabilityError) {
           // Log error but don't fail the request
           console.error('Error updating trainer availability when cancelling event:', availabilityError);
+        }
+
+        // Notify trainer when event is cancelled
+        if (event.trainerId) {
+          await sendNotification({
+            userId: event.trainerId,
+            title: 'Event Cancelled',
+            message: `The event "${event.title || event.course?.title}" has been cancelled.`,
+            type: 'ERROR',
+            relatedEntityType: 'event',
+            relatedEntityId: event.id,
+          }).catch((err) => {
+            console.error('Error sending event cancellation notification:', err);
+          });
         }
       }
 

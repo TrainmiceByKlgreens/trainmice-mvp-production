@@ -4,6 +4,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
 import { generateCourseCode } from '../utils/utils/sequentialId';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -585,16 +586,16 @@ router.put('/:id/approve', async (req: AuthRequest, res: Response) => {
 
     // Notify trainer if course was created by trainer
     if (course.trainerId && !course.createdByAdmin) {
-      await prisma.notification.create({
-        data: {
-          userId: course.trainerId,
-          title: 'Course Approved',
-          message: `Your course "${course.title}" has been approved.`,
-          type: 'SUCCESS',
-          relatedEntityType: 'course',
-          relatedEntityId: course.id,
-        },
-      }).catch(() => {});
+      await sendNotification({
+        userId: course.trainerId,
+        title: 'Course Approved',
+        message: `Your course "${course.title}" has been approved.`,
+        type: 'SUCCESS',
+        relatedEntityType: 'course',
+        relatedEntityId: course.id,
+      }).catch((err) => {
+        console.error('Error sending course approval notification:', err);
+      });
     }
 
     await createActivityLog({
@@ -650,7 +651,7 @@ router.put('/:id/reject', async (req: AuthRequest, res: Response) => {
           relatedEntityType: 'course',
           relatedEntityId: course.id,
         },
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     await createActivityLog({
@@ -699,7 +700,7 @@ router.post('/:id/trainers', async (req: AuthRequest, res: Response) => {
 
     // Check if course already has a trainer_id set
     const hasPrimaryTrainer = !!course.trainerId;
-    
+
     // Create CourseTrainer relationship
     const courseTrainer = await prisma.courseTrainer.create({
       data: {
@@ -814,7 +815,7 @@ router.post(
 
       const courseId = req.params.id;
       const { availabilityIds, courseType, courseMode, price, venue, city, state } = req.body;
-      
+
       if (!Array.isArray(availabilityIds) || availabilityIds.length === 0) {
         return res.status(400).json({ error: 'At least one availability ID is required' });
       }
@@ -867,7 +868,7 @@ router.post(
 
       // Use the first date as the event date (primary date)
       const eventDate = new Date(availabilities[0].date);
-      
+
       // Calculate end date from the last selected date
       const lastDate = new Date(availabilities[availabilities.length - 1].date);
 
@@ -969,17 +970,15 @@ router.post(
 
       // Standardized: Notify trainer when event is created
       if (trainerId) {
-        await prisma.notification.create({
-          data: {
-            userId: trainerId,
-            title: 'New Event Created',
-            message: `A new event "${course.title}" has been scheduled for ${eventDate.toLocaleDateString()}.`,
-            type: 'INFO',
-            relatedEntityType: 'event',
-            relatedEntityId: event.id,
-          },
-        }).catch(() => {
-          // Continue even if notification fails
+        await sendNotification({
+          userId: trainerId,
+          title: 'New Event Created',
+          message: `A new event "${course.title}" has been scheduled for ${eventDate.toLocaleDateString()}.`,
+          type: 'INFO',
+          relatedEntityType: 'event',
+          relatedEntityId: event.id,
+        }).catch((err) => {
+          console.error('Error sending event creation notification:', err);
         });
       }
 
