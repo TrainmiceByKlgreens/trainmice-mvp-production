@@ -1,6 +1,7 @@
 import express from 'express';
 import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -61,7 +62,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
         const day = String(date.getUTCDate()).padStart(2, '0');
         requestedDateStr = `${year}-${month}-${day}`;
       }
-      
+
       let endDateStr = null;
       if (br.endDate) {
         const date = new Date(br.endDate);
@@ -70,7 +71,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
         const day = String(date.getUTCDate()).padStart(2, '0');
         endDateStr = `${year}-${month}-${day}`;
       }
-      
+
       return {
         ...br,
         course_id: br.courseId,
@@ -84,11 +85,11 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
         requested_time: br.requestedTime,
         created_at: br.createdAt,
         processed_at: br.createdAt, // Use createdAt as processed_at for now
-      courses: br.course ? {
-        ...br.course,
-        duration_hours: br.course.durationHours,
-        duration_unit: br.course.durationUnit,
-      } : null,
+        courses: br.course ? {
+          ...br.course,
+          duration_hours: br.course.durationHours,
+          duration_unit: br.course.durationUnit,
+        } : null,
       };
     });
 
@@ -280,12 +281,12 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       client_email: bookingRequest.clientEmail,
       requested_date: bookingRequest.requestedDate
         ? (() => {
-            const date = new Date(bookingRequest.requestedDate);
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-          })()
+          const date = new Date(bookingRequest.requestedDate);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })()
         : null,
       requested_time: bookingRequest.requestedTime,
       created_at: bookingRequest.createdAt,
@@ -296,6 +297,20 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         duration_unit: bookingRequest.course.durationUnit,
       } : null,
     };
+
+    // Notify trainer about the new booking request
+    if (bookingRequest.trainerId) {
+      await sendNotification({
+        userId: bookingRequest.trainerId,
+        title: 'New Booking Request',
+        message: `You have received a new booking request for "${bookingRequest.course?.title || 'a course'}".`,
+        type: 'INFO',
+        relatedEntityType: 'booking_request',
+        relatedEntityId: bookingRequest.id,
+      }).catch((err) => {
+        console.error('Error sending booking request notification:', err);
+      });
+    }
 
     return res.status(201).json({ bookingRequest: formattedBooking });
   } catch (error: any) {
@@ -374,22 +389,22 @@ router.put(
         client_email: bookingRequest.clientEmail,
         requested_date: bookingRequest.requestedDate
           ? (() => {
-              const date = new Date(bookingRequest.requestedDate);
-              // Use UTC methods to avoid timezone conversion
-              const year = date.getUTCFullYear();
-              const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-              const day = String(date.getUTCDate()).padStart(2, '0');
-              return `${year}-${month}-${day}`;
-            })()
+            const date = new Date(bookingRequest.requestedDate);
+            // Use UTC methods to avoid timezone conversion
+            const year = date.getUTCFullYear();
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          })()
           : null,
         end_date: bookingRequest.endDate
           ? (() => {
-              const date = new Date(bookingRequest.endDate);
-              const year = date.getUTCFullYear();
-              const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-              const day = String(date.getUTCDate()).padStart(2, '0');
-              return `${year}-${month}-${day}`;
-            })()
+            const date = new Date(bookingRequest.endDate);
+            const year = date.getUTCFullYear();
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          })()
           : null,
         requested_time: bookingRequest.requestedTime,
         created_at: bookingRequest.createdAt,

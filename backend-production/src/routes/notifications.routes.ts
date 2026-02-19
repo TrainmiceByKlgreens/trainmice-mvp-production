@@ -1,7 +1,7 @@
 import express, { Response } from 'express';
 import prisma from '../config/database';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { admin } from '../config/firebaseAdmin';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -115,18 +115,13 @@ router.post('/admin/send-message', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Send FCM notification
-    await admin.messaging().send({
-      token: trainer.fcmToken,
-      data: {
-        type: 'MESSAGE',
-        title: 'New Message from Admin',
-        body: messageText
-      },
-      notification: {
-        title: 'New Message from Admin',
-        body: messageText
-      }
+    // Send notification using helper (this will create a DB record and send FCM)
+    await sendNotification({
+      userId: trainerId,
+      title: 'New Message from Admin',
+      message: messageText,
+      type: 'INFO',
+      relatedEntityType: 'message',
     });
 
     console.log(`✅ Message notification sent to trainer ${trainerId}`);
@@ -188,18 +183,13 @@ router.post('/admin/send-notification', async (req: AuthRequest, res: Response) 
       });
     }
 
-    // Send FCM notification
-    await admin.messaging().send({
-      token: trainer.fcmToken,
-      data: {
-        type: 'NOTIFICATION',
-        title: 'New Notification',
-        body: notificationText
-      },
-      notification: {
-        title: 'New Notification',
-        body: notificationText
-      }
+    // Send notification using helper
+    await sendNotification({
+      userId: trainerId,
+      title: 'New Notification',
+      message: notificationText,
+      type: 'INFO',
+      relatedEntityType: 'notification',
     });
 
     console.log(`✅ General notification sent to trainer ${trainerId}`);
@@ -216,6 +206,38 @@ router.post('/admin/send-notification', async (req: AuthRequest, res: Response) 
       });
     }
 
+    return res.status(500).json({
+      error: 'Failed to send notification',
+      details: error.message
+    });
+  }
+});
+
+// Send Training Request pop-up notification to trainer via FCM
+router.post('/admin/send-training-request', async (req: AuthRequest, res: Response) => {
+  try {
+    const { trainerId, courseTitle } = req.body;
+
+    if (!trainerId || !courseTitle) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        details: 'trainerId and courseTitle are required'
+      });
+    }
+
+    // Send notification using helper
+    await sendNotification({
+      userId: trainerId,
+      title: 'New Training Request',
+      message: `There's a new training request for "${courseTitle}".`,
+      type: 'WARNING',
+      relatedEntityType: 'training_request',
+    });
+
+    console.log(`✅ Training Request notification sent to trainer ${trainerId}`);
+    return res.json({ success: true, message: 'Training request notification sent successfully' });
+  } catch (error: any) {
+    console.error('Send training request notification error:', error);
     return res.status(500).json({
       error: 'Failed to send notification',
       details: error.message
