@@ -642,16 +642,16 @@ router.put('/:id/reject', async (req: AuthRequest, res: Response) => {
 
     // Notify trainer if course was created by trainer
     if (course.trainerId && !course.createdByAdmin) {
-      await prisma.notification.create({
-        data: {
-          userId: course.trainerId,
-          title: 'Course Rejected',
-          message: `Your course "${course.title}" has been rejected.${rejectionReason ? ` Reason: ${rejectionReason}` : ''}`,
-          type: 'ERROR',
-          relatedEntityType: 'course',
-          relatedEntityId: course.id,
-        },
-      }).catch(() => { });
+      await sendNotification({
+        userId: course.trainerId,
+        title: 'Course Rejected',
+        message: `Your course "${course.title}" has been rejected.${rejectionReason ? ` Reason: ${rejectionReason}` : ''}`,
+        type: 'ERROR',
+        relatedEntityType: 'course',
+        relatedEntityId: course.id,
+      }).catch((err) => {
+        console.error('Error sending course rejection notification:', err);
+      });
     }
 
     await createActivityLog({

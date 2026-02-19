@@ -2,6 +2,7 @@ import express, { Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -71,6 +72,27 @@ router.post(
           },
         },
       });
+
+      // Notify all admins about the new training request
+      try {
+        const admins = await prisma.user.findMany({
+          where: { role: 'ADMIN' },
+          select: { id: true }
+        });
+
+        if (admins.length > 0) {
+          await sendNotification({
+            userId: admins.map(admin => admin.id),
+            title: 'New Training Request',
+            message: `A new training request for "${request.courseName}" has been submitted by ${request.contactPerson}.`,
+            type: 'INFO',
+            relatedEntityType: 'custom_course_request',
+            relatedEntityId: request.id,
+          });
+        }
+      } catch (notifyError) {
+        console.error('Error notifying admins about new training request:', notifyError);
+      }
 
       return res.status(201).json({ request });
     } catch (error: any) {
