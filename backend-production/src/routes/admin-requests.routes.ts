@@ -3,6 +3,7 @@ import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -93,18 +94,18 @@ router.put(
       });
 
       // Create notification
-      await prisma.notification.create({
-        data: {
-          userId: request.clientId || '',
+      if (request.clientId) {
+        await sendNotification({
+          userId: request.clientId,
           title: 'Course Request Approved',
           message: `Custom course request "${request.courseName}" has been approved.`,
           type: 'SUCCESS',
           relatedEntityType: 'custom_course_request',
           relatedEntityId: request.id,
-        },
-      }).catch(() => {
-        // Ignore if no clientId
-      });
+        }).catch((err) => {
+          console.error('Error sending course request approval notification:', err);
+        });
+      }
 
       await createActivityLog({
         userId: req.user!.id,
@@ -143,18 +144,18 @@ router.put('/:id/reject', async (req: AuthRequest, res) => {
     });
 
     // Create notification
-    await prisma.notification.create({
-      data: {
-        userId: request.clientId || '',
+    if (request.clientId) {
+      await sendNotification({
+        userId: request.clientId,
         title: 'Course Request Rejected',
         message: 'A custom course request has been rejected.',
         type: 'WARNING',
         relatedEntityType: 'custom_course_request',
         relatedEntityId: request.id,
-      },
-    }).catch(() => {
-      // Ignore if no clientId
-    });
+      }).catch((err) => {
+        console.error('Error sending course request rejection notification:', err);
+      });
+    }
 
     await createActivityLog({
       userId: req.user!.id,
