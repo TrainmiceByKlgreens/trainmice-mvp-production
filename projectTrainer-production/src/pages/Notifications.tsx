@@ -40,7 +40,7 @@ export function Notifications() {
       } else if (filter === 'read') {
         params.isRead = true;
       }
-      
+
       const response = await apiClient.getNotifications(params);
       setNotifications(response.notifications || []);
     } catch (error) {
@@ -139,31 +139,28 @@ export function Notifications() {
       <div className="flex gap-2">
         <button
           onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            filter === 'all'
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === 'all'
               ? 'bg-blue-600 text-white'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
+            }`}
         >
           All ({notifications.length})
         </button>
         <button
           onClick={() => setFilter('unread')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            filter === 'unread'
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === 'unread'
               ? 'bg-blue-600 text-white'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
+            }`}
         >
           Unread ({unreadCount})
         </button>
         <button
           onClick={() => setFilter('read')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            filter === 'read'
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === 'read'
               ? 'bg-blue-600 text-white'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
+            }`}
         >
           Read ({notifications.length - unreadCount})
         </button>
@@ -177,11 +174,11 @@ export function Notifications() {
               <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No notifications found</p>
               <p className="text-sm text-gray-400 mt-1">
-                {filter === 'unread' 
+                {filter === 'unread'
                   ? 'You have no unread notifications'
                   : filter === 'read'
-                  ? 'You have no read notifications'
-                  : 'You have no notifications yet'}
+                    ? 'You have no read notifications'
+                    : 'You have no notifications yet'}
               </p>
             </div>
           </Card>
@@ -189,11 +186,10 @@ export function Notifications() {
           filteredNotifications.map((notification) => (
             <Card
               key={notification.id}
-              className={`transition-all duration-200 ${
-                !notification.isRead
+              className={`transition-all duration-200 ${!notification.isRead
                   ? 'border-l-4 border-l-blue-500 bg-blue-50'
                   : 'hover:shadow-md'
-              }`}
+                }`}
             >
               <CardContent className="p-6">
                 <div className="flex items-start gap-4">
