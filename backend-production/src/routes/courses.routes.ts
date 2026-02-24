@@ -4,6 +4,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { generateCourseCode } from '../utils/utils/sequentialId';
 import { calculateCourseRating, calculateCourseRatings } from '../utils/utils/ratingCalculator';
 import { uploadMaterial } from '../middleware/upload';
+import { createActivityLog } from '../utils/utils/activityLogger';
 import path from 'path';
 import fs from 'fs';
 
@@ -16,7 +17,7 @@ router.get('/', async (req, res) => {
     const { courseType, courseMode, status, trainerId } = req.query;
 
     const where: any = {};
-    
+
     // If trainerId is provided (trainer viewing their own courses), don't filter by status
     // Otherwise (client viewing), only show APPROVED courses
     if (trainerId) {
@@ -33,7 +34,7 @@ router.get('/', async (req, res) => {
         where.status = 'APPROVED';
       }
     }
-    
+
     // Note: We'll filter by courseType and courseMode after fetching
     // since Prisma's JSON array filtering in MySQL is limited
     // This ensures we can properly check if the filter value exists in the JSON array
@@ -70,8 +71,8 @@ router.get('/', async (req, res) => {
         } else if (course.courseType) {
           // If it's a JSON string, parse it
           try {
-            const parsed = typeof course.courseType === 'string' 
-              ? JSON.parse(course.courseType) 
+            const parsed = typeof course.courseType === 'string'
+              ? JSON.parse(course.courseType)
               : course.courseType;
             courseTypes = Array.isArray(parsed) ? (parsed as string[]) : [];
           } catch {
@@ -81,14 +82,14 @@ router.get('/', async (req, res) => {
         return courseTypes.includes(courseType as string);
       });
     }
-    
+
     // Filter by courseMode - check if the filter value exists in the JSON array
     if (courseMode) {
       // Map legacy values
       let filterMode = courseMode as string;
       if (filterMode === 'VIRTUAL') filterMode = 'ONLINE';
       if (filterMode === 'BOTH') filterMode = 'HYBRID';
-      
+
       filteredCourses = filteredCourses.filter(course => {
         // Handle JSON array from database - it might be a JSON object or already parsed array
         let courseModes: string[] = [];
@@ -97,8 +98,8 @@ router.get('/', async (req, res) => {
         } else if (course.courseMode) {
           // If it's a JSON string, parse it
           try {
-            const parsed = typeof course.courseMode === 'string' 
-              ? JSON.parse(course.courseMode) 
+            const parsed = typeof course.courseMode === 'string'
+              ? JSON.parse(course.courseMode)
               : course.courseMode;
             courseModes = Array.isArray(parsed) ? (parsed as string[]) : [];
           } catch {
@@ -130,7 +131,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const course = await prisma.course.findFirst({
-      where: { 
+      where: {
         id: req.params.id,
         status: 'APPROVED', // Only show approved courses
       },
@@ -161,7 +162,7 @@ router.get('/:id', async (req, res) => {
     // Calculate rating from feedbacks
     const courseRating = await calculateCourseRating(course.id);
 
-    return res.json({ 
+    return res.json({
       course: {
         ...course,
         courseRating,
@@ -202,13 +203,13 @@ router.put(
       // New structure: one module per row, multiple rows can share same session
       // Each item can have multiple modules, we need to expand them into separate rows
       const scheduleRows: any[] = [];
-      
+
       (items || []).forEach((i) => {
         // Get modules - can be array or single string
-        const modules = Array.isArray(i.moduleTitle) 
-          ? i.moduleTitle 
+        const modules = Array.isArray(i.moduleTitle)
+          ? i.moduleTitle
           : (i.moduleTitle ? [i.moduleTitle] : []);
-        
+
         // Ensure submoduleTitle is an array or undefined (Prisma JSON fields use undefined, not null)
         let submoduleTitleArray: string[] | undefined = undefined;
         if (i.submoduleTitle) {
@@ -243,6 +244,19 @@ router.put(
         where: { courseId },
         orderBy: [{ dayNumber: 'asc' }, { startTime: 'asc' }],
       });
+
+      // Log schedule update if trainer
+      if (req.user!.role === 'TRAINER') {
+        await createActivityLog({
+          userId: req.user!.id,
+          actionType: 'UPDATE',
+          entityType: 'course_schedule',
+          entityId: courseId,
+          description: `Trainer updated schedule for course: ${existingCourse.title}`,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      }
 
       return res.json({ schedule, count: created.count });
     } catch (error: any) {
@@ -319,25 +333,25 @@ router.post(
       if (req.user!.role === 'TRAINER') {
         courseData.trainerId = req.user!.id;
         createdBy = req.user!.id;
-        
+
         // Get trainer's customTrainerId
         const trainer = await prisma.trainer.findUnique({
           where: { id: req.user!.id },
           select: { customTrainerId: true },
         });
-        
+
         if (trainer?.customTrainerId) {
           creatorCode = trainer.customTrainerId;
         }
       } else if (req.user!.role === 'ADMIN') {
         createdBy = req.user!.id;
-        
+
         // Get admin's adminCode
         const admin = await prisma.admin.findUnique({
           where: { id: req.user!.id },
           select: { adminCode: true },
         });
-        
+
         if (admin?.adminCode) {
           creatorCode = admin.adminCode;
         }
@@ -400,6 +414,19 @@ router.post(
       // Events are now created manually by admin only, not automatically
       // Removed automatic event sync for trainer-created courses
 
+      // Log course creation if trainer
+      if (req.user!.role === 'TRAINER') {
+        await createActivityLog({
+          userId: req.user!.id,
+          actionType: 'CREATE',
+          entityType: 'course',
+          entityId: course.id,
+          description: `Trainer created a new course (Draft): ${course.title}`,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      }
+
       return res.status(201).json({ course });
     } catch (error: any) {
       console.error('Create course error:', error);
@@ -431,8 +458,8 @@ router.put(
       if (req.user!.role === 'TRAINER') {
         // Check if trainer owns this course
         if (!existingCourse.trainerId || existingCourse.trainerId !== req.user!.id) {
-          return res.status(403).json({ 
-            error: 'Not authorized to update this course. You can only update courses you created.' 
+          return res.status(403).json({
+            error: 'Not authorized to update this course. You can only update courses you created.'
           });
         }
         // Also check that trainerId is not being changed in the update
@@ -509,7 +536,7 @@ router.put(
         if (sanitizedData.status === 'APPROVED') {
           delete sanitizedData.status;
         }
-        
+
         // If course is already approved (APPROVED), 
         // any update by trainer should require admin review again
         if (existingCourse.status === 'APPROVED') {
@@ -518,7 +545,7 @@ router.put(
           const hasOtherChanges = Object.keys(sanitizedData).some(
             key => key !== 'status' && sanitizedData[key] !== undefined
           );
-          
+
           if (hasOtherChanges) {
             sanitizedData.status = 'PENDING_APPROVAL';
           } else if (sanitizedData.status && sanitizedData.status !== existingCourse.status) {
@@ -598,6 +625,19 @@ router.put(
       // Events are now created manually by admin only, not automatically
       // Removed automatic event sync for trainer course updates
 
+      // Log course update if trainer
+      if (req.user!.role === 'TRAINER') {
+        await createActivityLog({
+          userId: req.user!.id,
+          actionType: 'UPDATE',
+          entityType: 'course',
+          entityId: course.id,
+          description: `Trainer updated course: ${course.title}`,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      }
+
       return res.json({ course });
     } catch (error: any) {
       console.error('Update course error:', error);
@@ -631,6 +671,19 @@ router.delete(
       await prisma.course.delete({
         where: { id: courseId },
       });
+
+      // Log course deletion if trainer
+      if (req.user!.role === 'TRAINER') {
+        await createActivityLog({
+          userId: req.user!.id,
+          actionType: 'DELETE',
+          entityType: 'course',
+          entityId: courseId,
+          description: `Trainer deleted course: ${existingCourse.title}`,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      }
 
       return res.json({ message: 'Course deleted successfully' });
     } catch (error: any) {
@@ -683,6 +736,19 @@ router.post(
           fileName: req.file.originalname,
         },
       });
+
+      // Log material upload if trainer
+      if (req.user!.role === 'TRAINER') {
+        await createActivityLog({
+          userId: req.user!.id,
+          actionType: 'CREATE',
+          entityType: 'course_material',
+          entityId: material.id,
+          description: `Trainer uploaded material: ${material.fileName} for course: ${course.title}`,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      }
 
       return res.status(201).json({ material });
     } catch (error: any) {
@@ -743,6 +809,19 @@ router.delete(
       await prisma.courseMaterial.delete({
         where: { id: materialId },
       });
+
+      // Log material deletion if trainer
+      if (req.user!.role === 'TRAINER') {
+        await createActivityLog({
+          userId: req.user!.id,
+          actionType: 'DELETE',
+          entityType: 'course_material',
+          entityId: materialId,
+          description: `Trainer deleted material: ${material.fileName} from course: ${course.title}`,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      }
 
       return res.json({ message: 'Material deleted successfully' });
     } catch (error: any) {

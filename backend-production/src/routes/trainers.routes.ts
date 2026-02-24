@@ -553,7 +553,7 @@ router.put(
       });
 
       // Log profile update
-      createActivityLog({
+      await createActivityLog({
         userId: trainerId,
         actionType: 'UPDATE',
         entityType: 'trainer',
@@ -609,7 +609,7 @@ router.post(
       });
 
       // Log qualification creation
-      createActivityLog({
+      await createActivityLog({
         userId: trainerId,
         actionType: 'CREATE',
         entityType: 'qualification',
@@ -653,6 +653,18 @@ router.put(
         where: { id: qualId },
         data: req.body,
       });
+
+      // Log qualification update
+      await createActivityLog({
+        userId: trainerId,
+        actionType: 'UPDATE',
+        entityType: 'qualification',
+        entityId: qualification.id,
+        description: `Trainer updated qualification: ${qualification.title}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ qualification });
     } catch (error: any) {
       console.error('Update qualification error:', error);
@@ -686,6 +698,18 @@ router.delete(
       await prisma.qualification.delete({
         where: { id: qualId },
       });
+
+      // Log qualification deletion
+      await createActivityLog({
+        userId: trainerId,
+        actionType: 'DELETE',
+        entityType: 'qualification',
+        entityId: qualId,
+        description: `Trainer deleted qualification: ${existing.title}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ message: 'Qualification deleted successfully' });
     } catch (error: any) {
       console.error('Delete qualification error:', error);
@@ -741,7 +765,7 @@ router.post(
       });
 
       // Log work history creation
-      createActivityLog({
+      await createActivityLog({
         userId: trainerId,
         actionType: 'CREATE',
         entityType: 'work_history',
@@ -785,6 +809,18 @@ router.put(
         where: { id: workId },
         data: req.body,
       });
+
+      // Log work history update
+      await createActivityLog({
+        userId: trainerId,
+        actionType: 'UPDATE',
+        entityType: 'work_history',
+        entityId: workHistory.id,
+        description: `Trainer updated work history at ${workHistory.company}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ workHistory });
     } catch (error: any) {
       console.error('Update work history error:', error);
@@ -818,6 +854,18 @@ router.delete(
       await prisma.workHistory.delete({
         where: { id: workId },
       });
+
+      // Log work history deletion
+      await createActivityLog({
+        userId: trainerId,
+        actionType: 'DELETE',
+        entityType: 'work_history',
+        entityId: workId,
+        description: `Trainer deleted work history at ${existing.company}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ message: 'Work history deleted successfully' });
     } catch (error: any) {
       console.error('Delete work history error:', error);
@@ -873,7 +921,7 @@ router.post(
       });
 
       // Log past client creation
-      createActivityLog({
+      await createActivityLog({
         userId: trainerId,
         actionType: 'CREATE',
         entityType: 'past_client',
@@ -917,6 +965,18 @@ router.put(
         where: { id: clientId },
         data: req.body,
       });
+
+      // Log past client update
+      await createActivityLog({
+        userId: trainerId,
+        actionType: 'UPDATE',
+        entityType: 'past_client',
+        entityId: pastClient.id,
+        description: `Trainer updated past client: ${pastClient.clientName}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ pastClient });
     } catch (error: any) {
       console.error('Update past client error:', error);
@@ -950,6 +1010,18 @@ router.delete(
       await prisma.pastClient.delete({
         where: { id: clientId },
       });
+
+      // Log past client deletion
+      await createActivityLog({
+        userId: trainerId,
+        actionType: 'DELETE',
+        entityType: 'past_client',
+        entityId: clientId,
+        description: `Trainer deleted past client: ${existing.clientName}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ message: 'Past client deleted successfully' });
     } catch (error: any) {
       console.error('Delete past client error:', error);
@@ -1034,6 +1106,17 @@ router.post(
           },
         },
       });
+      // Log course conducted creation
+      await createActivityLog({
+        userId: trainerId,
+        actionType: 'CREATE',
+        entityType: 'course_conducted',
+        entityId: courseConducted.id,
+        description: `Trainer added a course conducted record: ${courseConducted.courseName}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.status(201).json({ courseConducted });
     } catch (error: any) {
       console.error('Create course conducted error:', error);
@@ -1085,6 +1168,18 @@ router.put(
           },
         },
       });
+
+      // Log course conducted update
+      await createActivityLog({
+        userId: trainerId,
+        actionType: 'UPDATE',
+        entityType: 'course_conducted',
+        entityId: courseConducted.id,
+        description: `Trainer updated course conducted record: ${courseConducted.courseName}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ courseConducted });
     } catch (error: any) {
       console.error('Update course conducted error:', error);
@@ -1118,6 +1213,18 @@ router.delete(
       await prisma.trainerCourseConducted.delete({
         where: { id: conductedId },
       });
+
+      // Log course conducted deletion
+      await createActivityLog({
+        userId: trainerId,
+        actionType: 'DELETE',
+        entityType: 'course_conducted',
+        entityId: conductedId,
+        description: `Trainer deleted course conducted record: ${existing.courseName}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ message: 'Course conducted deleted successfully' });
     } catch (error: any) {
       console.error('Delete course conducted error:', error);

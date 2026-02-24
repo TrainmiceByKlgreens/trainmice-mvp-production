@@ -193,7 +193,7 @@ router.post(
       );
 
       // Log availability update
-      createActivityLog({
+      await createActivityLog({
         userId: trainerId,
         actionType: 'UPDATE',
         entityType: 'availability',
@@ -241,6 +241,17 @@ router.put(
         data: normalizedStatus ? { ...updateData, status: normalizedStatus } : updateData,
       });
 
+      // Log availability update
+      await createActivityLog({
+        userId: existing.trainerId,
+        actionType: 'UPDATE',
+        entityType: 'availability',
+        entityId: availability.id,
+        description: `Trainer updated availability for ${new Date(availability.date).toLocaleDateString()}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ availability });
     } catch (error: any) {
       console.error('Update availability error:', error);
@@ -273,6 +284,17 @@ router.delete(
 
       await prisma.trainerAvailability.delete({
         where: { id: availabilityId },
+      });
+
+      // Log availability deletion
+      await createActivityLog({
+        userId: existing.trainerId,
+        actionType: 'DELETE',
+        entityType: 'availability',
+        entityId: availabilityId,
+        description: `Trainer deleted availability for ${new Date(existing.date).toLocaleDateString()}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
       });
 
       return res.json({ message: 'Availability deleted successfully' });
@@ -332,7 +354,7 @@ router.put(
       }
 
       // Log blocked days update
-      createActivityLog({
+      await createActivityLog({
         userId: trainerId,
         actionType: 'UPDATE',
         entityType: 'blocked_days',
