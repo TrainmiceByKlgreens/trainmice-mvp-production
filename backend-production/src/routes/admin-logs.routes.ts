@@ -13,6 +13,7 @@ router.get('/activity', async (req: AuthRequest, res: Response) => {
     const {
       actionType,
       entityType,
+      userRole,
       search,
       page = '1',
       limit = '50',
@@ -24,6 +25,11 @@ router.get('/activity', async (req: AuthRequest, res: Response) => {
     }
     if (entityType) {
       where.entityType = entityType;
+    }
+    if (userRole) {
+      where.user = {
+        role: userRole,
+      };
     }
     if (search) {
       where.description = { contains: search as string, mode: 'insensitive' };

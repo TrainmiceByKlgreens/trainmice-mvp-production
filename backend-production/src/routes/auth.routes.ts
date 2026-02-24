@@ -191,7 +191,7 @@ router.post(
 
       // Log trainer login
       if (user.role === 'TRAINER') {
-        createActivityLog({
+        await createActivityLog({
           userId: user.id,
           actionType: 'LOGIN',
           entityType: 'trainer',
