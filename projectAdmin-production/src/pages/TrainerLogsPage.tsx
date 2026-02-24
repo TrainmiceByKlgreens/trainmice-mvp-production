@@ -40,9 +40,7 @@ export const TrainerLogsPage: React.FC = () => {
             const params: any = {
                 page: currentPage,
                 limit: logsPerPage,
-                // We want to filter for trainers. We can do this by entityType or by description.
-                // For now, let's fetch all and filter client-side if the backend doesn't support role filtering yet.
-                // Actually, many trainer activities have entityType like 'trainer', 'availability', 'qualification', 'work_history', 'past_client', 'blocked_days'.
+                userRole: 'TRAINER',
             };
 
             if (actionFilter !== 'all') {
@@ -65,19 +63,7 @@ export const TrainerLogsPage: React.FC = () => {
                 created_at: log.createdAt || new Date().toISOString(),
             }));
 
-            // Filter for trainer-related logs - this is a heuristic since we don't have a direct "role" filter in the API yet
-            const trainerRelatedEntities = [
-                'trainer', 'availability', 'qualification', 'work_history', 'past_client', 'blocked_days'
-            ];
-
-            const trainerLogs = formattedLogs.filter(log =>
-                trainerRelatedEntities.includes(log.entity_type) ||
-                log.description.toLowerCase().includes('trainer')
-            );
-
-            setLogs(trainerLogs);
-            // Note: Total pages might be slightly off due to client-side filtering, 
-            // but it's a good start. For a production app, we'd add role filtering to the backend.
+            setLogs(formattedLogs);
             setTotalPages(response.totalPages || 1);
         } catch (error) {
             console.error('Error fetching trainer logs:', error);
