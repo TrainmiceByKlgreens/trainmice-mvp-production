@@ -11,6 +11,7 @@ import { CustomRequestsPage } from './pages/CustomRequestsPage';
 import { BookingsPage } from './pages/BookingsPage';
 import { FeedbackAnalyticsPage } from './pages/FeedbackAnalyticsPage';
 import { AdminLogsPage } from './pages/AdminLogsPage';
+import { TrainerLogsPage } from './pages/TrainerLogsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { Sidebar } from './components/common/Sidebar';
 import { NotificationBell } from './components/common/NotificationBell';
@@ -70,6 +71,8 @@ function App() {
         return <FeedbackAnalyticsPage />;
       case 'admin-logs':
         return <AdminLogsPage />;
+      case 'trainer-logs':
+        return <TrainerLogsPage />;
       case 'settings':
         return <SettingsPage />;
       default:

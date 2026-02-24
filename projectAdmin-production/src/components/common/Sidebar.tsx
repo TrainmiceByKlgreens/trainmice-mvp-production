@@ -29,6 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, onLog
     { id: 'bookings', label: 'Bookings', icon: Calendar },
     { id: 'feedback-analytics', label: 'Feedback Analytics', icon: BarChart3 },
     { id: 'admin-logs', label: 'Admin Logs', icon: Activity },
+    { id: 'trainer-logs', label: 'Trainer Logs', icon: Activity },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -50,11 +51,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, onLog
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
                   ? 'bg-green-600 text-white'
                   : 'text-gray-700 hover:bg-green-100'
-              }`}
+                }`}
             >
               <Icon size={20} />
               <span className="font-medium">{item.label}</span>

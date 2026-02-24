@@ -1,6 +1,7 @@
 import express from 'express';
 import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { createActivityLog } from '../utils/utils/activityLogger';
 
 const router = express.Router();
 
@@ -74,52 +75,52 @@ router.get('/trainer/:trainerId', async (req, res) => {
       for (const avail of availability) {
         const availDate = new Date(avail.date);
         const dateStr = `${availDate.getUTCFullYear()}-${String(availDate.getUTCMonth() + 1).padStart(2, '0')}-${String(availDate.getUTCDate()).padStart(2, '0')}`;
-        
+
         let pendingCount = 0;
         let tentativeCount = 0;
-        
+
         // Count pending bookings
         for (const booking of pendingBookings) {
           if (!booking.requestedDate) continue;
-          
+
           const bookingStart = new Date(booking.requestedDate);
           bookingStart.setUTCHours(0, 0, 0, 0);
-          
-          const bookingEnd = booking.endDate 
+
+          const bookingEnd = booking.endDate
             ? new Date(booking.endDate)
             : new Date(booking.requestedDate);
           bookingEnd.setUTCHours(23, 59, 59, 999);
-          
+
           const checkDate = new Date(availDate);
           checkDate.setUTCHours(0, 0, 0, 0);
-          
+
           // Check if the availability date falls within the booking date range
           if (checkDate >= bookingStart && checkDate <= bookingEnd) {
             pendingCount++;
           }
         }
-        
+
         // Count tentative (approved) bookings
         for (const booking of tentativeBookings) {
           if (!booking.requestedDate) continue;
-          
+
           const bookingStart = new Date(booking.requestedDate);
           bookingStart.setUTCHours(0, 0, 0, 0);
-          
-          const bookingEnd = booking.endDate 
+
+          const bookingEnd = booking.endDate
             ? new Date(booking.endDate)
             : new Date(booking.requestedDate);
           bookingEnd.setUTCHours(23, 59, 59, 999);
-          
+
           const checkDate = new Date(availDate);
           checkDate.setUTCHours(0, 0, 0, 0);
-          
+
           // Check if the availability date falls within the booking date range
           if (checkDate >= bookingStart && checkDate <= bookingEnd) {
             tentativeCount++;
           }
         }
-        
+
         if (pendingCount > 0) {
           pendingCountsByDate[dateStr] = pendingCount;
         }
@@ -129,7 +130,7 @@ router.get('/trainer/:trainerId', async (req, res) => {
       }
     }
 
-    return res.json({ 
+    return res.json({
       availability,
       pendingCounts: pendingCountsByDate,
       tentativeCounts: tentativeCountsByDate,
@@ -190,6 +191,17 @@ router.post(
           });
         })
       );
+
+      // Log availability update
+      createActivityLog({
+        userId: trainerId,
+        actionType: 'UPDATE',
+        entityType: 'availability',
+        entityId: trainerId,
+        description: `Trainer updated their availability for ${results.length} dates`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
 
       return res.status(201).json({ availability: results });
     } catch (error: any) {
@@ -318,6 +330,17 @@ router.put(
           })),
         });
       }
+
+      // Log blocked days update
+      createActivityLog({
+        userId: trainerId,
+        actionType: 'UPDATE',
+        entityType: 'blocked_days',
+        entityId: trainerId,
+        description: `Trainer updated their recurring blocked days: ${normalizedDays.join(', ')}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
 
       return res.json({ blockedDays: normalizedDays });
     } catch (error: any) {

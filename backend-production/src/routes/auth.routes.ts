@@ -8,6 +8,7 @@ import { generateTrainerId, generateAdminCode } from '../utils/utils/sequentialI
 import { generateVerificationToken, getTokenExpiry, isTokenExpired } from '../utils/utils/verification';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 import { isBlockedEmailDomain, isValidEmailFormat } from '../utils/utils/emailValidation';
+import { createActivityLog } from '../utils/utils/activityLogger';
 
 const router = express.Router();
 
@@ -33,8 +34,8 @@ router.post(
       if (role === 'ADMIN') {
         const emailDomain = email.split('@')[1]?.toLowerCase();
         if (emailDomain !== 'klgreens.com') {
-          return res.status(400).json({ 
-            error: 'Only email addresses from klgreens.com domain can sign up as Admin' 
+          return res.status(400).json({
+            error: 'Only email addresses from klgreens.com domain can sign up as Admin'
           });
         }
       }
@@ -174,7 +175,7 @@ router.post(
 
       // Check if email is verified
       if (!user.emailVerified) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'Email not verified',
           message: 'Please verify your email address before logging in. Check your inbox for the verification email.',
           requiresVerification: true,
@@ -187,6 +188,19 @@ router.post(
         email: user.email,
         role: user.role,
       });
+
+      // Log trainer login
+      if (user.role === 'TRAINER') {
+        createActivityLog({
+          userId: user.id,
+          actionType: 'LOGIN',
+          entityType: 'trainer',
+          entityId: user.id,
+          description: `Trainer ${user.fullName || user.email} logged in`,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      }
 
       return res.json({
         message: 'Login successful',
@@ -236,7 +250,7 @@ router.post(
 
       // Check if email domain is blocked (personal emails)
       if (isBlockedEmailDomain(email)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Company email required',
           message: 'Please use your company email address. Personal email addresses are not allowed for client accounts.',
         });
@@ -512,7 +526,7 @@ router.post(
 
       if (!user) {
         // Don't reveal if user exists for security
-        return res.json({ 
+        return res.json({
           message: 'If an account exists with this email, a verification email has been sent.',
         });
       }
@@ -547,7 +561,7 @@ router.post(
         return res.status(500).json({ error: 'Failed to send verification email' });
       }
 
-      return res.json({ 
+      return res.json({
         message: 'Verification email sent. Please check your inbox.',
       });
     } catch (error: any) {
@@ -577,7 +591,7 @@ router.post(
 
       // Always return success to prevent email enumeration
       if (!user) {
-        return res.json({ 
+        return res.json({
           message: 'If an account exists with this email, a password reset link has been sent.',
         });
       }
@@ -608,7 +622,7 @@ router.post(
         // Still return success to prevent information leakage
       }
 
-      return res.json({ 
+      return res.json({
         message: 'If an account exists with this email, a password reset link has been sent.',
       });
     } catch (error: any) {
@@ -663,7 +677,7 @@ router.post(
         },
       });
 
-      return res.json({ 
+      return res.json({
         message: 'Password has been reset successfully. You can now log in with your new password.',
       });
     } catch (error: any) {

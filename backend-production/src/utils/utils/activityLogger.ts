@@ -2,7 +2,7 @@ import prisma from '../../config/database';
 
 export interface CreateActivityLogParams {
   userId?: string;
-  actionType: 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'APPROVE' | 'REJECT' | 'CONFIRM' | 'CANCEL';
+  actionType: 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'APPROVE' | 'REJECT' | 'CONFIRM' | 'CANCEL' | 'LOGIN';
   entityType: string;
   entityId?: string;
   description: string;

@@ -4,6 +4,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { config } from '../config/env';
 import jwt from 'jsonwebtoken';
 import { calculateTrainerRating, calculateTrainerRatings } from '../utils/utils/ratingCalculator';
+import { createActivityLog } from '../utils/utils/activityLogger';
 
 const router = express.Router();
 
@@ -147,7 +148,7 @@ router.get('/:id', async (req: any, res) => {
     } catch (e) {
       // Not authenticated or invalid token - treat as public access
     }
-    
+
     // For public access (clients), exclude sensitive information
     if (!isOwnProfile) {
       const publicTrainer: any = {
@@ -167,7 +168,7 @@ router.get('/:id', async (req: any, res) => {
       });
       return res.json({ trainer: publicTrainer });
     } else {
-      return res.json({ 
+      return res.json({
         trainer: {
           ...trainer,
           avgRating: trainerRating, // Add rating from feedbacks
@@ -320,7 +321,7 @@ router.get('/:id/analytics', authenticate, authorize('TRAINER', 'ADMIN'), async 
       .filter((t) => t.length > 3);
 
     // Count team building and in-house interest
-    const teamBuildingInterest = filteredFeedbacks.filter((f) => 
+    const teamBuildingInterest = filteredFeedbacks.filter((f) =>
       f.teamBuildingInterest && f.teamBuildingInterest.toLowerCase().includes('yes')
     ).length;
     const inhouseTrainingInterest = filteredFeedbacks.filter((f) =>
@@ -551,6 +552,17 @@ router.put(
         data: updateData,
       });
 
+      // Log profile update
+      createActivityLog({
+        userId: trainerId,
+        actionType: 'UPDATE',
+        entityType: 'trainer',
+        entityId: trainerId,
+        description: `Trainer ${trainer.fullName} updated their profile`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.json({ trainer });
     } catch (error: any) {
       console.error('Update trainer error:', error);
@@ -595,6 +607,18 @@ router.post(
           ...req.body,
         },
       });
+
+      // Log qualification creation
+      createActivityLog({
+        userId: trainerId,
+        actionType: 'CREATE',
+        entityType: 'qualification',
+        entityId: qualification.id,
+        description: `Trainer added a new qualification: ${qualification.title}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.status(201).json({ qualification });
     } catch (error: any) {
       console.error('Create qualification error:', error);
@@ -715,6 +739,18 @@ router.post(
           ...req.body,
         },
       });
+
+      // Log work history creation
+      createActivityLog({
+        userId: trainerId,
+        actionType: 'CREATE',
+        entityType: 'work_history',
+        entityId: workHistory.id,
+        description: `Trainer added work history at ${workHistory.company}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.status(201).json({ workHistory });
     } catch (error: any) {
       console.error('Create work history error:', error);
@@ -835,6 +871,18 @@ router.post(
           ...req.body,
         },
       });
+
+      // Log past client creation
+      createActivityLog({
+        userId: trainerId,
+        actionType: 'CREATE',
+        entityType: 'past_client',
+        entityId: pastClient.id,
+        description: `Trainer added past client: ${pastClient.clientName}`,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
       return res.status(201).json({ pastClient });
     } catch (error: any) {
       console.error('Create past client error:', error);
