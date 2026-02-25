@@ -262,8 +262,8 @@ export async function createWorkHistory(
     const createData = {
       company: workHistoryData.company_name,
       position: workHistoryData.position,
-      startDate: workHistoryData.year_from ? `${workHistoryData.year_from}-01-01` : null,
-      endDate: workHistoryData.year_to ? `${workHistoryData.year_to}-12-31` : null,
+      startDate: workHistoryData.year_from ? new Date(Date.UTC(workHistoryData.year_from, 0, 1)) : null,
+      endDate: workHistoryData.year_to ? new Date(Date.UTC(workHistoryData.year_to, 11, 31)) : null,
       description: null, // Not in frontend type but exists in backend
     };
 
@@ -302,10 +302,10 @@ export async function updateWorkHistory(
     if (workHistoryData.company_name !== undefined) updateData.company = workHistoryData.company_name;
     if (workHistoryData.position !== undefined) updateData.position = workHistoryData.position;
     if (workHistoryData.year_from !== undefined) {
-      updateData.startDate = workHistoryData.year_from ? `${workHistoryData.year_from}-01-01` : null;
+      updateData.startDate = workHistoryData.year_from ? new Date(Date.UTC(workHistoryData.year_from, 0, 1)) : null;
     }
     if (workHistoryData.year_to !== undefined) {
-      updateData.endDate = workHistoryData.year_to ? `${workHistoryData.year_to}-12-31` : null;
+      updateData.endDate = workHistoryData.year_to ? new Date(Date.UTC(workHistoryData.year_to, 11, 31)) : null;
     }
 
     const trainerId = workHistoryData.trainer_id;
