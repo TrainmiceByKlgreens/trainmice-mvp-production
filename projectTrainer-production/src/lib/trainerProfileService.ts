@@ -15,7 +15,7 @@ export async function fetchTrainerProfile(trainerId: string): Promise<Trainer | 
   try {
     const trainer = await apiClient.getTrainer(trainerId);
     if (!trainer) return null;
-    
+
     // Map backend camelCase to frontend snake_case
     return {
       id: trainer.id,
@@ -28,9 +28,13 @@ export async function fetchTrainerProfile(trainerId: string): Promise<Trainer | 
       phone_number: trainer.phoneNumber || trainer.phone_number || null,
       email: trainer.email || null,
       hrdc_accreditation_id: trainer.hrdcAccreditationId || trainer.hrdc_accreditation_id || null,
-      hrdc_accreditation_valid_until: trainer.hrdcAccreditationValidUntil 
-        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0] 
-        : trainer.hrdc_accreditation_valid_until || null,
+      hrdc_accreditation_valid_until: trainer.hrdc_accreditation_valid_until
+        ? (typeof trainer.hrdc_accreditation_valid_until === 'string'
+          ? trainer.hrdc_accreditation_valid_until.split('T')[0]
+          : new Date(trainer.hrdc_accreditation_valid_until).toISOString().split('T')[0])
+        : trainer.hrdcAccreditationValidUntil
+          ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0]
+          : null,
       professional_bio: trainer.professionalBio || trainer.professional_bio || null,
       state: trainer.state || null,
       city: trainer.city || null,
@@ -60,8 +64,8 @@ export async function updateTrainerProfile(
     if (profileData.email !== undefined) updateData.email = profileData.email;
     if (profileData.hrdc_accreditation_id !== undefined) updateData.hrdcAccreditationId = profileData.hrdc_accreditation_id;
     if (profileData.hrdc_accreditation_valid_until !== undefined) {
-      updateData.hrdcAccreditationValidUntil = profileData.hrdc_accreditation_valid_until 
-        ? new Date(profileData.hrdc_accreditation_valid_until) 
+      updateData.hrdcAccreditationValidUntil = profileData.hrdc_accreditation_valid_until
+        ? new Date(profileData.hrdc_accreditation_valid_until)
         : null;
     }
     if (profileData.professional_bio !== undefined) updateData.professionalBio = profileData.professional_bio;
@@ -72,7 +76,7 @@ export async function updateTrainerProfile(
     if (profileData.languages_spoken !== undefined) updateData.languagesSpoken = profileData.languages_spoken;
 
     const trainer = await apiClient.updateTrainer(trainerId, updateData);
-    
+
     // Map back to frontend format
     return {
       id: trainer.id,
@@ -85,8 +89,8 @@ export async function updateTrainerProfile(
       phone_number: trainer.phoneNumber || trainer.phone_number || null,
       email: trainer.email || null,
       hrdc_accreditation_id: trainer.hrdcAccreditationId || trainer.hrdc_accreditation_id || null,
-      hrdc_accreditation_valid_until: trainer.hrdcAccreditationValidUntil 
-        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0] 
+      hrdc_accreditation_valid_until: trainer.hrdcAccreditationValidUntil
+        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0]
         : trainer.hrdc_accreditation_valid_until || null,
       professional_bio: trainer.professionalBio || trainer.professional_bio || null,
       state: trainer.state || null,
@@ -110,7 +114,7 @@ export async function fetchQualifications(trainerId: string): Promise<TrainerQua
   try {
     const response = await apiClient.get<{ qualifications: any[] }>(`/trainers/${trainerId}/qualifications`);
     const quals = response.qualifications || [];
-    
+
     // Map backend camelCase to frontend snake_case
     return quals.map((q: any) => ({
       id: q.id,
@@ -145,7 +149,7 @@ export async function createQualification(
       createData
     );
     const q = response.qualification;
-    
+
     return {
       id: q.id,
       trainer_id: q.trainerId || q.trainer_id,
@@ -183,7 +187,7 @@ export async function updateQualification(
       updateData
     );
     const q = response.qualification;
-    
+
     return {
       id: q.id,
       trainer_id: q.trainerId || q.trainer_id,
@@ -221,15 +225,15 @@ export async function fetchWorkHistory(trainerId: string): Promise<TrainerWorkHi
   try {
     const response = await apiClient.get<{ workHistory: any[] }>(`/trainers/${trainerId}/work-history`);
     const work = response.workHistory || [];
-    
+
     // Map backend camelCase to frontend snake_case
     return work.map((w: any) => ({
       id: w.id,
       trainer_id: w.trainerId || w.trainer_id,
       company_name: w.company || w.company_name,
       position: w.position || '',
-      year_from: w.startDate ? new Date(w.startDate).getFullYear() : (w.year_from || null),
-      year_to: w.endDate ? new Date(w.endDate).getFullYear() : (w.year_to || null),
+      year_from: w.startDate ? new Date(w.startDate).getUTCFullYear() : (w.year_from || null),
+      year_to: w.endDate ? new Date(w.endDate).getUTCFullYear() : (w.year_to || null),
       created_at: w.createdAt || w.created_at || new Date().toISOString(),
       updated_at: w.updatedAt || w.updated_at || new Date().toISOString(),
     })) as TrainerWorkHistory[];
@@ -258,8 +262,8 @@ export async function createWorkHistory(
     const createData = {
       company: workHistoryData.company_name,
       position: workHistoryData.position,
-      startDate: workHistoryData.year_from ? new Date(workHistoryData.year_from, 0, 1) : null,
-      endDate: workHistoryData.year_to ? new Date(workHistoryData.year_to, 11, 31) : null,
+      startDate: workHistoryData.year_from ? `${workHistoryData.year_from}-01-01` : null,
+      endDate: workHistoryData.year_to ? `${workHistoryData.year_to}-12-31` : null,
       description: null, // Not in frontend type but exists in backend
     };
 
@@ -268,14 +272,14 @@ export async function createWorkHistory(
       createData
     );
     const w = response.workHistory;
-    
+
     return {
       id: w.id,
       trainer_id: w.trainerId || w.trainer_id,
       company_name: w.company || w.company_name,
       position: w.position || '',
-      year_from: w.startDate ? new Date(w.startDate).getFullYear() : (w.year_from || null),
-      year_to: w.endDate ? new Date(w.endDate).getFullYear() : (w.year_to || null),
+      year_from: w.startDate ? new Date(w.startDate).getUTCFullYear() : (w.year_from || null),
+      year_to: w.endDate ? new Date(w.endDate).getUTCFullYear() : (w.year_to || null),
       created_at: w.createdAt || w.created_at || new Date().toISOString(),
       updated_at: w.updatedAt || w.updated_at || new Date().toISOString(),
     } as TrainerWorkHistory;
@@ -298,10 +302,10 @@ export async function updateWorkHistory(
     if (workHistoryData.company_name !== undefined) updateData.company = workHistoryData.company_name;
     if (workHistoryData.position !== undefined) updateData.position = workHistoryData.position;
     if (workHistoryData.year_from !== undefined) {
-      updateData.startDate = workHistoryData.year_from ? new Date(workHistoryData.year_from, 0, 1) : null;
+      updateData.startDate = workHistoryData.year_from ? `${workHistoryData.year_from}-01-01` : null;
     }
     if (workHistoryData.year_to !== undefined) {
-      updateData.endDate = workHistoryData.year_to ? new Date(workHistoryData.year_to, 11, 31) : null;
+      updateData.endDate = workHistoryData.year_to ? `${workHistoryData.year_to}-12-31` : null;
     }
 
     const trainerId = workHistoryData.trainer_id;
@@ -314,14 +318,14 @@ export async function updateWorkHistory(
       updateData
     );
     const w = response.workHistory;
-    
+
     return {
       id: w.id,
       trainer_id: w.trainerId || w.trainer_id,
       company_name: w.company || w.company_name,
       position: w.position || '',
-      year_from: w.startDate ? new Date(w.startDate).getFullYear() : (w.year_from || null),
-      year_to: w.endDate ? new Date(w.endDate).getFullYear() : (w.year_to || null),
+      year_from: w.startDate ? new Date(w.startDate).getUTCFullYear() : (w.year_from || null),
+      year_to: w.endDate ? new Date(w.endDate).getUTCFullYear() : (w.year_to || null),
       created_at: w.createdAt || w.created_at || new Date().toISOString(),
       updated_at: w.updatedAt || w.updated_at || new Date().toISOString(),
     } as TrainerWorkHistory;
@@ -351,15 +355,15 @@ export async function deleteWorkHistoryWithTrainerId(trainerId: string, id: stri
 export async function fetchCoursesConducted(trainerId: string): Promise<TrainerCourseConducted[]> {
   try {
     const coursesConducted = await apiClient.getCoursesConducted(trainerId);
-    
+
     // Map backend camelCase to frontend snake_case
     return coursesConducted.map((c: any) => ({
       id: c.id,
       trainer_id: c.trainerId || c.trainer_id,
       course_id: c.courseId || c.course_id || '',
       course_name: c.courseName || c.course_name || '',
-      date_conducted: c.dateConducted 
-        ? new Date(c.dateConducted).toISOString().split('T')[0] 
+      date_conducted: c.dateConducted
+        ? new Date(c.dateConducted).toISOString().split('T')[0]
         : (c.date_conducted || ''),
       location: c.location || null,
       participants_count: c.participantsCount ?? c.participants_count ?? null,
@@ -389,14 +393,14 @@ export async function createCourseConducted(
 
     const response = await apiClient.createCourseConducted(courseData.trainer_id, createData);
     const c = response;
-    
+
     return {
       id: c.id,
       trainer_id: c.trainerId || c.trainer_id,
       course_id: c.courseId || c.course_id || '',
       course_name: c.courseName || c.course_name || '',
-      date_conducted: c.dateConducted 
-        ? new Date(c.dateConducted).toISOString().split('T')[0] 
+      date_conducted: c.dateConducted
+        ? new Date(c.dateConducted).toISOString().split('T')[0]
         : (c.date_conducted || ''),
       location: c.location || null,
       participants_count: c.participantsCount ?? c.participants_count ?? null,
@@ -433,14 +437,14 @@ export async function updateCourseConducted(
 
     const response = await apiClient.updateCourseConducted(trainerId, id, updateData);
     const c = response;
-    
+
     return {
       id: c.id,
       trainer_id: c.trainerId || c.trainer_id,
       course_id: c.courseId || c.course_id || '',
       course_name: c.courseName || c.course_name || '',
-      date_conducted: c.dateConducted 
-        ? new Date(c.dateConducted).toISOString().split('T')[0] 
+      date_conducted: c.dateConducted
+        ? new Date(c.dateConducted).toISOString().split('T')[0]
         : (c.date_conducted || ''),
       location: c.location || null,
       participants_count: c.participantsCount ?? c.participants_count ?? null,
@@ -524,7 +528,7 @@ export async function fetchPastClients(trainerId: string): Promise<TrainerPastCl
   try {
     const response = await apiClient.get<{ pastClients: any[] }>(`/trainers/${trainerId}/past-clients`);
     const clients = response.pastClients || [];
-    
+
     // Map backend camelCase to frontend snake_case
     return clients.map((c: any) => ({
       id: c.id,
@@ -568,7 +572,7 @@ export async function createPastClient(
       createData
     );
     const c = response.pastClient;
-    
+
     return {
       id: c.id,
       trainer_id: c.trainerId || c.trainer_id,
@@ -608,7 +612,7 @@ export async function updatePastClient(
       updateData
     );
     const c = response.pastClient;
-    
+
     return {
       id: c.id,
       trainer_id: c.trainerId || c.trainer_id,
