@@ -936,7 +936,7 @@ router.post(
           eventDate: eventDate,
           startDate: startDate, // Set to event date
           endDate: availabilities.length > 1 ? endDate : null, // Set end date if multi-day
-          category: course.category,
+          category: course.category as any,
           city: city || course.city || null,
           state: state || course.state || null,
           hrdcClaimable: course.hrdcClaimable,

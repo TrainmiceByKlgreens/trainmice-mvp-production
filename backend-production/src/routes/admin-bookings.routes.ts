@@ -133,7 +133,7 @@ router.post('/send-email', async (req: AuthRequest, res) => {
       metadata: { title, clientCount: clientIds.length },
     });
 
-    return res.json({ 
+    return res.json({
       message: `Email sent to ${notifications.filter(n => n !== null).length} client(s)`,
       sentCount: notifications.filter(n => n !== null).length,
     });
@@ -234,7 +234,7 @@ router.put('/:id/confirm', async (req: AuthRequest, res) => {
     // Update booking status and store first availability ID for tracking
     const updated = await prisma.bookingRequest.update({
       where: { id: req.params.id },
-      data: { 
+      data: {
         status: 'CONFIRMED',
         trainerAvailabilityId: availabilityIds[0], // Store first availability ID for tracking
       },
@@ -305,13 +305,13 @@ router.put('/:id/confirm', async (req: AuthRequest, res) => {
           courseMode: courseModeArray, // Standardized: Always use array format
           durationHours: course.durationHours || 0,
           durationUnit: course.durationUnit || 'hours',
-          modules: course.modules || [],
+          modules: course.modules as any || [], // Cast modules to any
           venue: booking.location || course.venue || null,
           price: course.price || null,
           eventDate: finalEventDate, // Standardized: Always use date from availability
           startDate: startDate,
           endDate: endDate,
-          category: course.category || null,
+          category: course.category as any,
           city: booking.city || course.city || null,
           state: booking.state || course.state || null,
           hrdcClaimable: course.hrdcClaimable || false,
@@ -368,8 +368,8 @@ router.put('/:id/confirm', async (req: AuthRequest, res) => {
         metadata: { eventId: event.id, totalSlots: totalSlotsNum, registeredParticipants: registeredParticipantsNum },
       });
 
-      return res.json({ 
-        message: 'Booking confirmed successfully and event created', 
+      return res.json({
+        message: 'Booking confirmed successfully and event created',
         booking: updated,
         event,
       });

@@ -308,7 +308,13 @@ router.get('/:id/analytics', async (req: AuthRequest, res: Response) => {
 
     const categoryCounts: Record<string, number> = {};
     categories.forEach((booking) => {
-      const category = booking.course?.category || 'Uncategorized';
+      const categoryRaw = booking.course?.category;
+      let category = 'Uncategorized';
+      if (Array.isArray(categoryRaw) && categoryRaw.length > 0) {
+        category = String(categoryRaw[0]);
+      } else if (typeof categoryRaw === 'string') {
+        category = categoryRaw;
+      }
       categoryCounts[category] = (categoryCounts[category] || 0) + 1;
     });
 

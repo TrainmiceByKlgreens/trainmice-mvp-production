@@ -84,14 +84,14 @@ export async function syncEventFromCourse(courseId: string) {
     // Update existing event
     const updated = await prisma.event.update({
       where: { id: existingEvent.id },
-      data: eventData,
+      data: eventData as any,
     });
     console.log(`Event updated for course ${courseId}:`, updated.id);
     return updated;
   } else {
     // Create new event
     const created = await prisma.event.create({
-      data: eventData,
+      data: eventData as any,
     });
     console.log(`Event created for course ${courseId}:`, created.id);
     return created;
