@@ -53,6 +53,20 @@ function normalizeCourseMode(courseMode: any): string[] {
   return ['PHYSICAL'];
 }
 
+// Helper function to validate and normalize category array
+function normalizeCategory(category: any): string[] {
+  if (!category) return [];
+  if (Array.isArray(category)) {
+    return category
+      .filter(c => c && typeof c === 'string' && c.trim() !== '')
+      .map(c => c.trim());
+  }
+  if (typeof category === 'string' && category.trim() !== '') {
+    return [category.trim()];
+  }
+  return [];
+}
+
 // Get all courses (admin view)
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -236,6 +250,8 @@ router.post(
           } else if (field === 'courseCode') {
             // Allow courseCode to be set or cleared (empty string becomes null)
             updateData[field] = req.body[field] && req.body[field].trim() !== '' ? req.body[field].trim() : null;
+          } else if (field === 'category') {
+            updateData[field] = normalizeCategory(req.body[field]);
           } else {
             updateData[field] = req.body[field];
           }
@@ -389,6 +405,8 @@ router.put(
           } else if (field === 'courseCode') {
             // Allow courseCode to be set or cleared (empty string becomes null)
             updateData[field] = req.body[field] && req.body[field].trim() !== '' ? req.body[field].trim() : null;
+          } else if (field === 'category') {
+            updateData[field] = normalizeCategory(req.body[field]);
           } else {
             updateData[field] = req.body[field];
           }

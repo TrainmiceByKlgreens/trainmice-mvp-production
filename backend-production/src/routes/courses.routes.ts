@@ -301,6 +301,20 @@ function normalizeCourseMode(courseMode: any): string[] {
   return ['PHYSICAL'];
 }
 
+// Helper function to validate and normalize category array
+function normalizeCategory(category: any): string[] {
+  if (!category) return [];
+  if (Array.isArray(category)) {
+    return category
+      .filter(c => c && typeof c === 'string' && c.trim() !== '')
+      .map(c => c.trim());
+  }
+  if (typeof category === 'string' && category.trim() !== '') {
+    return [category.trim()];
+  }
+  return [];
+}
+
 // Create course (trainer or admin)
 router.post(
   '/',
@@ -324,6 +338,10 @@ router.post(
           return res.status(400).json({ error: 'Invalid courseMode. Must be an array containing PHYSICAL, ONLINE, and/or HYBRID' });
         }
         courseData.courseMode = normalized.length > 0 ? normalized : ['PHYSICAL'];
+      }
+
+      if (courseData.category !== undefined) {
+        courseData.category = normalizeCategory(courseData.category);
       }
 
       let creatorCode: string | null = null;
@@ -515,6 +533,8 @@ router.put(
           } else if (field === 'durationHours') {
             // durationHours is Int in database, so parse as integer
             sanitizedData[field] = updateData[field] ? Math.round(parseFloat(updateData[field])) : null;
+          } else if (field === 'category') {
+            sanitizedData[field] = normalizeCategory(updateData[field]);
           } else {
             sanitizedData[field] = updateData[field];
           }

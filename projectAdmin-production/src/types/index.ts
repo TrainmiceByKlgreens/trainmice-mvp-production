@@ -89,6 +89,7 @@ export interface Course {
   end_date: string | null;
   hrdc_claimable: boolean;
   brochure_url: string | null;
+  category: string[] | null;
   status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'DENIED';
   created_at: string;
   updated_at: string;
@@ -180,7 +181,7 @@ export interface Event {
   eventDate: string;
   startDate?: string | null;
   endDate?: string | null;
-  category?: string | null;
+  category?: string[] | null;
   city?: string | null;
   state?: string | null;
   hrdcClaimable?: boolean;

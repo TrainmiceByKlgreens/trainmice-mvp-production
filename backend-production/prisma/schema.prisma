@@ -138,7 +138,7 @@ model Course {
   fixedDate                          DateTime?                @map("fixed_date") @db.Date
   startDate                          DateTime?                @map("start_date") @db.Date
   endDate                            DateTime?                @map("end_date") @db.Date
-  category                           String?
+  category                           Json?
   city                               String?
   state                              String?
   hrdcClaimable                      Boolean                  @default(false) @map("hrdc_claimable")
@@ -251,7 +251,7 @@ model Event {
   eventDate                          DateTime            @map("event_date") @db.Date
   startDate                          DateTime?           @map("start_date") @db.Date
   endDate                            DateTime?           @map("end_date") @db.Date
-  category                           String?
+  category                           Json?
   city                               String?
   state                              String?
   hrdcClaimable                      Boolean             @default(false) @map("hrdc_claimable")

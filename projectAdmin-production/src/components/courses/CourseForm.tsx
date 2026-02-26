@@ -83,7 +83,11 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       if (c?.end_date) return c.end_date.split('T')[0];
       return '';
     })(),
-    category: getCourseField('category') || '',
+    category: (() => {
+      const cat = getCourseField('category');
+      if (Array.isArray(cat)) return cat;
+      return cat ? [cat] : [];
+    })(),
     price: course?.price?.toString() || '',
     venue: course?.venue || '',
     hrdc_claimable: getCourseField('hrdcClaimable') || course?.hrdc_claimable || false,
@@ -130,7 +134,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
   useEffect(() => {
     if (course) {
       const c = course as any;
-      
+
       // Update learning objectives array
       if (c?.learningObjectives !== undefined || c?.learning_objectives !== undefined) {
         let objectivesArray: string[] = [];
@@ -177,7 +181,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
     if (!course) return;
 
     const c = course as any;
-    
+
     // Debug logging
     console.log('Updating formData from course:', {
       learningObjectives: c.learningObjectives,
@@ -236,13 +240,13 @@ export const CourseForm: React.FC<CourseFormProps> = ({
 
     // Update learning objectives and outcomes arrays
     if (learningObjectivesValue !== '') {
-      setLearningObjectives(learningObjectivesValue.split('\n').filter((s: string) => s.trim()).length > 0 
-        ? learningObjectivesValue.split('\n').filter((s: string) => s.trim()) 
+      setLearningObjectives(learningObjectivesValue.split('\n').filter((s: string) => s.trim()).length > 0
+        ? learningObjectivesValue.split('\n').filter((s: string) => s.trim())
         : ['']);
     }
     if (learningOutcomesValue !== '') {
-      setLearningOutcomes(learningOutcomesValue.split('\n').filter((s: string) => s.trim()).length > 0 
-        ? learningOutcomesValue.split('\n').filter((s: string) => s.trim()) 
+      setLearningOutcomes(learningOutcomesValue.split('\n').filter((s: string) => s.trim()).length > 0
+        ? learningOutcomesValue.split('\n').filter((s: string) => s.trim())
         : ['']);
     }
 
@@ -256,7 +260,12 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         target_audience: (c.targetAudience !== undefined) ? String(c.targetAudience || '') : ((c.target_audience !== undefined) ? String(c.target_audience || '') : prev.target_audience),
         methodology: (c.methodology !== undefined) ? String(c.methodology || '') : prev.methodology,
         prerequisite: (c.prerequisite !== undefined) ? String(c.prerequisite || '') : prev.prerequisite,
-        category: (c.category !== undefined && c.category !== null) ? String(c.category) : prev.category,
+        category: (() => {
+          const cat = c.category;
+          if (cat === undefined || cat === null) return prev.category;
+          if (Array.isArray(cat)) return cat;
+          return [String(cat)];
+        })(),
         course_type: (c.courseType || c.course_type) || prev.course_type,
         course_mode: (c.courseMode || c.course_mode) || prev.course_mode,
         duration_hours: (c.durationHours || c.duration_hours) ? String(c.durationHours || c.duration_hours) : prev.duration_hours,
@@ -264,7 +273,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         city: (c.city !== undefined && c.city !== null) ? String(c.city) : prev.city,
         state: (c.state !== undefined && c.state !== null) ? String(c.state) : prev.state,
       };
-      
+
       console.log('Updated formData:', {
         target_audience: updated.target_audience,
         methodology: updated.methodology,
@@ -286,8 +295,8 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       // New structure: one module per row (moduleTitle is string, not array)
       const scheduleWithSubmodules = schedule.map((item: any) => {
         // moduleTitle is now a string (one module per row)
-        const moduleTitle = typeof item.moduleTitle === 'string' 
-          ? item.moduleTitle 
+        const moduleTitle = typeof item.moduleTitle === 'string'
+          ? item.moduleTitle
           : (typeof item.module_title === 'string' ? item.module_title : '');
 
         // Parse submodule_title - can be array or string
@@ -335,8 +344,8 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         email: t.email || '',
         full_name: t.fullName || '',
         phone: t.phoneNumber || null,
-        specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0 
-          ? t.areasOfExpertise[0] 
+        specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0
+          ? t.areasOfExpertise[0]
           : null,
         bio: t.professionalBio || null,
         hourly_rate: null,
@@ -356,7 +365,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       setFilteredTrainers(trainers);
     } else {
       const searchLower = trainerSearchTerm.toLowerCase();
-      const filtered = trainers.filter(trainer => 
+      const filtered = trainers.filter(trainer =>
         trainer.full_name?.toLowerCase().includes(searchLower) ||
         trainer.id.toLowerCase().includes(searchLower) ||
         trainer.email?.toLowerCase().includes(searchLower) ||
@@ -373,16 +382,16 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       // Always fetch full course data to get both trainer_id and courseTrainers relationship
       const response = await apiClient.getAdminCourse(course.id);
       const fullCourse = response.course;
-      
+
       if (!fullCourse) return;
 
       const trainerIds: string[] = [];
-      
+
       // Add trainer_id if it exists (for trainer-created courses)
       if (fullCourse.trainerId) {
         trainerIds.push(fullCourse.trainerId);
       }
-      
+
       // Add trainers from courseTrainers relationship (for admin-assigned trainers)
       if (fullCourse.courseTrainers && Array.isArray(fullCourse.courseTrainers)) {
         fullCourse.courseTrainers.forEach((ct: any) => {
@@ -392,7 +401,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
           }
         });
       }
-      
+
       setSelectedTrainerIds(trainerIds.length > 0 ? trainerIds : []);
     } catch (error) {
       console.error('Error fetching course trainers:', error);
@@ -437,10 +446,10 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       const scheduleToSave: any[] = [];
       scheduleItems.forEach((item) => {
         // module_title is now a string (one module per row)
-        const moduleTitle = typeof item.module_title === 'string' 
+        const moduleTitle = typeof item.module_title === 'string'
           ? item.module_title.trim()
           : '';
-        
+
         // Only save if module title is not empty
         if (moduleTitle) {
           scheduleToSave.push({
@@ -448,7 +457,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
             startTime: item.start_time,
             endTime: item.end_time,
             moduleTitle: moduleTitle, // String, not array
-            submoduleTitle: item.submodules && item.submodules.length > 0 
+            submoduleTitle: item.submodules && item.submodules.length > 0
               ? item.submodules.filter((s: string) => s && s.trim()) // Array format
               : null,
             durationMinutes: item.duration_minutes,
@@ -468,15 +477,15 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         certificate: formData.certificate || null,
         assessment: formData.assessment,
         price: formData.price ? parseFloat(formData.price) : null,
-        durationHours: formData.duration_hours && String(formData.duration_hours).trim() !== '' 
-          ? Math.round(parseFloat(String(formData.duration_hours))) 
+        durationHours: formData.duration_hours && String(formData.duration_hours).trim() !== ''
+          ? Math.round(parseFloat(String(formData.duration_hours)))
           : null,
         durationUnit: formData.duration_unit,
         startDate: null,
         endDate: formData.end_date || null,
         fixedDate: null,
         venue: formData.venue || null,
-        category: formData.category || null,
+        category: formData.category && formData.category.length > 0 ? formData.category : null,
         hrdcClaimable: formData.hrdc_claimable,
         courseType: formData.course_type === 'BOTH' ? ['IN_HOUSE', 'PUBLIC'] : [formData.course_type],
         courseMode: Array.isArray(formData.course_mode) && formData.course_mode.length > 0 ? formData.course_mode : ['PHYSICAL'],
@@ -488,7 +497,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         city: formData.city || null,
         state: formData.state || null,
       };
-      
+
       await onSubmit(
         courseData as Partial<Course>,
         formData.created_by_admin ? selectedTrainerIds : []
@@ -532,41 +541,74 @@ export const CourseForm: React.FC<CourseFormProps> = ({
             </button>
             {expandedSections.basic && (
               <div className="mt-4 space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <Input
-            label="Course Title *"
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            required
-            placeholder="Enter course title"
-          />
-        </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <Input
+                      label="Course Title *"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      required
+                      placeholder="Enter course title"
+                    />
+                  </div>
 
-        <div className="md:col-span-2">
-          <Textarea
-            label="Description *"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  <div className="md:col-span-2">
+                    <Textarea
+                      label="Description *"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={4}
-            required
-            placeholder="Brief description of the course"
-          />
-        </div>
+                      required
+                      placeholder="Brief description of the course"
+                    />
+                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Category
                     </label>
-                    <Select
-                      value={formData.category || ''}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      options={[
-                        { value: '', label: 'Select a category' },
-                        ...COURSE_CATEGORIES.map(cat => ({ value: cat, label: cat }))
-                      ]}
-          />
-        </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 border rounded-md max-h-48 overflow-y-auto bg-white">
+                      {COURSE_CATEGORIES.map(cat => (
+                        <label key={cat} className="flex items-center gap-2 cursor-pointer p-1 hover:bg-gray-50 rounded transition-colors group">
+                          <input
+                            type="checkbox"
+                            checked={Array.isArray(formData.category) && formData.category.includes(cat)}
+                            onChange={(e) => {
+                              const currentCats = Array.isArray(formData.category) ? formData.category : [];
+                              if (e.target.checked) {
+                                setFormData({ ...formData, category: [...currentCats, cat] });
+                              } else {
+                                setFormData({ ...formData, category: currentCats.filter((c: string) => c !== cat) });
+                              }
+                            }}
+                            className="w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500"
+                          />
+                          <span className="text-sm text-gray-700 group-hover:text-teal-700 truncate" title={cat}>
+                            {cat}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    {(!formData.category || formData.category.length === 0) && (
+                      <p className="mt-1 text-xs text-gray-400 italic">No categories selected</p>
+                    )}
+                    {formData.category && formData.category.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {formData.category.map(cat => (
+                          <span key={cat} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-800">
+                            {cat}
+                            <button
+                              type="button"
+                              onClick={() => setFormData({ ...formData, category: formData.category.filter((c: string) => c !== cat) })}
+                              className="ml-1 text-teal-600 hover:text-teal-900"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -580,8 +622,8 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                         { value: 'PUBLIC', label: 'Public only' },
                         { value: 'BOTH', label: 'In-House and Public' },
                       ]}
-          />
-        </div>
+                    />
+                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -633,10 +675,10 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                           { value: 'half_day', label: 'Half Day' },
                         ]}
                       />
-        <Input
-          type="number"
-          value={formData.duration_unit === 'half_day' ? '5' : formData.duration_hours}
-          onChange={(e) => setFormData({ ...formData, duration_hours: e.target.value })}
+                      <Input
+                        type="number"
+                        value={formData.duration_unit === 'half_day' ? '5' : formData.duration_hours}
+                        onChange={(e) => setFormData({ ...formData, duration_hours: e.target.value })}
                         placeholder="Duration"
                         min={formData.duration_unit === 'hours' ? 1 : 1}
                         max={formData.duration_unit === 'hours' ? 5 : undefined}
@@ -655,10 +697,10 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Certificate
                     </label>
-        <Select
+                    <Select
                       value={formData.certificate}
                       onChange={(e) => setFormData({ ...formData, certificate: e.target.value })}
-          options={[
+                      options={[
                         { value: '', label: 'Select certificate type' },
                         { value: 'CERTIFICATE_OF_ATTENDANCE', label: 'Certificate of Attendance' },
                         { value: 'PROFESSIONAL_CERTIFICATION', label: 'Professional Certification' },
@@ -672,8 +714,8 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                     </label>
                     <Select
                       value={formData.professional_development_points}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
+                      onChange={(e) => setFormData({
+                        ...formData,
                         professional_development_points: e.target.value,
                         professional_development_points_other: e.target.value !== 'OTHERS' ? '' : formData.professional_development_points_other
                       })}
@@ -689,7 +731,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                       ]}
                     />
                     {formData.professional_development_points === 'OTHERS' && (
-        <Input
+                      <Input
                         label="Please specify"
                         value={formData.professional_development_points_other}
                         onChange={(e) => setFormData({ ...formData, professional_development_points_other: e.target.value })}
@@ -716,7 +758,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
 
                   {(parseFloat(formData.duration_hours) > 9 || formData.duration_unit === 'days') && (
                     <div>
-        <Input
+                      <Input
                         label="End Date (Optional)"
                         type="date"
                         value={formData.end_date}
@@ -728,30 +770,30 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                     </div>
                   )}
 
-        <Input
-          label="Price (MYR)"
-          type="number"
-          step="0.01"
-          value={formData.price}
-          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-          placeholder="Course price"
-        />
+                  <Input
+                    label="Price (MYR)"
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="Course price"
+                  />
 
-        <Input
-          label="Venue"
-          value={formData.venue}
-          onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
-          placeholder="Training venue"
-        />
+                  <Input
+                    label="Venue"
+                    value={formData.venue}
+                    onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
+                    placeholder="Training venue"
+                  />
 
-        <Input
-          label="City"
-          value={formData.city}
-          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-          placeholder="City location"
-        />
+                  <Input
+                    label="City"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    placeholder="City location"
+                  />
 
-        <Input
+                  <Input
                     label="State"
                     value={formData.state}
                     onChange={(e) => setFormData({ ...formData, state: e.target.value })}
@@ -759,19 +801,19 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                   />
 
 
-        <Select
-          label="Status *"
+                  <Select
+                    label="Status *"
                     value={formData.status.toLowerCase().replace('_', ' ')}
                     onChange={(e) => {
                       const statusValue = e.target.value.toUpperCase().replace(' ', '_');
                       setFormData({ ...formData, status: statusValue as any });
                     }}
-          options={[
-            { value: 'draft', label: 'Draft' },
-            { value: 'pending_approval', label: 'Pending Approval' },
-            { value: 'approved', label: 'Approved' },
-            { value: 'denied', label: 'Denied' },
-          ]}
+                    options={[
+                      { value: 'draft', label: 'Draft' },
+                      { value: 'pending_approval', label: 'Pending Approval' },
+                      { value: 'approved', label: 'Approved' },
+                      { value: 'denied', label: 'Denied' },
+                    ]}
                   />
                 </div>
               </div>
@@ -913,34 +955,34 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                     label="Prerequisite"
                     value={formData.prerequisite}
                     onChange={(e) => setFormData({ ...formData, prerequisite: e.target.value })}
-          rows={4}
+                    rows={4}
                     placeholder="Required prerequisites"
-        />
-      </div>
+                  />
+                </div>
 
                 <div className="flex items-center space-x-6 pt-4 border-t">
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={formData.hrdc_claimable}
-              onChange={(e) => setFormData({ ...formData, hrdc_claimable: e.target.checked })}
-              className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
-            />
-            <span className="text-sm font-medium text-gray-700">HRDC Claimable</span>
-          </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.hrdc_claimable}
+                      onChange={(e) => setFormData({ ...formData, hrdc_claimable: e.target.checked })}
+                      className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">HRDC Claimable</span>
+                  </label>
 
-          {!course && (
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={formData.created_by_admin}
-                onChange={(e) => setFormData({ ...formData, created_by_admin: e.target.checked })}
-                className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
-              />
-              <span className="text-sm font-medium text-gray-700">Admin Created (Multiple Trainers)</span>
-            </label>
-          )}
-        </div>
+                  {!course && (
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.created_by_admin}
+                        onChange={(e) => setFormData({ ...formData, created_by_admin: e.target.checked })}
+                        className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Admin Created (Multiple Trainers)</span>
+                    </label>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -975,7 +1017,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                 )}
               </div>
             )}
-      </div>
+          </div>
 
           {/* Trainer Assignment Section */}
           <div className="mb-8">
@@ -985,7 +1027,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
               className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <h3 className="text-lg font-semibold text-gray-900">
-          {formData.created_by_admin || course?.created_by_admin ? 'Assign Trainers (Multiple)' : 'Assign Trainer (Single)'}
+                {formData.created_by_admin || course?.created_by_admin ? 'Assign Trainers (Multiple)' : 'Assign Trainer (Single)'}
               </h3>
               {expandedSections.trainers ? (
                 <ChevronUp className="w-5 h-5 text-gray-500" />
@@ -1003,35 +1045,35 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                     className="w-full"
                   />
                 </div>
-        <div className="space-y-2 max-h-60 overflow-y-auto border rounded-lg p-4 bg-gray-50">
+                <div className="space-y-2 max-h-60 overflow-y-auto border rounded-lg p-4 bg-gray-50">
                   {filteredTrainers.length === 0 ? (
                     <p className="text-sm text-gray-500">
                       {trainerSearchTerm ? 'No trainers found matching your search' : 'No trainers available'}
                     </p>
                   ) : (
                     filteredTrainers.map((trainer) => (
-              <div key={trainer.id} className="flex items-center">
-                <input
-                  type={formData.created_by_admin || course?.created_by_admin ? 'checkbox' : 'radio'}
-                  id={`trainer-${trainer.id}`}
-                  checked={selectedTrainerIds.includes(trainer.id)}
-                  onChange={() => {
-                    if (formData.created_by_admin || course?.created_by_admin) {
-                      handleTrainerToggle(trainer.id);
-                    } else {
-                      setSelectedTrainerIds([trainer.id]);
-                    }
-                  }}
-                  className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
-                />
-                <label htmlFor={`trainer-${trainer.id}`} className="ml-2 text-sm text-gray-700">
-                  {trainer.full_name} - {trainer.specialization || 'No specialization'}
-                </label>
+                      <div key={trainer.id} className="flex items-center">
+                        <input
+                          type={formData.created_by_admin || course?.created_by_admin ? 'checkbox' : 'radio'}
+                          id={`trainer-${trainer.id}`}
+                          checked={selectedTrainerIds.includes(trainer.id)}
+                          onChange={() => {
+                            if (formData.created_by_admin || course?.created_by_admin) {
+                              handleTrainerToggle(trainer.id);
+                            } else {
+                              setSelectedTrainerIds([trainer.id]);
+                            }
+                          }}
+                          className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                        />
+                        <label htmlFor={`trainer-${trainer.id}`} className="ml-2 text-sm text-gray-700">
+                          {trainer.full_name} - {trainer.specialization || 'No specialization'}
+                        </label>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            ))
-          )}
-        </div>
-      </div>
             )}
           </div>
         </div>

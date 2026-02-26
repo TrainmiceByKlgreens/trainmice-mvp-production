@@ -16,7 +16,7 @@ interface CourseBasicInfoProps {
     duration_unit: 'days' | 'hours' | 'half_day';
     course_type: string | null;
     course_mode: string[] | string | null;
-    category: string | null;
+    category: string[] | string | null;
     certificate: string | null;
     professional_development_points: string | null;
     professional_development_points_other: string | null;
@@ -51,7 +51,7 @@ export function CourseBasicInfoForm({ formData, onChange, errors = {} }: CourseB
     const currentDuration = parseFloat(durationInput) || 1;
     // Store the raw input value based on unit - no conversion
     let rawValue = currentDuration;
-    
+
     if (unit === 'hours') {
       rawValue = Math.min(Math.max(currentDuration, 1), 5);
     } else if (unit === 'half_day') {
@@ -61,7 +61,7 @@ export function CourseBasicInfoForm({ formData, onChange, errors = {} }: CourseB
       // For days, store the raw day count (e.g., 2 for 2 days)
       rawValue = currentDuration;
     }
-    
+
     // Store raw value - no conversion to hours
     onChange({ ...formData, duration_unit: unit, duration_hours: rawValue });
   };
@@ -114,16 +114,54 @@ export function CourseBasicInfoForm({ formData, onChange, errors = {} }: CourseB
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Category
           </label>
-          <Select
-            options={[
-              { value: '', label: 'Select a category' },
-              ...COURSE_CATEGORIES.map(cat => ({ value: cat, label: cat }))
-            ]}
-            value={formData.category || ''}
-            onChange={(e) => onChange({ ...formData, category: e.target.value || null })}
-          />
+          <div className="grid grid-cols-2 gap-2 p-3 border rounded-md max-h-48 overflow-y-auto bg-white">
+            {COURSE_CATEGORIES.map(cat => {
+              const currentCats = Array.isArray(formData.category)
+                ? formData.category
+                : (typeof formData.category === 'string' ? [formData.category] : []);
+
+              return (
+                <label key={cat} className="flex items-center gap-2 cursor-pointer p-1 hover:bg-gray-50 rounded transition-colors group">
+                  <input
+                    type="checkbox"
+                    checked={currentCats.includes(cat)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        onChange({ ...formData, category: [...currentCats, cat] });
+                      } else {
+                        onChange({ ...formData, category: currentCats.filter((c: string) => c !== cat) });
+                      }
+                    }}
+                    className="w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500"
+                  />
+                  <span className="text-sm text-gray-700 group-hover:text-teal-700 truncate" title={cat}>
+                    {cat}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
           {errors.category && (
             <p className="mt-1 text-sm text-red-600">{errors.category}</p>
+          )}
+          {Array.isArray(formData.category) && formData.category.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {formData.category.map(cat => (
+                <span key={cat} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-800">
+                  {cat}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentCats = Array.isArray(formData.category) ? formData.category : [];
+                      onChange({ ...formData, category: currentCats.filter((c: string) => c !== cat) });
+                    }}
+                    className="ml-1 text-teal-600 hover:text-teal-900"
+                  >
+                    <Check className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
           )}
         </div>
 
@@ -187,11 +225,10 @@ export function CourseBasicInfoForm({ formData, onChange, errors = {} }: CourseB
               return (
                 <label key={mode} className="flex items-center gap-2 cursor-pointer">
                   <div
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                      courseModeArray.includes(mode)
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${courseModeArray.includes(mode)
                         ? 'bg-blue-600 border-blue-600'
                         : 'border-gray-300'
-                    }`}
+                      }`}
                     onClick={() => {
                       const currentModes = Array.isArray(formData.course_mode) ? formData.course_mode : (formData.course_mode ? [formData.course_mode] : []);
                       if (courseModeArray.includes(mode)) {
@@ -250,8 +287,8 @@ export function CourseBasicInfoForm({ formData, onChange, errors = {} }: CourseB
               { value: 'OTHERS', label: 'Others' },
             ]}
             value={formData.professional_development_points || ''}
-            onChange={(e) => onChange({ 
-              ...formData, 
+            onChange={(e) => onChange({
+              ...formData,
               professional_development_points: e.target.value || null,
               professional_development_points_other: e.target.value !== 'OTHERS' ? null : formData.professional_development_points_other
             })}

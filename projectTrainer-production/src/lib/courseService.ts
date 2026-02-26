@@ -8,7 +8,7 @@ export interface CourseFormData {
   duration_unit?: 'days' | 'hours' | 'half_day';
   course_type: string | null;
   course_mode: string[] | string | null;
-  category?: string | null;
+  category?: string[] | string | null;
   certificate: string | null;
   professional_development_points?: string | null;
   professional_development_points_other?: string | null;
@@ -67,20 +67,20 @@ function mapToBackendCourse(trainerId: string, courseData: CourseFormData) {
     description: courseData.description,
     durationHours: storedDurationHours,
     durationUnit: courseData.duration_unit || 'hours',
-    courseType: courseData.course_type === 'BOTH' 
+    courseType: courseData.course_type === 'BOTH'
       ? ['IN_HOUSE', 'PUBLIC']
       : courseData.course_type
-      ? [courseData.course_type.toUpperCase().replace('-', '_')]
-      : ['IN_HOUSE'],
+        ? [courseData.course_type.toUpperCase().replace('-', '_')]
+        : ['IN_HOUSE'],
     courseMode: Array.isArray(courseData.course_mode) && courseData.course_mode.length > 0
       ? courseData.course_mode.map(m => m.toUpperCase())
-      : courseData.course_mode
-      ? [courseData.course_mode.toUpperCase()]
-      : ['PHYSICAL'],
+      : typeof courseData.course_mode === 'string'
+        ? [courseData.course_mode.toUpperCase()]
+        : ['PHYSICAL'],
     category: courseData.category || null,
     certificate: courseData.certificate || null,
     professionalDevelopmentPoints: courseData.professional_development_points || null,
-    professionalDevelopmentPointsOther: courseData.professional_development_points === 'OTHERS' 
+    professionalDevelopmentPointsOther: courseData.professional_development_points === 'OTHERS'
       ? courseData.professional_development_points_other || null
       : null,
     assessment: courseData.assessment,
@@ -89,7 +89,7 @@ function mapToBackendCourse(trainerId: string, courseData: CourseFormData) {
     targetAudience: courseData.target_audience,
     methodology: courseData.methodology,
     prerequisite: courseData.prerequisite,
-      fixedDate: null, // Trainers cannot set fixedDate
+    fixedDate: null, // Trainers cannot set fixedDate
     startDate,
     endDate,
     status: courseData.status === 'published' ? 'ACTIVE' : 'DRAFT',
@@ -114,16 +114,16 @@ export async function updateCourse(courseId: string, courseData: Partial<CourseF
     // For updates, we need to handle partial data differently
     // Only include fields that are explicitly provided
     const updatePayload: any = {};
-    
+
     // Map only provided fields
     if (courseData.title !== undefined) updatePayload.title = courseData.title;
     if (courseData.description !== undefined) updatePayload.description = courseData.description;
-    
+
     // Handle duration conversion - same logic as createCourse
     if (courseData.duration_hours !== undefined || courseData.duration_unit !== undefined) {
       const durationUnit = courseData.duration_unit;
       const durationHours = courseData.duration_hours;
-      
+
       if (durationHours !== undefined && durationUnit !== undefined) {
         let storedDurationHours: number;
         if (durationUnit === 'days') {
@@ -141,7 +141,7 @@ export async function updateCourse(courseId: string, courseData: Partial<CourseF
         // If only duration_hours is provided, use it as-is
         updatePayload.durationHours = courseData.duration_hours;
       }
-      
+
       if (courseData.duration_unit !== undefined) {
         updatePayload.durationUnit = courseData.duration_unit;
       }
@@ -149,7 +149,7 @@ export async function updateCourse(courseId: string, courseData: Partial<CourseF
     if (courseData.course_type !== undefined) {
       // course_type is now an array
       if (Array.isArray(courseData.course_type)) {
-        updatePayload.courseType = courseData.course_type.map((t: string) => 
+        updatePayload.courseType = courseData.course_type.map((t: string) =>
           t.toUpperCase().replace('-', '_')
         );
       } else if (courseData.course_type) {
@@ -162,7 +162,7 @@ export async function updateCourse(courseId: string, courseData: Partial<CourseF
     if (courseData.course_mode !== undefined) {
       // course_mode is now an array
       if (Array.isArray(courseData.course_mode)) {
-        updatePayload.courseMode = courseData.course_mode.map((m: string) => 
+        updatePayload.courseMode = courseData.course_mode.map((m: string) =>
           m.toUpperCase().replace('VIRTUAL', 'ONLINE').replace('BOTH', 'HYBRID')
         );
       } else if (courseData.course_mode) {
@@ -190,7 +190,7 @@ export async function updateCourse(courseId: string, courseData: Partial<CourseF
     if (courseData.status !== undefined) {
       updatePayload.status = courseData.status === 'published' ? 'ACTIVE' : 'DRAFT';
     }
-    
+
     // Handle end_date (trainers cannot set fixedDate - events created only by admin)
     if (courseData.end_date !== undefined) {
       if (courseData.end_date && courseData.end_date.trim() !== '') {
@@ -199,10 +199,10 @@ export async function updateCourse(courseId: string, courseData: Partial<CourseF
         updatePayload.endDate = null;
       }
     }
-    
+
     // Ensure fixedDate is always null for trainer updates
     updatePayload.fixedDate = null;
-    
+
     // Log the payload for debugging
     console.log('Updating course with payload:', JSON.stringify(updatePayload, null, 2));
     console.log('Course ID:', courseId);
@@ -235,7 +235,7 @@ export async function fetchTrainerCourses(trainerId: string) {
       // Convert duration back to original unit for display
       const durationUnit = raw.durationUnit ?? raw.duration_unit ?? 'hours';
       let durationHours = raw.durationHours;
-      
+
       // If unit is days, the stored value is already in days (not hours)
       // So we use it directly without conversion
       // The stored value for days is the raw day count (e.g., 2 for 2 days)
@@ -334,10 +334,10 @@ export async function saveCourseSchedule(courseId: string, scheduleItems: Schedu
     // New structure: each item is one module (module_title is a string, not array)
     const payload = scheduleItems.map((item) => {
       // module_title is now a string (one module per row)
-      const moduleTitle = typeof item.module_title === 'string' 
-        ? item.module_title 
+      const moduleTitle = typeof item.module_title === 'string'
+        ? item.module_title
         : (Array.isArray(item.module_title) && item.module_title.length > 0 ? item.module_title[0] : '');
-      
+
       // Ensure submodule_title is an array or null
       let submoduleTitleArray: string[] | null = null;
       if (item.submodule_title) {
@@ -366,8 +366,8 @@ export async function saveCourseSchedule(courseId: string, scheduleItems: Schedu
     return (result.schedule || []).map((s) => {
       // Backend now returns moduleTitle as string (one module per row)
       const moduleTitle = typeof s.moduleTitle === 'string' ? s.moduleTitle : '';
-      const submoduleTitle = Array.isArray(s.submoduleTitle) 
-        ? s.submoduleTitle 
+      const submoduleTitle = Array.isArray(s.submoduleTitle)
+        ? s.submoduleTitle
         : (s.submoduleTitle ? [s.submoduleTitle] : null);
 
       return {
@@ -397,8 +397,8 @@ export async function fetchCourseSchedule(courseId: string) {
     return schedule.map((s: any) => {
       // Backend now returns moduleTitle as string (one module per row)
       const moduleTitle = typeof s.moduleTitle === 'string' ? s.moduleTitle : '';
-      const submoduleTitle = Array.isArray(s.submoduleTitle) 
-        ? s.submoduleTitle 
+      const submoduleTitle = Array.isArray(s.submoduleTitle)
+        ? s.submoduleTitle
         : (s.submoduleTitle ? [s.submoduleTitle] : null);
 
       return {
@@ -430,11 +430,11 @@ export async function uploadCourseMaterial(
     formData.append('file', file);
 
     const result = await apiClient.post<{ material: any }>(`/courses/${courseId}/materials`, formData);
-    const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD 
+    const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
       ? window.location.origin + '/api'
       : 'http://localhost:3000/api');
     const baseUrl = API_BASE_URL.replace('/api', ''); // Remove /api to get base server URL
-    
+
     return {
       id: result.material.id,
       course_id: result.material.courseId,
@@ -452,11 +452,11 @@ export async function fetchCourseMaterials(courseId: string) {
   try {
     const result = await apiClient.get<{ course: any }>(`/courses/${courseId}`);
     const mats = result.course?.courseMaterials || [];
-    const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD 
+    const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
       ? window.location.origin + '/api'
       : 'http://localhost:3000/api');
     const baseUrl = API_BASE_URL.replace('/api', ''); // Remove /api to get base server URL
-    
+
     return mats.map((m: any) => ({
       id: m.id,
       course_id: m.courseId,

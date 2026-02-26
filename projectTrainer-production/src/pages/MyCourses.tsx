@@ -25,8 +25,8 @@ interface FormData {
   duration_hours: number;
   duration_unit: 'days' | 'hours' | 'half_day';
   course_type: string | null;
-  course_mode: string | null;
-  category: string | null;
+  course_mode: string | string[] | null;
+  category: string[] | string | null;
   certificate: string | null;
   professional_development_points: string | null;
   professional_development_points_other: string | null;
@@ -44,9 +44,9 @@ const initialFormData: FormData = {
   title: '',
   duration_hours: 9,
   duration_unit: 'days',
-  course_type: null,
-  course_mode: null,
-  category: null,
+  course_type: 'IN_HOUSE',
+  course_mode: ['PHYSICAL'],
+  category: [],
   certificate: null,
   professional_development_points: null,
   professional_development_points_other: null,
@@ -55,10 +55,10 @@ const initialFormData: FormData = {
   learning_objectives: [''],
   learning_outcomes: [''],
   target_audience: '',
-      methodology: '',
-      prerequisite: '',
-      end_date: null
-    };
+  methodology: '',
+  prerequisite: '',
+  end_date: null
+};
 
 export function MyCourses() {
   const { user } = useAuth();
@@ -96,12 +96,12 @@ export function MyCourses() {
 
     // Convert course_type and course_mode arrays to strings for form compatibility
     // If it's an array, take the first value or join with comma, otherwise use as-is
-    const courseTypeValue = Array.isArray(course.course_type) 
+    const courseTypeValue = Array.isArray(course.course_type)
       ? (course.course_type.length > 0 ? course.course_type[0] : null)
       : (course.course_type || null);
-    const courseModeValue = Array.isArray(course.course_mode) 
-      ? (course.course_mode.length > 0 ? course.course_mode[0] : null)
-      : (course.course_mode || null);
+    const courseModeValue = Array.isArray(course.course_mode)
+      ? course.course_mode
+      : (course.course_mode ? [course.course_mode] : []);
 
     setFormData({
       title: course.title,
@@ -109,7 +109,10 @@ export function MyCourses() {
       duration_unit: course.duration_unit,
       course_type: courseTypeValue,
       course_mode: courseModeValue,
-      category: course.category || null,
+      category: (() => {
+        if (Array.isArray(course.category)) return course.category;
+        return course.category ? [course.category] : [];
+      })(),
       certificate: course.certificate,
       assessment: course.assessment,
       description: course.description || '',
@@ -146,7 +149,7 @@ export function MyCourses() {
         // Find existing item with same day and time
         const existingItem = acc.find(
           i => i.day_number === item.day_number &&
-               i.start_time === item.start_time
+            i.start_time === item.start_time
         );
 
         if (existingItem) {
@@ -206,6 +209,10 @@ export function MyCourses() {
       newErrors.title = 'Course name is required';
     }
 
+    if (!formData.category || (Array.isArray(formData.category) && formData.category.length === 0)) {
+      newErrors.category = 'Category is required';
+    }
+
     if (!formData.course_type || formData.course_type.trim() === '') {
       newErrors.course_type = 'Please select a course type';
     }
@@ -244,10 +251,6 @@ export function MyCourses() {
 
       if (!formData.methodology.trim()) {
         newErrors.methodology = 'Methodology is required for publishing';
-      }
-
-      if (!formData.category || formData.category.trim() === '') {
-        newErrors.category = 'Category is required for publishing';
       }
 
       if (!formData.certificate || formData.certificate.trim() === '') {
@@ -306,8 +309,8 @@ export function MyCourses() {
         duration_hours: formData.duration_hours,
         duration_unit: formData.duration_unit,
         course_type: formData.course_type,
-        course_mode: formData.course_mode,
-        category: formData.category,
+        course_mode: Array.isArray(formData.course_mode) ? formData.course_mode : (formData.course_mode ? [formData.course_mode] : []),
+        category: Array.isArray(formData.category) ? formData.category : (formData.category ? [formData.category] : []),
         certificate: formData.certificate,
         professional_development_points: formData.professional_development_points,
         professional_development_points_other: formData.professional_development_points_other,
@@ -350,7 +353,7 @@ export function MyCourses() {
 
           scheduleItems.forEach(item => {
             // Get module titles - use new array format if available, otherwise use single module_title
-            const moduleTitles = (item as any).module_titles && Array.isArray((item as any).module_titles) 
+            const moduleTitles = (item as any).module_titles && Array.isArray((item as any).module_titles)
               ? (item as any).module_titles.filter((m: string) => m && m.trim())
               : (item.module_title && typeof item.module_title === 'string' && item.module_title.trim() ? [item.module_title] : []);
 
@@ -362,7 +365,7 @@ export function MyCourses() {
                 start_time: item.start_time,
                 end_time: item.end_time,
                 module_title: moduleTitles, // Array format
-                submodule_title: item.submodules && item.submodules.length > 0 
+                submodule_title: item.submodules && item.submodules.length > 0
                   ? item.submodules.filter((s: string) => s && s.trim()) // Array format
                   : null,
                 duration_minutes: item.duration_minutes

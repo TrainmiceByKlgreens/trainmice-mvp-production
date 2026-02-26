@@ -107,7 +107,7 @@ export interface Course {
   duration_hours: number;
   duration_unit: 'days' | 'hours' | 'half_day';
   event_date: string | null;
-  category: string | null;
+  category: string[] | string | null; // Can be array or string for backward compatibility
   price: number | null;
   venue: string | null;
   hrdc_claimable: boolean | null;
