@@ -9,7 +9,10 @@ type CourseCardProps = {
 
 export function CourseCard({ course }: CourseCardProps) {
   const navigate = useNavigate();
-  const categoryColors = getCategoryColor(course.category || null);
+  const firstCategory = Array.isArray(course.category)
+    ? course.category[0]
+    : (course.category as string | undefined);
+  const categoryColors = getCategoryColor(firstCategory || null);
 
   const renderStars = (rating: number | null) => {
     if (!rating) return null;
@@ -18,9 +21,8 @@ export function CourseCard({ course }: CourseCardProps) {
       stars.push(
         <Star
           key={i}
-          className={`w-4 h-4 ${
-            i <= Math.round(rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-          }`}
+          className={`w-4 h-4 ${i <= Math.round(rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+            }`}
         />
       );
     }
@@ -28,11 +30,11 @@ export function CourseCard({ course }: CourseCardProps) {
   };
 
   // Parse duration to get days
-  const durationDays = course.duration_unit === 'days' 
-    ? course.duration_hours 
+  const durationDays = course.duration_unit === 'days'
+    ? course.duration_hours
     : course.duration_unit === 'half_day'
-    ? Math.ceil((course.duration_hours || 0) * 0.5)
-    : Math.ceil((course.duration_hours || 0) / 8);
+      ? Math.ceil((course.duration_hours || 0) * 0.5)
+      : Math.ceil((course.duration_hours || 0) / 8);
 
   return (
     <div

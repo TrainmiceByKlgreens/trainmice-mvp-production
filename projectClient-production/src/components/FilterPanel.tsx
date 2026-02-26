@@ -6,7 +6,7 @@ type FilterPanelProps = {
     courseType: string;
     courseMode: string;
     hrdcClaimable: string;
-    category: string;
+    category: string[];
     city: string;
     state: string;
   };
@@ -20,7 +20,10 @@ export function FilterPanel({ filters, onChange, categories, cities, states }: F
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
+  const activeFilterCount = Object.entries(filters).filter(([key, v]) => {
+    if (key === 'category') return (v as string[]).length > 0;
+    return v !== '';
+  }).length;
 
   const filterContent = (
     <div className="space-y-6">
@@ -65,19 +68,25 @@ export function FilterPanel({ filters, onChange, categories, cities, states }: F
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-        <select
-          value={filters.category}
-          onChange={(e) => onChange({ ...filters, category: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">All Categories</option>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Categories</label>
+        <div className="space-y-2 max-h-48 overflow-y-auto p-2 border border-gray-300 rounded-md bg-white">
           {categories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
+            <label key={cat} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded transition-colors">
+              <input
+                type="checkbox"
+                checked={filters.category.includes(cat)}
+                onChange={(e) => {
+                  const newCategories = e.target.checked
+                    ? [...filters.category, cat]
+                    : filters.category.filter((c) => c !== cat);
+                  onChange({ ...filters, category: newCategories });
+                }}
+                className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+              />
+              <span className="text-sm text-gray-700">{cat}</span>
+            </label>
           ))}
-        </select>
+        </div>
       </div>
 
       <div>
@@ -118,7 +127,7 @@ export function FilterPanel({ filters, onChange, categories, cities, states }: F
             courseType: '',
             courseMode: '',
             hrdcClaimable: '',
-            category: '',
+            category: [],
             city: '',
             state: '',
           })

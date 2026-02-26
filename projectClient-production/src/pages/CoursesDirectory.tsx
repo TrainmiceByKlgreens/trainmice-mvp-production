@@ -12,7 +12,7 @@ export function CoursesDirectory() {
     courseType: '',
     courseMode: '',
     hrdcClaimable: '',
-    category: '',
+    category: [] as string[],
     city: '',
     state: '',
   });
@@ -39,19 +39,21 @@ export function CoursesDirectory() {
         course.learning_objectives?.some((obj: string) =>
           obj.toLowerCase().includes(searchQuery.toLowerCase())
         ) ||
-        course.category?.toLowerCase().includes(searchQuery.toLowerCase());
+        (Array.isArray(course.category)
+          ? course.category.some(cat => cat.toLowerCase().includes(searchQuery.toLowerCase()))
+          : course.category?.toLowerCase().includes(searchQuery.toLowerCase()));
 
       // Handle array-based courseType filtering
       const matchesCourseType = (() => {
         if (filters.courseType === '') return true;
-        
+
         // Check if courseType is an array or a single value
-        const courseTypes = Array.isArray(course.course_type) 
-          ? course.course_type 
-          : course.course_type 
+        const courseTypes = Array.isArray(course.course_type)
+          ? course.course_type
+          : course.course_type
             ? [course.course_type]
             : [];
-        
+
         // Check if the filter value exists in the array
         return courseTypes.includes(filters.courseType);
       })();
@@ -59,19 +61,19 @@ export function CoursesDirectory() {
       // Handle array-based courseMode filtering with legacy value mapping
       const matchesCourseMode = (() => {
         if (filters.courseMode === '') return true;
-        
+
         // Map legacy filter values
         let filterMode = filters.courseMode;
         if (filterMode === 'VIRTUAL') filterMode = 'ONLINE';
         if (filterMode === 'BOTH') filterMode = 'HYBRID';
-        
+
         // Check if courseMode is an array or a single value
-        const courseModes = Array.isArray(course.course_mode) 
-          ? course.course_mode 
-          : course.course_mode 
+        const courseModes = Array.isArray(course.course_mode)
+          ? course.course_mode
+          : course.course_mode
             ? [course.course_mode]
             : [];
-        
+
         // Check if the filter value exists in the array
         return courseModes.includes(filterMode);
       })();
@@ -81,7 +83,15 @@ export function CoursesDirectory() {
         course.hrdc_claimable === (filters.hrdcClaimable === 'true');
 
       const matchesCategory =
-        filters.category === '' || course.category === filters.category;
+        filters.category.length === 0 ||
+        (() => {
+          const courseCategories = Array.isArray(course.category)
+            ? course.category
+            : course.category
+              ? [course.category]
+              : [];
+          return courseCategories.some(cat => filters.category.includes(cat));
+        })();
 
 
       const matchesCity = filters.city === '' || course.city === filters.city;
@@ -161,7 +171,7 @@ export function CoursesDirectory() {
                           courseType: '',
                           courseMode: '',
                           hrdcClaimable: '',
-                          category: '',
+                          category: [],
                           city: '',
                           state: '',
                         });
