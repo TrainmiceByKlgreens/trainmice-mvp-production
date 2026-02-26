@@ -128,19 +128,27 @@ export const EnhancedCoursesPage: React.FC = () => {
     if (searchTerm) {
       filtered = filtered.filter(course =>
         course.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        course.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        course.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (Array.isArray(course.category) && (course.category as string[]).some((cat: string) => cat.toLowerCase().includes(searchTerm.toLowerCase()))) ||
+        (typeof course.category === 'string' && (course.category as string).toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(course => (course as any).category === selectedCategory);
+      filtered = filtered.filter(course => {
+        const categories = course.category;
+        if (Array.isArray(categories)) {
+          return (categories as string[]).includes(selectedCategory);
+        }
+        return (course as any).category === selectedCategory;
+      });
     }
 
     if (selectedStatus !== 'all') {
       if (selectedStatus === 'WITHOUT_TRAINER') {
         filtered = filtered.filter(course => !course.trainer_id);
       } else {
-      filtered = filtered.filter(course => course.status === selectedStatus);
+        filtered = filtered.filter(course => course.status === selectedStatus);
       }
     }
 
@@ -183,14 +191,14 @@ export const EnhancedCoursesPage: React.FC = () => {
       const courseData = response.course;
       const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3000/api');
       const baseUrl = API_BASE_URL ? API_BASE_URL.replace('/api', '') : ''; // Remove /api to get base server URL
-      
+
       const materialsData = (courseData?.courseMaterials || []).map((m: any) => ({
         id: m.id,
         fileName: m.fileName,
         fileUrl: m.fileUrl?.startsWith('http') ? m.fileUrl : `${baseUrl}${m.fileUrl}`,
         uploadedAt: m.uploadedAt,
       }));
-      
+
       setMaterials(materialsData);
     } catch (error: any) {
       console.error('Error fetching materials:', error);
@@ -257,8 +265,8 @@ export const EnhancedCoursesPage: React.FC = () => {
   };
 
   // Filter trainer-created courses that are pending approval
-  const trainerCreatedCourses = filteredCourses.filter(c => 
-    !c.created_by_admin && 
+  const trainerCreatedCourses = filteredCourses.filter(c =>
+    !c.created_by_admin &&
     c.status === 'PENDING_APPROVAL'
   );
 
@@ -399,9 +407,9 @@ export const EnhancedCoursesPage: React.FC = () => {
               placeholder="Search courses..."
             />
           </div>
-            <Select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+          <Select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
             options={[
               { value: 'all', label: 'All Categories' },
               ...categories.map(c => ({ value: c, label: c })),
@@ -424,7 +432,7 @@ export const EnhancedCoursesPage: React.FC = () => {
 
       {/* Trainer Created Courses (Pending Approval) */}
       {trainerCreatedCourses.length > 0 && (
-      <div>
+        <div>
           <button
             onClick={() => setIsPendingApprovalExpanded(!isPendingApprovalExpanded)}
             className="flex items-center justify-between w-full text-left mb-4 hover:bg-gray-50 p-3 rounded-lg transition-colors"
@@ -483,12 +491,12 @@ export const EnhancedCoursesPage: React.FC = () => {
                         Review
                       </Button>
                     </div>
-            </div>
-          </Card>
+                  </div>
+                </Card>
               ))}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Admin Created Courses */}
@@ -506,14 +514,20 @@ export const EnhancedCoursesPage: React.FC = () => {
                     <div className="flex items-center space-x-2 mb-2">
                       <Badge variant={
                         course.status === 'APPROVED' ? 'success' :
-                        course.status === 'DRAFT' ? 'default' :
-                        course.status === 'PENDING_APPROVAL' ? 'warning' :
-                        course.status === 'DENIED' ? 'danger' : 'default'
+                          course.status === 'DRAFT' ? 'default' :
+                            course.status === 'PENDING_APPROVAL' ? 'warning' :
+                              course.status === 'DENIED' ? 'danger' : 'default'
                       }>
                         {course.status}
                       </Badge>
-                      {(course as any).category && (
-                        <Badge variant="info">{(course as any).category}</Badge>
+                      {course.category && (
+                        Array.isArray(course.category) ? (
+                          (course.category as string[]).map((cat: string, idx: number) => (
+                            <Badge key={idx} variant="info">{cat}</Badge>
+                          ))
+                        ) : (
+                          <Badge variant="info">{course.category as string}</Badge>
+                        )
                       )}
                     </div>
                   </div>
@@ -789,8 +803,8 @@ export const EnhancedCoursesPage: React.FC = () => {
                     <Trash2 size={14} />
                   </Button>
                 </div>
-            </div>
-          </Card>
+              </div>
+            </Card>
           ))}
         </div>
       </div>
@@ -810,7 +824,7 @@ export const EnhancedCoursesPage: React.FC = () => {
           <div className="space-y-4 max-h-[70vh] overflow-y-auto">
             <div>
               <h3 className="font-semibold text-gray-800 mb-4">Course Details</h3>
-              
+
               {/* Basic Information */}
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
@@ -849,7 +863,7 @@ export const EnhancedCoursesPage: React.FC = () => {
                   <div>
                     <label className="text-sm font-medium text-gray-700">Course Type</label>
                     <p className="mt-1 text-sm text-gray-900">
-                      {Array.isArray((selectedCourse as any).courseType) 
+                      {Array.isArray((selectedCourse as any).courseType)
                         ? (selectedCourse as any).courseType.join(', ')
                         : (selectedCourse as any).courseType}
                     </p>
@@ -859,7 +873,7 @@ export const EnhancedCoursesPage: React.FC = () => {
                   <div>
                     <label className="text-sm font-medium text-gray-700">Course Mode</label>
                     <p className="mt-1 text-sm text-gray-900">
-                      {Array.isArray((selectedCourse as any).courseMode) 
+                      {Array.isArray((selectedCourse as any).courseMode)
                         ? (selectedCourse as any).courseMode.join(', ')
                         : (selectedCourse as any).courseMode}
                     </p>
@@ -947,10 +961,10 @@ export const EnhancedCoursesPage: React.FC = () => {
                 <div className="mb-4">
                   <label className="text-sm font-medium text-gray-700">Learning Objectives</label>
                   <ul className="mt-1 list-disc list-inside text-sm text-gray-900 space-y-1">
-                    {Array.isArray((selectedCourse as any).learningObjectives) 
+                    {Array.isArray((selectedCourse as any).learningObjectives)
                       ? (selectedCourse as any).learningObjectives.map((obj: string, idx: number) => (
-                          <li key={idx}>{obj}</li>
-                        ))
+                        <li key={idx}>{obj}</li>
+                      ))
                       : <li>{(selectedCourse as any).learningObjectives}</li>}
                   </ul>
                 </div>
@@ -961,10 +975,10 @@ export const EnhancedCoursesPage: React.FC = () => {
                 <div className="mb-4">
                   <label className="text-sm font-medium text-gray-700">Learning Outcomes</label>
                   <ul className="mt-1 list-disc list-inside text-sm text-gray-900 space-y-1">
-                    {Array.isArray((selectedCourse as any).learningOutcomes) 
+                    {Array.isArray((selectedCourse as any).learningOutcomes)
                       ? (selectedCourse as any).learningOutcomes.map((outcome: string, idx: number) => (
-                          <li key={idx}>{outcome}</li>
-                        ))
+                        <li key={idx}>{outcome}</li>
+                      ))
                       : <li>{(selectedCourse as any).learningOutcomes}</li>}
                   </ul>
                 </div>
@@ -999,9 +1013,9 @@ export const EnhancedCoursesPage: React.FC = () => {
                 <div className="mb-4">
                   <label className="text-sm font-medium text-gray-700">Brochure</label>
                   <p className="mt-1 text-sm">
-                    <a 
-                      href={selectedCourse.brochure_url} 
-                      target="_blank" 
+                    <a
+                      href={selectedCourse.brochure_url}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-teal-600 hover:text-teal-700 underline"
                     >
@@ -1167,7 +1181,7 @@ export const EnhancedCoursesPage: React.FC = () => {
                           // Get course details to find trainers
                           const courseData = await apiClient.getAdminCourse(selectedCourse.id);
                           const fullCourse = courseData.course;
-                          
+
                           // Get trainers (assigned trainers or course creator)
                           const trainerIds: string[] = [];
                           if (fullCourse.courseTrainers && fullCourse.courseTrainers.length > 0) {
@@ -1207,17 +1221,17 @@ export const EnhancedCoursesPage: React.FC = () => {
                       <Send size={14} className="mr-2" />
                       Send Notification to Trainer
                     </Button>
-              <Button
-                variant="secondary"
-                size="sm"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => {
                         // TODO: Open schedule editor
                         showToast('Schedule editor coming soon', 'info');
                       }}
-              >
+                    >
                       <Calendar size={14} className="mr-2" />
                       Add Schedule Manually
-              </Button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1247,8 +1261,8 @@ export const EnhancedCoursesPage: React.FC = () => {
                             {item.startTime} - {item.endTime}
                           </div>
                         </div>
-            </div>
-          ))}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </Card>
