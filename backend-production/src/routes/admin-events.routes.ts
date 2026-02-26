@@ -573,5 +573,55 @@ router.post('/auto-complete-past', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Delete event
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const event = await prisma.event.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        title: true,
+        course: {
+          select: {
+            title: true,
+          },
+        },
+      },
+    });
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Only allow deletion if status is CANCELLED
+    if (event.status !== 'CANCELLED') {
+      return res.status(400).json({
+        error: 'Event must be cancelled before it can be deleted. Please update the status to CANCELLED first.'
+      });
+    }
+
+    // Proceed with deletion
+    await prisma.event.delete({
+      where: { id },
+    });
+
+    await createActivityLog({
+      userId: req.user!.id,
+      actionType: 'DELETE',
+      entityType: 'event',
+      entityId: id,
+      description: `Deleted event: ${event.title || event.course?.title || 'Event'}`,
+    });
+
+    return res.json({ message: 'Event deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete event error:', error);
+    return res.status(500).json({ error: 'Failed to delete event', details: error.message });
+  }
+});
+
 export default router;
 

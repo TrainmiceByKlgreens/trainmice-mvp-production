@@ -7,7 +7,7 @@ import { Input } from '../components/common/Input';
 import { Select } from '../components/common/Select';
 import { apiClient } from '../lib/api-client';
 import { formatDate } from '../utils/helpers';
-import { Calendar, MapPin, Users, Filter, X, MessageSquare, UserPlus } from 'lucide-react';
+import { Calendar, MapPin, Users, Filter, X, MessageSquare, UserPlus, Trash2 } from 'lucide-react';
 import { showToast } from '../components/common/Toast';
 import { FeedbackQRModal } from '../components/events/FeedbackQRModal';
 import { AddParticipantsModal } from '../components/events/AddParticipantsModal';
@@ -18,7 +18,7 @@ export const EventsPage: React.FC = () => {
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ACTIVE');
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState({
@@ -37,7 +37,7 @@ export const EventsPage: React.FC = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [events, searchTerm, selectedStatus, selectedMonth]);
+  }, [events, searchTerm, activeTab, selectedMonth]);
 
   const fetchEvents = async () => {
     try {
@@ -47,11 +47,11 @@ export const EventsPage: React.FC = () => {
 
       const response = await apiClient.getEvents(params);
       let fetchedEvents = response.events || [];
-      
+
       // Auto-complete past ACTIVE events
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const pastActiveEvents = fetchedEvents.filter((event: Event) => {
         if (event.status !== 'ACTIVE') return false;
         const eventEndDate = event.endDate ? new Date(event.endDate) : new Date(event.eventDate);
@@ -63,7 +63,7 @@ export const EventsPage: React.FC = () => {
         try {
           // Call backend to auto-complete past events
           await apiClient.autoCompletePastEvents();
-          
+
           // Update local state
           fetchedEvents = fetchedEvents.map((event: Event) => {
             if (pastActiveEvents.find((e: Event) => e.id === event.id)) {
@@ -71,7 +71,7 @@ export const EventsPage: React.FC = () => {
             }
             return event;
           });
-          
+
           showToast(`Auto-completed ${pastActiveEvents.length} past event(s)`, 'success');
         } catch (error: any) {
           console.error('Error auto-completing past events:', error);
@@ -92,7 +92,7 @@ export const EventsPage: React.FC = () => {
     setUpdatingStatus((prev) => ({ ...prev, [eventId]: true }));
     try {
       const response = await apiClient.updateEventStatus(eventId, newStatus);
-      
+
       // Update local state
       setEvents((prevEvents) =>
         prevEvents.map((event) =>
@@ -101,13 +101,33 @@ export const EventsPage: React.FC = () => {
             : event
         )
       );
-      
+
       showToast(response.message || 'Event status updated successfully', 'success');
     } catch (error: any) {
       console.error('Error updating event status:', error);
       showToast(error.message || 'Failed to update event status', 'error');
     } finally {
       setUpdatingStatus((prev) => ({ ...prev, [eventId]: false }));
+    }
+  };
+
+  const handleDeleteEvent = async (event: Event) => {
+    if (event.status !== 'CANCELLED') {
+      showToast('Please cancel the event before deleting it.', 'error');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete the event "${event.title || event.course?.title}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await apiClient.deleteEvent(event.id);
+      setEvents((prev) => prev.filter((e) => e.id !== event.id));
+      showToast('Event deleted successfully', 'success');
+    } catch (error: any) {
+      console.error('Error deleting event:', error);
+      showToast(error.message || 'Failed to delete event', 'error');
     }
   };
 
@@ -122,9 +142,7 @@ export const EventsPage: React.FC = () => {
       );
     }
 
-    if (selectedStatus !== 'all') {
-      filtered = filtered.filter(event => event.status === selectedStatus);
-    }
+    filtered = filtered.filter(event => event.status === activeTab);
 
     if (selectedMonth !== 'all') {
       filtered = filtered.filter(event => {
@@ -231,6 +249,26 @@ export const EventsPage: React.FC = () => {
         </Card>
       )}
 
+      {/* Status Tabs */}
+      <div className="flex border-b border-gray-200">
+        {[
+          { id: 'ACTIVE', label: 'Active' },
+          { id: 'COMPLETED', label: 'Completed' },
+          { id: 'CANCELLED', label: 'Cancelled' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
+                ? 'border-teal-600 text-teal-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* Filters */}
       <Card>
         <div className="p-4 flex flex-wrap items-center gap-4">
@@ -241,16 +279,6 @@ export const EventsPage: React.FC = () => {
               placeholder="Search events..."
             />
           </div>
-          <Select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            options={[
-              { value: 'all', label: 'All Status' },
-              { value: 'ACTIVE', label: 'Active' },
-              { value: 'COMPLETED', label: 'Completed' },
-              { value: 'CANCELLED', label: 'Cancelled' },
-            ]}
-          />
           <Select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
@@ -286,7 +314,7 @@ export const EventsPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="ml-4 flex-shrink-0" style={{ width: '160px' }}>
+                  <div className="ml-4 flex-shrink-0 flex flex-col items-end space-y-2" style={{ width: '160px' }}>
                     <Select
                       value={event.status}
                       onChange={(e) => handleStatusChange(event.id, e.target.value)}
@@ -297,6 +325,15 @@ export const EventsPage: React.FC = () => {
                         { value: 'CANCELLED', label: 'Cancelled' },
                       ]}
                     />
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleDeleteEvent(event)}
+                      className="w-full"
+                    >
+                      <Trash2 size={14} className="mr-2" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
 

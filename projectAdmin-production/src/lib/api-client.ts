@@ -307,6 +307,10 @@ export class ApiClient {
     return this.post<{ message: string; count: number; events: any[] }>('/admin/events/auto-complete-past');
   }
 
+  async deleteEvent(id: string) {
+    return this.delete<{ message: string }>(`/admin/events/${id}`);
+  }
+
   // ============================================================================
   // CUSTOM COURSE REQUESTS
   // ============================================================================
