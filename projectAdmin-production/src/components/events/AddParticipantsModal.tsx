@@ -12,7 +12,7 @@ interface AddParticipantsModalProps {
   onClose: () => void;
   eventId: string;
   eventTitle: string;
-  onSuccess: () => void;
+  onSuccess: (newRegistration?: any) => void;
 }
 
 export const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
@@ -77,7 +77,7 @@ export const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
 
     setLoading(true);
     try {
-      await apiClient.addParticipantsNewClient(eventId, {
+      const response = await apiClient.addParticipantsNewClient(eventId, {
         companyName: formData.companyName.trim(),
         address: formData.address.trim(),
         state: formData.state.trim() || undefined,
@@ -90,7 +90,7 @@ export const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
 
       showToast('Participants added successfully', 'success');
       handleClose();
-      onSuccess();
+      onSuccess(response.registration);
     } catch (error: any) {
       console.error('Error adding participants:', error);
       showToast(error.message || 'Failed to add participants', 'error');
@@ -211,7 +211,7 @@ export const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
           >
             {loading ? (
               <>
-                <LoadingSpinner size="sm" className="mr-2" />
+                <LoadingSpinner size="sm" />
                 Adding...
               </>
             ) : (

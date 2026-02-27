@@ -435,7 +435,15 @@ export const EventsPage: React.FC = () => {
           }}
           eventId={selectedEventForParticipants.id}
           eventTitle={selectedEventForParticipants.title || selectedEventForParticipants.course?.title || 'Event'}
-          onSuccess={() => {
+          onSuccess={(newRegistration) => {
+            if (newRegistration && selectedEvent) {
+              // Update the selected event locally for immediate feedback
+              setSelectedEvent({
+                ...selectedEvent,
+                registrations: [newRegistration, ...(selectedEvent.registrations || [])],
+                totalParticipants: (selectedEvent.totalParticipants || 0) + (newRegistration.numberOfParticipants || 1)
+              });
+            }
             fetchEvents();
           }}
         />

@@ -209,6 +209,8 @@ export interface Event {
   registrations?: Array<{
     id: string;
     status: string;
+    clientName: string | null;
+    clientEmail: string | null;
     packNumber: number | null;
     numberOfParticipants?: number;
     client: {

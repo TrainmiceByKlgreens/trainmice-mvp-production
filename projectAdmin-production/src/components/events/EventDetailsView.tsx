@@ -183,34 +183,46 @@ export const EventDetailsView: React.FC<EventDetailsViewProps> = ({
                                         {event.registrations.map((reg) => (
                                             <li key={reg.id} className="p-4 hover:bg-gray-50 transition-colors">
                                                 <div className="flex items-start justify-between">
-                                                    <div className="space-y-1">
+                                                    <div className="space-y-1.5 flex-1">
                                                         <div className="flex items-center">
                                                             <User size={16} className="text-teal-600 mr-2" />
-                                                            <span className="font-semibold text-gray-900">{reg.client?.userName || 'Anonymous Client'}</span>
+                                                            <span className="font-bold text-gray-900">
+                                                                {reg.clientsReference?.picName || reg.client?.userName || reg.clientName || 'N/A'}
+                                                            </span>
                                                         </div>
-                                                        <div className="flex items-center text-sm text-gray-600 ml-6">
-                                                            <Mail size={14} className="mr-2" />
-                                                            <span>{reg.client?.companyEmail || 'No email provided'}</span>
-                                                        </div>
-                                                        {reg.client?.contactNumber && (
-                                                            <div className="flex items-center text-sm text-gray-600 ml-6">
-                                                                <Phone size={14} className="mr-2" />
-                                                                <span>{reg.client.contactNumber}</span>
+
+                                                        <div className="flex flex-col space-y-1 ml-6">
+                                                            <div className="flex items-center text-sm text-gray-700 font-medium">
+                                                                <MapPin size={14} className="mr-2 text-gray-400" />
+                                                                <span>{reg.clientsReference?.companyName || 'No company info'}</span>
                                                             </div>
-                                                        )}
+
+                                                            <div className="flex items-center text-sm text-gray-600">
+                                                                <Mail size={14} className="mr-2 text-gray-400" />
+                                                                <span>{reg.clientsReference?.email || reg.client?.companyEmail || reg.clientEmail || 'No email provided'}</span>
+                                                            </div>
+
+                                                            {(reg.clientsReference?.contactNumber || reg.client?.contactNumber) && (
+                                                                <div className="flex items-center text-sm text-gray-600">
+                                                                    <Phone size={14} className="mr-2 text-gray-400" />
+                                                                    <span>{reg.clientsReference?.contactNumber || reg.client?.contactNumber}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col items-end space-y-2">
+
+                                                    <div className="flex flex-col items-end space-y-2 ml-4">
                                                         <Badge variant={reg.status === 'APPROVED' ? 'success' : 'warning'}>
                                                             {reg.status}
                                                         </Badge>
                                                         {reg.packNumber && (
-                                                            <p className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                                            <p className="text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-100">
                                                                 Pack #{reg.packNumber}
                                                             </p>
                                                         )}
                                                         {reg.numberOfParticipants && reg.numberOfParticipants > 1 && (
-                                                            <p className="text-xs text-gray-500">
-                                                                {reg.numberOfParticipants} participants
+                                                            <p className="text-xs text-gray-500 font-medium">
+                                                                {reg.numberOfParticipants} Participants
                                                             </p>
                                                         )}
                                                     </div>

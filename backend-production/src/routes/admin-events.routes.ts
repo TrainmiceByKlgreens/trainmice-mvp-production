@@ -287,6 +287,32 @@ router.put(
               registrations: true,
             },
           },
+          registrations: {
+            where: {
+              status: {
+                in: ['REGISTERED', 'APPROVED'],
+              },
+            },
+            include: {
+              client: {
+                select: {
+                  id: true,
+                  userName: true,
+                  companyEmail: true,
+                },
+              },
+              clientsReference: {
+                select: {
+                  id: true,
+                  companyName: true,
+                  picName: true,
+                  email: true,
+                  contactNumber: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
         },
       });
 
