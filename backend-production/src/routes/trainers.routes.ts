@@ -503,13 +503,13 @@ router.get(
 router.put(
   '/:id',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
 
-      // Trainers can only update their own profile
-      if (req.user!.id !== trainerId) {
+      // Trainers can only update their own profile, Admins can update any
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized to update this profile' });
       }
 
@@ -593,11 +593,11 @@ router.get('/:id/qualifications', async (req, res) => {
 router.post(
   '/:id/qualifications',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -631,7 +631,7 @@ router.post(
 router.put(
   '/:id/qualifications/:qualId',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
@@ -645,7 +645,7 @@ router.put(
         return res.status(404).json({ error: 'Qualification not found' });
       }
 
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -677,7 +677,7 @@ router.put(
 router.delete(
   '/:id/qualifications/:qualId',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
@@ -691,7 +691,7 @@ router.delete(
         return res.status(404).json({ error: 'Qualification not found' });
       }
 
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -740,11 +740,11 @@ router.get('/:id/work-history', async (req, res) => {
 router.post(
   '/:id/work-history',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -787,7 +787,7 @@ router.post(
 router.put(
   '/:id/work-history/:workId',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
@@ -801,7 +801,7 @@ router.put(
         return res.status(404).json({ error: 'Work history not found' });
       }
 
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -833,7 +833,7 @@ router.put(
 router.delete(
   '/:id/work-history/:workId',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
@@ -847,7 +847,7 @@ router.delete(
         return res.status(404).json({ error: 'Work history not found' });
       }
 
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -896,11 +896,11 @@ router.get('/:id/past-clients', async (req, res) => {
 router.post(
   '/:id/past-clients',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -943,7 +943,7 @@ router.post(
 router.put(
   '/:id/past-clients/:clientId',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
@@ -957,7 +957,7 @@ router.put(
         return res.status(404).json({ error: 'Past client not found' });
       }
 
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -989,7 +989,7 @@ router.put(
 router.delete(
   '/:id/past-clients/:clientId',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
@@ -1060,11 +1060,11 @@ router.get('/:id/courses-conducted', async (req, res) => {
 router.post(
   '/:id/courses-conducted',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -1129,7 +1129,7 @@ router.post(
 router.put(
   '/:id/courses-conducted/:conductedId',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
@@ -1143,7 +1143,7 @@ router.put(
         return res.status(404).json({ error: 'Course conducted not found' });
       }
 
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -1192,7 +1192,7 @@ router.put(
 router.delete(
   '/:id/courses-conducted/:conductedId',
   authenticate,
-  authorize('TRAINER'),
+  authorize('TRAINER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
       const trainerId = req.params.id;
@@ -1206,7 +1206,7 @@ router.delete(
         return res.status(404).json({ error: 'Course conducted not found' });
       }
 
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 

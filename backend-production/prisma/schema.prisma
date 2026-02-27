@@ -8,24 +8,24 @@ datasource db {
 }
 
 model User {
-  id                String         @id @default(uuid())
-  email             String         @unique
-  passwordHash      String         @map("password_hash")
-  fullName          String?        @map("full_name")
-  role              UserRole       @default(CLIENT)
-  emailVerified     Boolean        @default(false) @map("email_verified")
-  verificationToken String?        @map("verification_token") @db.VarChar(255)
-  tokenExpiry       DateTime?      @map("token_expiry")
-  passwordResetToken String?       @map("password_reset_token") @db.VarChar(255)
-  passwordResetExpiry DateTime?    @map("password_reset_expiry")
-  fcmToken          String?        @map("fcm_token") @db.VarChar(255)
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
-  activityLogs      ActivityLog[]
-  adminProfile      Admin?
-  clientProfile     Client?
-  notifications     Notification[]
-  trainerProfile    Trainer?
+  id                  String         @id @default(uuid())
+  email               String         @unique
+  passwordHash        String         @map("password_hash")
+  fullName            String?        @map("full_name")
+  role                UserRole       @default(CLIENT)
+  emailVerified       Boolean        @default(false) @map("email_verified")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+  tokenExpiry         DateTime?      @map("token_expiry")
+  verificationToken   String?        @map("verification_token") @db.VarChar(255)
+  passwordResetExpiry DateTime?      @map("password_reset_expiry")
+  fcmToken            String?        @map("fcm_token") @db.VarChar(255)
+  passwordResetToken  String?        @map("password_reset_token") @db.VarChar(255)
+  activityLogs        ActivityLog[]
+  adminProfile        Admin?
+  clientProfile       Client?
+  notifications       Notification[]
+  trainerProfile      Trainer?
 
   @@index([email])
   @@index([role])
@@ -37,12 +37,12 @@ model Client {
   companyEmail         String                @unique @map("company_email")
   userName             String                @map("user_name")
   contactNumber        String                @map("contact_number")
-  companyName          String?               @map("company_name")
-  companyAddress       String?              @map("company_address") @db.Text
-  city                 String?               @map("city")
-  state                String?               @map("state")
-  position             String?               @map("position")
   createdAt            DateTime              @default(now()) @map("created_at")
+  city                 String?               @map("city")
+  companyAddress       String?               @map("company_address") @db.Text
+  companyName          String?               @map("company_name")
+  position             String?               @map("position")
+  state                String?               @map("state")
   bookingRequests      BookingRequest[]
   user                 User                  @relation(fields: [id], references: [id], onDelete: Cascade)
   customCourseRequests CustomCourseRequest[]
@@ -125,11 +125,7 @@ model Course {
   methodology                        String?                  @db.Text
   prerequisite                       String?                  @db.Text
   certificate                        String?                  @map("certificate")
-  professionalDevelopmentPoints      String?                  @map("professional_development_points")
-  professionalDevelopmentPointsOther String?                  @map("professional_development_points_other") @db.Text
   assessment                         Boolean                  @default(false)
-  courseType                         Json?                    @map("course_type")
-  courseMode                         Json?                    @map("course_mode")
   durationHours                      Int                      @map("duration_hours")
   durationUnit                       String?                  @default("hours") @map("duration_unit")
   modules                            Json?
@@ -148,12 +144,16 @@ model Course {
   createdByAdmin                     Boolean                  @default(false) @map("created_by_admin")
   createdAt                          DateTime                 @default(now()) @map("created_at")
   updatedAt                          DateTime                 @updatedAt @map("updated_at")
+  professionalDevelopmentPoints      String?                  @map("professional_development_points")
+  professionalDevelopmentPointsOther String?                  @map("professional_development_points_other") @db.Text
+  courseType                         Json?                    @default(dbgenerated("(json_array())")) @map("course_type")
+  courseMode                         Json?                    @default(dbgenerated("(json_array())")) @map("course_mode")
   bookingRequests                    BookingRequest[]
   courseMaterials                    CourseMaterial[]
   courseReviews                      CourseReview[]
   courseSchedule                     CourseSchedule[]
   courseTrainers                     CourseTrainer[]
-  trainer                            Trainer?                 @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  trainer                            Trainer?                 @relation(fields: [trainerId], references: [id])
   events                             Event[]
   feedbacks                          Feedback[]
   coursesConducted                   TrainerCourseConducted[]
@@ -184,10 +184,10 @@ model CourseSchedule {
   dayNumber       Int      @map("day_number")
   startTime       String   @map("start_time")
   endTime         String   @map("end_time")
-  moduleTitle     String   @map("module_title") @db.VarChar(500)
-  submoduleTitle  Json?    @map("submodule_title")
   durationMinutes Int      @map("duration_minutes")
   createdAt       DateTime @default(now()) @map("created_at")
+  submoduleTitle  Json?    @map("submodule_title")
+  moduleTitle     String   @map("module_title") @db.VarChar(500)
   course          Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@index([courseId])
@@ -205,12 +205,12 @@ model BookingRequest {
   requestedDate         DateTime?            @map("requested_date") @db.Date
   endDate               DateTime?            @map("end_date") @db.Date
   requestedTime         String?
-  trainerAvailabilityId String?              @map("trainer_availability_id")
   status                BookingStatus        @default(PENDING)
   location              String?
   city                  String?
   state                 String?
   createdAt             DateTime             @default(now()) @map("created_at")
+  trainerAvailabilityId String?              @map("trainer_availability_id")
   client                Client?              @relation(fields: [clientId], references: [id])
   course                Course?              @relation(fields: [courseId], references: [id])
   trainerAvailability   TrainerAvailability? @relation(fields: [trainerAvailabilityId], references: [id])
@@ -238,11 +238,7 @@ model Event {
   methodology                        String?             @db.Text
   prerequisite                       String?             @db.Text
   certificate                        String?             @map("certificate")
-  professionalDevelopmentPoints      String?             @map("professional_development_points")
-  professionalDevelopmentPointsOther String?             @map("professional_development_points_other") @db.Text
   assessment                         Boolean             @default(false)
-  courseType                         Json?               @map("course_type")
-  courseMode                         Json?               @map("course_mode")
   durationHours                      Int                 @map("duration_hours")
   durationUnit                       String?             @default("hours") @map("duration_unit")
   modules                            Json?
@@ -261,6 +257,10 @@ model Event {
   maxPacks                           Int?                @map("max_packs")
   createdAt                          DateTime            @default(now()) @map("created_at")
   updatedAt                          DateTime            @updatedAt @map("updated_at")
+  professionalDevelopmentPoints      String?             @map("professional_development_points")
+  professionalDevelopmentPointsOther String?             @map("professional_development_points_other") @db.Text
+  courseType                         Json?               @default(dbgenerated("(json_array())")) @map("course_type")
+  courseMode                         Json?               @default(dbgenerated("(json_array())")) @map("course_mode")
   enquiries                          EventEnquiry[]
   registrations                      EventRegistration[]
   course                             Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -275,20 +275,20 @@ model Event {
 }
 
 model EventRegistration {
-  id                   String           @id @default(uuid())
-  eventId              String           @map("event_id")
-  clientId             String?          @map("client_id")
-  clientName           String?          @map("client_name")
-  clientEmail          String?          @map("client_email")
-  clientsReferenceId   String?          @map("clients_reference_id")
-  packNumber           Int?             @map("pack_number")
-  numberOfParticipants Int              @default(1) @map("number_of_participants")
-  status               String           @default("REGISTERED")
-  createdAt            DateTime         @default(now()) @map("created_at")
-  updatedAt            DateTime         @updatedAt @map("updated_at")
-  client               Client?          @relation(fields: [clientId], references: [id])
+  id                   String            @id @default(uuid())
+  eventId              String            @map("event_id")
+  clientId             String?           @map("client_id")
+  clientName           String?           @map("client_name")
+  clientEmail          String?           @map("client_email")
+  packNumber           Int?              @map("pack_number")
+  status               String            @default("REGISTERED")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+  numberOfParticipants Int               @default(1) @map("number_of_participants")
+  clientsReferenceId   String?           @map("clients_reference_id")
+  client               Client?           @relation(fields: [clientId], references: [id])
   clientsReference     ClientsReference? @relation(fields: [clientsReferenceId], references: [id])
-  event                Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event                Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
   @@index([clientId])
@@ -379,10 +379,15 @@ model Notification {
   relatedEntityType String?
   relatedEntityId   String?
   createdAt         DateTime         @default(now()) @map("created_at")
+  broadcastId       String?          @map("broadcast_id")
+  isBroadcast       Boolean          @default(false) @map("is_broadcast")
+  targetRole        String?          @map("target_role")
   user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isRead])
+  @@index([broadcastId])
+  @@index([isBroadcast])
   @@map("notifications")
 }
 
@@ -517,29 +522,29 @@ model Feedback {
   courseId              String?   @map("course_id")
   courseName            String?   @map("course_name")
   courseDate            DateTime? @map("course_date") @db.Date
-  courseDuration        String?   @map("course_duration")
-  attendance            String?   @map("attendance")
   participantName       String?   @map("participant_name")
+  attendance            String?   @map("attendance")
+  courseDuration        String?   @map("course_duration")
   contentClarity        Int?      @map("content_clarity")
-  objectivesAchieved    Int?      @map("objectives_achieved")
-  materialsHelpful      Int?      @map("materials_helpful")
-  learningEnvironment   Int?      @map("learning_environment")
-  trainerKnowledge      Int?      @map("trainer_knowledge")
-  trainerEngagement     Int?      @map("trainer_engagement")
-  knowledgeExposure     Int?      @map("knowledge_exposure")
-  knowledgeApplication  Int?      @map("knowledge_application")
   durationSuitable      Int?      @map("duration_suitable")
-  recommendCourse       Int?      @map("recommend_course")
-  likedMost             String?   @map("liked_most") @db.Text
-  improvementSuggestion String?   @map("improvement_suggestion") @db.Text
-  additionalComments    String?   @map("additional_comments") @db.Text
-  recommendColleagues   Boolean?  @map("recommend_colleagues")
-  referralDetails       String?   @map("referral_details") @db.Text
-  futureTrainingTopics  String?   @map("future_training_topics") @db.Text
-  inhouseTrainingNeeds  String?   @map("inhouse_training_needs") @db.Text
   teamBuildingInterest  String?   @map("team_building_interest") @db.Text
-  eventId               String?   @map("event_id")
+  additionalComments    String?   @map("additional_comments") @db.Text
   createdAt             DateTime  @default(now()) @map("created_at")
+  eventId               String?   @map("event_id")
+  futureTrainingTopics  String?   @map("future_training_topics") @db.Text
+  improvementSuggestion String?   @map("improvement_suggestion") @db.Text
+  inhouseTrainingNeeds  String?   @map("inhouse_training_needs") @db.Text
+  knowledgeApplication  Int?      @map("knowledge_application")
+  knowledgeExposure     Int?      @map("knowledge_exposure")
+  learningEnvironment   Int?      @map("learning_environment")
+  likedMost             String?   @map("liked_most") @db.Text
+  materialsHelpful      Int?      @map("materials_helpful")
+  objectivesAchieved    Int?      @map("objectives_achieved")
+  recommendColleagues   Boolean?  @map("recommend_colleagues")
+  recommendCourse       Int?      @map("recommend_course")
+  referralDetails       String?   @map("referral_details") @db.Text
+  trainerEngagement     Int?      @map("trainer_engagement")
+  trainerKnowledge      Int?      @map("trainer_knowledge")
   course                Course?   @relation(fields: [courseId], references: [id])
   event                 Event?    @relation(fields: [eventId], references: [id])
   trainer               Trainer?  @relation(fields: [trainerId], references: [id])
@@ -687,11 +692,11 @@ model EventEnquiry {
   message         String                @db.Text
   subject         String?
   isRead          Boolean               @default(false) @map("is_read")
-  unreadCount     Int                   @default(0) @map("unread_count")
-  lastMessageTime DateTime?             @map("last_message_time")
-  lastMessageBy   String?               @map("last_message_by")
   createdAt       DateTime              @default(now()) @map("created_at")
   updatedAt       DateTime              @updatedAt @map("updated_at")
+  lastMessageBy   String?               @map("last_message_by")
+  lastMessageTime DateTime?             @map("last_message_time")
+  unreadCount     Int                   @default(0) @map("unread_count")
   event           Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
   trainer         Trainer               @relation(fields: [trainerId], references: [id], onDelete: Cascade)
   messages        EventEnquiryMessage[]

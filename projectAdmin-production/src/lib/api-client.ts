@@ -207,8 +207,81 @@ export class ApiClient {
     return this.put<{ message: string; trainer: any }>(`/admin/trainers/${id}`, data);
   }
 
+  // Use the more comprehensive profile update route
+  async updateTrainerProfile(id: string, data: any) {
+    return this.put<{ trainer: any }>(`/trainers/${id}`, data);
+  }
+
   async deleteTrainer(id: string) {
     return this.delete<{ message: string }>(`/admin/trainers/${id}`);
+  }
+
+  // ============================================================================
+  // TRAINER SUB-RESOURCES (Qualifications, Work History, Past Clients)
+  // ============================================================================
+
+  async getQualifications(trainerId: string) {
+    return this.get<{ qualifications: any[] }>(`/trainers/${trainerId}/qualifications`);
+  }
+
+  async addQualification(trainerId: string, data: any) {
+    return this.post<{ qualification: any }>(`/trainers/${trainerId}/qualifications`, data);
+  }
+
+  async updateQualification(trainerId: string, id: string, data: any) {
+    return this.put<{ qualification: any }>(`/trainers/${trainerId}/qualifications/${id}`, data);
+  }
+
+  async deleteQualification(trainerId: string, id: string) {
+    return this.delete<{ message: string }>(`/trainers/${trainerId}/qualifications/${id}`);
+  }
+
+  async getWorkHistory(trainerId: string) {
+    return this.get<{ workHistory: any[] }>(`/trainers/${trainerId}/work-history`);
+  }
+
+  async addWorkHistory(trainerId: string, data: any) {
+    return this.post<{ workHistory: any }>(`/trainers/${trainerId}/work-history`, data);
+  }
+
+  async updateWorkHistory(trainerId: string, id: string, data: any) {
+    return this.put<{ workHistory: any }>(`/trainers/${trainerId}/work-history/${id}`, data);
+  }
+
+  async deleteWorkHistory(trainerId: string, id: string) {
+    return this.delete<{ message: string }>(`/trainers/${trainerId}/work-history/${id}`);
+  }
+
+  async getPastClients(trainerId: string) {
+    return this.get<{ pastClients: any[] }>(`/trainers/${trainerId}/past-clients`);
+  }
+
+  async addPastClient(trainerId: string, data: any) {
+    return this.post<{ pastClient: any }>(`/trainers/${trainerId}/past-clients`, data);
+  }
+
+  async updatePastClient(trainerId: string, id: string, data: any) {
+    return this.put<{ pastClient: any }>(`/trainers/${trainerId}/past-clients/${id}`, data);
+  }
+
+  async deletePastClient(trainerId: string, id: string) {
+    return this.delete<{ message: string }>(`/trainers/${trainerId}/past-clients/${id}`);
+  }
+
+  async getCoursesConducted(trainerId: string) {
+    return this.get<{ coursesConducted: any[] }>(`/trainers/${trainerId}/courses-conducted`);
+  }
+
+  async addCourseConducted(trainerId: string, data: any) {
+    return this.post<{ courseConducted: any }>(`/trainers/${trainerId}/courses-conducted`, data);
+  }
+
+  async updateCourseConducted(trainerId: string, id: string, data: any) {
+    return this.put<{ courseConducted: any }>(`/trainers/${trainerId}/courses-conducted/${id}`, data);
+  }
+
+  async deleteCourseConducted(trainerId: string, id: string) {
+    return this.delete<{ message: string }>(`/trainers/${trainerId}/courses-conducted/${id}`);
   }
 
   async getTrainerWeeklyAvailability(trainerId: string) {

@@ -73,11 +73,21 @@ router.put('/contact-submissions/:id/resolve', async (req: AuthRequest, res: Res
   }
 });
 
-// Get all notifications
+// Get all notifications (grouped by broadcast when applicable)
 router.get('/notifications', async (req: AuthRequest, res: Response) => {
   try {
     const { isRead, userId, type, page = '1', limit = '50' } = req.query;
 
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = parseInt(limit as string, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // We do a raw query or a complex findMany to group by broadcastId
+    // For simplicity in this implementation, we will fetch all notifications and group them in memory for now,
+    // or use a distinct/groupBy approach. However, since we need to include user info for non-broadcasts,
+    // we'll use a strategy where we fetch a subset and then handle grouping.
+
+    // Better approach: fetch notifications but identify broadcasts
     const where: any = {};
     if (isRead !== undefined) {
       where.isRead = isRead === 'true';
@@ -89,11 +99,11 @@ router.get('/notifications', async (req: AuthRequest, res: Response) => {
       where.type = type as string;
     }
 
-    const pageNum = parseInt(page as string, 10);
-    const limitNum = parseInt(limit as string, 10);
-    const skip = (pageNum - 1) * limitNum;
+    // To implement grouping by broadcastId while still allowing pagination,
+    // we need to be clever. One way is to fetch "main" notification per broadcast.
 
-    const [notifications, total] = await Promise.all([
+    // First, get total count of unique entries (single notifications + unique broadcastIds)
+    const [allNotifs] = await Promise.all([
       prisma.notification.findMany({
         where,
         include: {
@@ -107,14 +117,29 @@ router.get('/notifications', async (req: AuthRequest, res: Response) => {
           },
         },
         orderBy: { createdAt: 'desc' },
-        skip,
-        take: limitNum,
-      }),
-      prisma.notification.count({ where }),
+      })
     ]);
 
+    // Grouping logic
+    const groupedNotifications: any[] = [];
+    const seenBroadcasts = new Set<string>();
+
+    for (const notif of allNotifs) {
+      if (notif.isBroadcast && notif.broadcastId) {
+        if (!seenBroadcasts.has(notif.broadcastId)) {
+          groupedNotifications.push(notif);
+          seenBroadcasts.add(notif.broadcastId);
+        }
+      } else {
+        groupedNotifications.push(notif);
+      }
+    }
+
+    const total = groupedNotifications.length;
+    const paginatedNotifs = groupedNotifications.slice(skip, skip + limitNum);
+
     res.json({
-      notifications,
+      notifications: paginatedNotifs,
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
@@ -141,6 +166,7 @@ router.post(
       }
 
       const { title, message, type, userId, userRole, relatedEntityType, relatedEntityId } = req.body;
+      const broadcastId = `bc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // If userId is provided, send to specific user
       if (userId) {
@@ -202,6 +228,9 @@ router.post(
                 title,
                 message,
                 type,
+                isBroadcast: true,
+                broadcastId,
+                targetRole: userRole,
                 relatedEntityType: relatedEntityType || null,
                 relatedEntityId: relatedEntityId || null,
               },
@@ -237,7 +266,7 @@ router.post(
           actionType: 'CREATE',
           entityType: 'notification',
           entityId: undefined,
-          description: `Sent ${notifications.length} notifications to all ${userRole}s`,
+          description: `Sent ${notifications.length} notifications to all ${userRole}s (Broadcast ID: ${broadcastId})`,
         });
 
         return res.json({ notifications, count: notifications.length, message: 'Notifications sent successfully' });
@@ -256,6 +285,9 @@ router.post(
               title,
               message,
               type,
+              isBroadcast: true,
+              broadcastId,
+              targetRole: 'ALL',
               relatedEntityType: relatedEntityType || null,
               relatedEntityId: relatedEntityId || null,
             },
@@ -291,7 +323,7 @@ router.post(
         actionType: 'CREATE',
         entityType: 'notification',
         entityId: undefined,
-        description: `Sent ${notifications.length} global notifications`,
+        description: `Sent ${notifications.length} global notifications (Broadcast ID: ${broadcastId})`,
       });
 
       return res.json({ notifications, count: notifications.length, message: 'Global notifications sent successfully' });
@@ -317,19 +349,35 @@ router.put('/notifications/:id/read', async (req: AuthRequest, res: Response) =>
   }
 });
 
-// Delete notification
+// Delete notification (handles grouped deletes for broadcasts)
 router.delete('/notifications/:id', async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.notification.delete({
+    const notification = await prisma.notification.findUnique({
       where: { id: req.params.id },
     });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    if (notification.isBroadcast && notification.broadcastId) {
+      // Delete all notifications in this broadcast
+      await prisma.notification.deleteMany({
+        where: { broadcastId: notification.broadcastId },
+      });
+    } else {
+      // Delete single notification
+      await prisma.notification.delete({
+        where: { id: req.params.id },
+      });
+    }
 
     await createActivityLog({
       userId: req.user!.id,
       actionType: 'DELETE',
       entityType: 'notification',
       entityId: req.params.id,
-      description: 'Deleted notification',
+      description: notification.isBroadcast ? `Deleted broadcast notification group: ${notification.broadcastId}` : 'Deleted single notification',
     });
 
     res.json({ message: 'Notification deleted successfully' });

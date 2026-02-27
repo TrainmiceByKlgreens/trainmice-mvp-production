@@ -260,8 +260,8 @@ export const EventsPage: React.FC = () => {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
-                ? 'border-teal-600 text-teal-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-teal-600 text-teal-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             {tab.label}
@@ -288,9 +288,9 @@ export const EventsPage: React.FC = () => {
       </Card>
 
       {/* Events Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredEvents.length === 0 ? (
-          <div className="col-span-2 text-center py-12 text-gray-500">
+          <div className="col-span-full text-center py-12 text-gray-500">
             No events found
           </div>
         ) : (
@@ -299,7 +299,7 @@ export const EventsPage: React.FC = () => {
               <div className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2 leading-tight">
                       {event.title || event.course?.title}
                     </h3>
                     <div className="flex flex-wrap gap-2 mb-3">
@@ -314,7 +314,7 @@ export const EventsPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="ml-4 flex-shrink-0 flex flex-col items-end space-y-2" style={{ width: '160px' }}>
+                  <div className="ml-3 flex-shrink-0 flex flex-col items-end space-y-2" style={{ width: '130px' }}>
                     <Select
                       value={event.status}
                       onChange={(e) => handleStatusChange(event.id, e.target.value)}

@@ -7,6 +7,7 @@ import { Modal } from '../components/common/Modal';
 import { Badge } from '../components/common/Badge';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { TrainerForm } from '../components/trainers/TrainerForm';
+import { EnhancedTrainerForm } from '../components/trainers/EnhancedTrainerForm';
 import { TrainerCalendarView } from '../components/trainers/TrainerCalendarView';
 import { apiClient } from '../lib/api-client';
 import { Trainer } from '../types';
@@ -82,8 +83,8 @@ export const EnhancedTrainersPage: React.FC = () => {
         email: t.email || '',
         full_name: t.fullName || '',
         phone: t.phoneNumber || null,
-        specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0 
-          ? t.areasOfExpertise[0] 
+        specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0
+          ? t.areasOfExpertise[0]
           : null,
         bio: t.professionalBio || null,
         hourly_rate: t.hourlyRate ? parseFloat(t.hourlyRate) : null,
@@ -221,8 +222,8 @@ export const EnhancedTrainersPage: React.FC = () => {
         email: t.email || '',
         full_name: t.fullName || '',
         phone: t.phoneNumber || null,
-        specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0 
-          ? t.areasOfExpertise[0] 
+        specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0
+          ? t.areasOfExpertise[0]
           : null,
         bio: t.professionalBio || null,
         hourly_rate: t.hourlyRate ? parseFloat(t.hourlyRate) : null,
@@ -525,21 +526,22 @@ export const EnhancedTrainersPage: React.FC = () => {
         />
       </Modal>
 
-      {/* Edit Trainer Modal */}
-      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Trainer">
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingTrainer(null);
+        }}
+        title="Edit Trainer Profile"
+        size="xl"
+      >
         {editingTrainer && (
-          <TrainerForm
-            trainer={editingTrainer}
-            onSubmit={async (data) => {
-              try {
-                await apiClient.updateTrainer(editingTrainer.id, data);
-                showToast('Trainer updated successfully', 'success');
-                setShowEditModal(false);
-                setEditingTrainer(null);
-                fetchTrainers();
-              } catch (error: any) {
-                showToast(error.message || 'Error updating trainer', 'error');
-              }
+          <EnhancedTrainerForm
+            trainerId={editingTrainer.id}
+            onSuccess={() => {
+              setShowEditModal(false);
+              setEditingTrainer(null);
+              fetchTrainers();
             }}
             onCancel={() => {
               setShowEditModal(false);

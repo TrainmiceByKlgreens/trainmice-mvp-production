@@ -62,6 +62,9 @@ interface Notification {
   message: string;
   type: 'INFO' | 'WARNING' | 'SUCCESS' | 'ERROR';
   isRead: boolean;
+  isBroadcast?: boolean;
+  broadcastId?: string | null;
+  targetRole?: string | null;
   relatedEntityType: string | null;
   relatedEntityId: string | null;
   createdAt: string;
@@ -924,9 +927,14 @@ export const MessagesPage: React.FC = () => {
                       </div>
                       <p className="text-gray-700 mb-3">{notification.message}</p>
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
-                        {notification.user && (
+                        {notification.isBroadcast ? (
+                          <span className="flex items-center text-teal-600 font-medium">
+                            <Send size={12} className="mr-1" />
+                            Target: {notification.targetRole === 'ALL' ? 'All Users' : `All ${notification.targetRole}s`}
+                          </span>
+                        ) : notification.user ? (
                           <span>To: {notification.user.fullName || notification.user.email}</span>
-                        )}
+                        ) : null}
                         <span>•</span>
                         <span>{formatDate(notification.createdAt)}</span>
                       </div>
