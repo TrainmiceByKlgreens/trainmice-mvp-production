@@ -44,10 +44,37 @@ export const EnhancedTrainerForm: React.FC<EnhancedTrainerFormProps> = ({
                 apiClient.getPastClients(trainerId)
             ]);
 
-            setTrainer(trainerData);
-            setQualifications(quals.qualifications || []);
-            setWorkHistory(work.workHistory || []);
-            setPastClients(clients.pastClients || []);
+            // Map backend camelCase to frontend snake_case
+            const t = trainerData.trainer;
+            const mappedTrainer = {
+                ...t,
+                full_name: t.fullName,
+                phone_number: t.phoneNumber,
+                ic_number: t.icNumber,
+                hrdc_accreditation_id: t.hrdcAccreditationId,
+                hrdc_accreditation_valid_until: t.hrdcAccreditationValidUntil,
+                professional_bio: t.professionalBio,
+                profile_pic: t.profilePic,
+                areas_of_expertise: t.areasOfExpertise,
+                languages_spoken: t.languagesSpoken
+            };
+
+            setTrainer(mappedTrainer);
+            setQualifications((quals.qualifications || []).map((q: any) => ({
+                ...q,
+                year_obtained: q.yearObtained,
+                qualification_type: q.qualificationType
+            })));
+            setWorkHistory((work.workHistory || []).map((w: any) => ({
+                ...w,
+                start_date: w.startDate,
+                end_date: w.endDate
+            })));
+            setPastClients((clients.pastClients || []).map((c: any) => ({
+                ...c,
+                client_name: c.clientName,
+                project_description: c.projectDescription
+            })));
         } catch (error) {
             console.error('Error loading trainer data:', error);
             showToast('Failed to load trainer data', 'error');
@@ -60,7 +87,25 @@ export const EnhancedTrainerForm: React.FC<EnhancedTrainerFormProps> = ({
         if (!trainer) return;
         setSaving(true);
         try {
-            await apiClient.updateTrainerProfile(trainerId, trainer);
+            // Map back to camelCase for the backend if needed, 
+            // but admin-trainers.routes.ts's PUT /:id handles some snake_case conversion,
+            // however it's safer to map the main fields here.
+            const updateData = {
+                fullName: trainer.full_name,
+                phoneNumber: trainer.phone_number,
+                icNumber: trainer.ic_number,
+                hrdcAccreditationId: trainer.hrdc_accreditation_id,
+                hrdcAccreditationValidUntil: trainer.hrdc_accreditation_valid_until,
+                bio: trainer.professional_bio,
+                race: trainer.race,
+                state: trainer.state,
+                city: trainer.city,
+                country: trainer.country,
+                specialization: trainer.areas_of_expertise, // Backend expects 'specialization' or 'areasOfExpertise'
+                languagesSpoken: trainer.languages_spoken
+            };
+
+            await apiClient.updateTrainer(trainerId, updateData);
             showToast('Trainer profile updated successfully', 'success');
             loadAllData();
             onSuccess();
@@ -252,10 +297,16 @@ const QualificationsSection: React.FC<{ trainerId: string; qualifications: any[]
     const handleSave = async () => {
         setSaving(true);
         try {
+            const data = {
+                title: formData.title,
+                institution: formData.institution,
+                yearObtained: formData.year_obtained, // Map back
+                description: formData.description
+            };
             if (editingId) {
-                await apiClient.updateQualification(trainerId, editingId, formData);
+                await apiClient.updateQualification(trainerId, editingId, data);
             } else {
-                await apiClient.addQualification(trainerId, formData);
+                await apiClient.addQualification(trainerId, data);
             }
             resetForm();
             onUpdate();
@@ -386,10 +437,17 @@ const WorkHistorySection: React.FC<{ trainerId: string; workHistory: any[]; onUp
     const handleSave = async () => {
         setSaving(true);
         try {
+            const data = {
+                company: formData.company,
+                position: formData.position,
+                startDate: formData.start_date, // Map back
+                endDate: formData.end_date, // Map back
+                description: formData.description
+            };
             if (editingId) {
-                await apiClient.updateWorkHistory(trainerId, editingId, formData);
+                await apiClient.updateWorkHistory(trainerId, editingId, data);
             } else {
-                await apiClient.addWorkHistory(trainerId, formData);
+                await apiClient.addWorkHistory(trainerId, data);
             }
             resetForm();
             onUpdate();
@@ -530,10 +588,15 @@ const PastClientsSection: React.FC<{ trainerId: string; pastClients: any[]; onUp
     const handleSave = async () => {
         setSaving(true);
         try {
+            const data = {
+                clientName: formData.client_name, // Map back
+                projectDescription: formData.project_description, // Map back
+                year: formData.year
+            };
             if (editingId) {
-                await apiClient.updatePastClient(trainerId, editingId, formData);
+                await apiClient.updatePastClient(trainerId, editingId, data);
             } else {
-                await apiClient.addPastClient(trainerId, formData);
+                await apiClient.addPastClient(trainerId, data);
             }
             resetForm();
             onUpdate();
