@@ -33,7 +33,7 @@ router.get('/contact-submissions', async (req: AuthRequest, res: Response) => {
       prisma.contactSubmission.count({ where }),
     ]);
 
-    res.json({
+    return res.json({
       submissions,
       total,
       page: pageNum,
@@ -41,7 +41,7 @@ router.get('/contact-submissions', async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     console.error('Get contact submissions error:', error);
-    res.status(500).json({ error: 'Failed to fetch contact submissions', details: error.message });
+    return res.status(500).json({ error: 'Failed to fetch contact submissions', details: error.message });
   }
 });
 
@@ -138,7 +138,7 @@ router.get('/notifications', async (req: AuthRequest, res: Response) => {
     const total = groupedNotifications.length;
     const paginatedNotifs = groupedNotifications.slice(skip, skip + limitNum);
 
-    res.json({
+    return res.json({
       notifications: paginatedNotifs,
       total,
       page: pageNum,
@@ -146,7 +146,7 @@ router.get('/notifications', async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     console.error('Get notifications error:', error);
-    res.status(500).json({ error: 'Failed to fetch notifications', details: error.message });
+    return res.status(500).json({ error: 'Failed to fetch notifications', details: error.message });
   }
 });
 
@@ -342,10 +342,10 @@ router.put('/notifications/:id/read', async (req: AuthRequest, res: Response) =>
       data: { isRead: true },
     });
 
-    res.json({ notification });
+    return res.json({ notification });
   } catch (error: any) {
     console.error('Mark notification as read error:', error);
-    res.status(500).json({ error: 'Failed to mark notification as read', details: error.message });
+    return res.status(500).json({ error: 'Failed to mark notification as read', details: error.message });
   }
 });
 
@@ -380,10 +380,10 @@ router.delete('/notifications/:id', async (req: AuthRequest, res: Response) => {
       description: notification.isBroadcast ? `Deleted broadcast notification group: ${notification.broadcastId}` : 'Deleted single notification',
     });
 
-    res.json({ message: 'Notification deleted successfully' });
+    return res.json({ message: 'Notification deleted successfully' });
   } catch (error: any) {
     console.error('Delete notification error:', error);
-    res.status(500).json({ error: 'Failed to delete notification', details: error.message });
+    return res.status(500).json({ error: 'Failed to delete notification', details: error.message });
   }
 });
 
