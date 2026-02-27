@@ -200,6 +200,7 @@ export interface Event {
     id: string;
     title: string;
     courseCode: string | null;
+    courseType?: string[];
   };
   _count?: {
     registrations: number;
@@ -209,10 +210,12 @@ export interface Event {
     id: string;
     status: string;
     packNumber: number | null;
+    numberOfParticipants?: number;
     client: {
       id: string;
       userName: string;
       companyEmail: string;
+      contactNumber?: string;
     };
   }>;
 }
