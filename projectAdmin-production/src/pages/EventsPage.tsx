@@ -40,7 +40,7 @@ export const EventsPage: React.FC = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [events, searchTerm, activeTab, selectedMonth]);
+  }, [events, searchTerm, activeTab, requestTypeTab, selectedMonth]);
 
   const fetchEvents = async () => {
     try {
@@ -289,8 +289,8 @@ export const EventsPage: React.FC = () => {
           {/* Request Type Navigation (Top Tier) */}
           <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl w-fit">
             {[
-              { id: 'IN_HOUSE', label: 'In-House Requests' },
-              { id: 'PUBLIC', label: 'Public Requests' },
+              { id: 'PUBLIC', label: 'Public Programs' },
+              { id: 'IN_HOUSE', label: 'In-House Programs' },
             ].map((tab) => (
               <button
                 key={tab.id}

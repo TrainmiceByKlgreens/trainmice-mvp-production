@@ -144,6 +144,15 @@ router.get('/', optionalAuthenticate, async (req: AuthRequest, res: Response) =>
                 companyEmail: true,
               },
             },
+            clientsReference: {
+              select: {
+                id: true,
+                companyName: true,
+                picName: true,
+                email: true,
+                contactNumber: true,
+              },
+            },
           },
           orderBy: { createdAt: 'asc' },
         },

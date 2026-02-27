@@ -217,5 +217,12 @@ export interface Event {
       companyEmail: string;
       contactNumber?: string;
     };
+    clientsReference?: {
+      id: string;
+      companyName: string;
+      picName: string;
+      email: string;
+      contactNumber: string;
+    };
   }>;
 }
