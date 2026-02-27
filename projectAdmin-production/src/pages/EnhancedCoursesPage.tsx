@@ -12,7 +12,7 @@ import { EventCreationForm } from '../components/courses/EventCreationForm';
 import { apiClient } from '../lib/api-client';
 import { Course } from '../types';
 import { formatDate, formatCurrency } from '../utils/helpers';
-import { Plus, Edit, Trash2, Calendar, MapPin, CheckCircle, XCircle, File, Clock, Star, X, Download, Send, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, MapPin, CheckCircle, XCircle, File, Clock, Star, X, Download, Send, ChevronDown, ChevronUp, ArrowLeft, Copy } from 'lucide-react';
 import { showToast } from '../components/common/Toast';
 import { generateCourseBrochure } from '../utils/brochureGenerator';
 import { COURSE_CATEGORIES } from '../utils/categories';
@@ -254,6 +254,47 @@ export const EnhancedCoursesPage: React.FC = () => {
     }
   };
 
+  const handleDuplicateCourse = async (courseId: string) => {
+    try {
+      setLoading(true);
+      const response = await apiClient.getAdminCourse(courseId);
+      const c = response.course;
+
+      // Prepare data for new course (creating a copy)
+      // We explicitly pick fields to avoid sending IDs or timestamps
+      const duplicateData = {
+        title: `${c.title} - Copy`,
+        description: c.description,
+        courseType: c.courseType,
+        courseMode: c.courseMode,
+        durationHours: c.durationHours,
+        durationUnit: c.durationUnit,
+        price: c.price,
+        venue: c.venue,
+        category: c.category,
+        certificate: c.certificate,
+        assessment: c.assessment,
+        learningObjectives: c.learningObjectives,
+        learningOutcomes: c.learningOutcomes,
+        targetAudience: c.targetAudience,
+        methodology: c.methodology,
+        prerequisite: c.prerequisite,
+        hrdcClaimable: c.hrdcClaimable,
+        city: c.city,
+        state: c.state,
+        status: 'DRAFT',
+      };
+
+      await apiClient.createAdminCourse(duplicateData);
+      showToast('Course duplicated successfully', 'success');
+      fetchData();
+    } catch (error: any) {
+      console.error('Error duplicating course:', error);
+      showToast(error.message || 'Error duplicating course', 'error');
+      setLoading(false);
+    }
+  };
+
   const getStatusVariant = (status: string) => {
     switch (status.toLowerCase()) {
       case 'approved': return 'success';
@@ -489,6 +530,14 @@ export const EnhancedCoursesPage: React.FC = () => {
                         className="flex-1"
                       >
                         Review
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleDuplicateCourse(course.id)}
+                        title="Duplicate Course"
+                      >
+                        <Copy size={16} />
                       </Button>
                     </div>
                   </div>
@@ -792,6 +841,14 @@ export const EnhancedCoursesPage: React.FC = () => {
                     title="Edit Course"
                   >
                     <Edit size={14} />
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleDuplicateCourse(course.id)}
+                    title="Duplicate Course"
+                  >
+                    <Copy size={14} />
                   </Button>
                   <Button
                     variant="secondary"
