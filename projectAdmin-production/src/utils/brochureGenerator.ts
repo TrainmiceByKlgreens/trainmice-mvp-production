@@ -204,7 +204,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   doc.setFont('helvetica', 'bold');
   const titleMaxWidth = contentWidth - 20;
   const titleLines = doc.splitTextToSize(course.title, titleMaxWidth);
-  const titleStartY = 140; // Lowered further from 105
+  const titleStartY = 160; // Lowered further from 105
 
   titleLines.forEach((line: string, index: number) => {
     doc.text(line, margin + 10, titleStartY + (index * 9)); // Shifted further left to margin + 10
