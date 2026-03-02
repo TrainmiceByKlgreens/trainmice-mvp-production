@@ -16,7 +16,7 @@ export const COURSE_CATEGORIES = [
   'Manufacturing',
   'Accounts & Finance',
   'Leadership & Management Skills',
-  'Soft Skills & Specialised Training',
+  'IT & Software',
   'Food Processing',
   'Property',
   'ESG',

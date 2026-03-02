@@ -17,7 +17,7 @@ export const CATEGORY_COLORS: Record<string, { bg: string; text: string; border:
   'Manufacturing': { bg: 'bg-lime-100', text: 'text-lime-700', border: 'border-lime-200' },
   'Accounts & Finance': { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-200' },
   'Leadership & Management Skills': { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200' },
-  'Soft Skills & Specialised Training': { bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-200' },
+  'IT & Software': { bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-200' },
   'Food Processing': { bg: 'bg-rose-200', text: 'text-rose-800', border: 'border-rose-300' },
   'Property': { bg: 'bg-stone-100', text: 'text-stone-700', border: 'border-stone-200' },
   'ESG': { bg: 'bg-emerald-200', text: 'text-emerald-800', border: 'border-emerald-300' },
