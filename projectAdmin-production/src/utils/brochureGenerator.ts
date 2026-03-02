@@ -204,10 +204,10 @@ export const generateCourseBrochure = async (course: CourseData) => {
   doc.setFont('helvetica', 'bold');
   const titleMaxWidth = contentWidth - 20;
   const titleLines = doc.splitTextToSize(course.title, titleMaxWidth);
-  const titleStartY = 105; // Lowered from 90
+  const titleStartY = 140; // Lowered further from 105
 
   titleLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 20, titleStartY + (index * 9)); // Shifted left to margin + 20
+    doc.text(line, margin + 10, titleStartY + (index * 9)); // Shifted further left to margin + 10
   });
 
   // Course details below title - smaller font, within yellow line
@@ -217,30 +217,30 @@ export const generateCourseBrochure = async (course: CourseData) => {
 
   // Training Mode
   doc.setFont('helvetica', 'bold');
-  doc.text('Training Mode:', margin + 20, yPos);
+  doc.text('Training Mode:', margin + 10, yPos);
   doc.setFont('helvetica', 'normal');
   const modeText = courseTypeMap[course.courseType || 'IN_HOUSE'] || course.courseType || 'In-House';
-  doc.text(modeText, margin + 70, yPos);
+  doc.text(modeText, margin + 60, yPos);
   yPos += 9;
 
   // Date
   doc.setFont('helvetica', 'bold');
-  doc.text('Date:', margin + 20, yPos);
+  doc.text('Date:', margin + 10, yPos);
   doc.setFont('helvetica', 'normal');
   const dateLines = doc.splitTextToSize(dateText, contentWidth - 90);
   dateLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 70, yPos + (index * 5));
+    doc.text(line, margin + 60, yPos + (index * 5));
   });
   yPos += Math.max(dateLines.length * 5, 9);
 
   // Venue
   doc.setFont('helvetica', 'bold');
-  doc.text('Venue:', margin + 20, yPos);
+  doc.text('Venue:', margin + 10, yPos);
   doc.setFont('helvetica', 'normal');
   const venueText = course.venue || 'TBA';
   const venueLines = doc.splitTextToSize(venueText, contentWidth - 90);
   venueLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 70, yPos + (index * 5));
+    doc.text(line, margin + 60, yPos + (index * 5));
   });
 
 
