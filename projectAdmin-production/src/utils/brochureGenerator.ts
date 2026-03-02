@@ -204,10 +204,10 @@ export const generateCourseBrochure = async (course: CourseData) => {
   doc.setFont('helvetica', 'bold');
   const titleMaxWidth = contentWidth - 20;
   const titleLines = doc.splitTextToSize(course.title, titleMaxWidth);
-  const titleStartY = 90; // Positioned to be within the yellow diagonal area
+  const titleStartY = 105; // Lowered from 90
 
   titleLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 35, titleStartY + (index * 9));
+    doc.text(line, margin + 20, titleStartY + (index * 9)); // Shifted left to margin + 20
   });
 
   // Course details below title - smaller font, within yellow line
@@ -217,41 +217,33 @@ export const generateCourseBrochure = async (course: CourseData) => {
 
   // Training Mode
   doc.setFont('helvetica', 'bold');
-  doc.text('Training Mode:', margin + 35, yPos);
+  doc.text('Training Mode:', margin + 20, yPos);
   doc.setFont('helvetica', 'normal');
   const modeText = courseTypeMap[course.courseType || 'IN_HOUSE'] || course.courseType || 'In-House';
-  doc.text(modeText, margin + 85, yPos);
+  doc.text(modeText, margin + 70, yPos);
   yPos += 9;
 
   // Date
   doc.setFont('helvetica', 'bold');
-  doc.text('Date:', margin + 35, yPos);
+  doc.text('Date:', margin + 20, yPos);
   doc.setFont('helvetica', 'normal');
   const dateLines = doc.splitTextToSize(dateText, contentWidth - 90);
   dateLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 85, yPos + (index * 5));
+    doc.text(line, margin + 70, yPos + (index * 5));
   });
   yPos += Math.max(dateLines.length * 5, 9);
 
   // Venue
   doc.setFont('helvetica', 'bold');
-  doc.text('Venue:', margin + 35, yPos);
+  doc.text('Venue:', margin + 20, yPos);
   doc.setFont('helvetica', 'normal');
   const venueText = course.venue || 'TBA';
   const venueLines = doc.splitTextToSize(venueText, contentWidth - 90);
   venueLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 85, yPos + (index * 5));
+    doc.text(line, margin + 70, yPos + (index * 5));
   });
 
-  // Footer contact info
-  doc.setFillColor(0, 51, 102, 0.9);
-  doc.rect(0, pageHeight - 20, pageWidth, 20, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Phone: +6019 9331 008', margin, pageHeight - 12);
-  doc.text('Email: enquiry@trainmice.com', pageWidth / 2 - 30, pageHeight - 12);
-  doc.text('Website: www.trainmice.com', pageWidth - 70, pageHeight - 12);
+
 
   // ============================================================================
   // PAGE 2: COURSE DETAILS WITH BACKGROUND IMAGE
