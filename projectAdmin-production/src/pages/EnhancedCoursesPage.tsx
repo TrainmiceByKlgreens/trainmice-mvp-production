@@ -702,9 +702,10 @@ export const EnhancedCoursesPage: React.FC = () => {
                                 if (w.position) parts.push(w.position);
                                 if (w.company) parts.push(w.company);
                                 if (w.startDate || w.start_date) {
-                                  const start = (w.startDate || w.start_date) as string;
-                                  const end = (w.endDate || w.end_date) as string | null;
-                                  parts.push(end ? `${start} - ${end}` : `${start} - Present`);
+                                  const start = String(w.startDate || w.start_date).substring(0, 4);
+                                  const endValue = w.endDate || w.end_date;
+                                  const end = endValue ? String(endValue).substring(0, 4) : 'Present';
+                                  parts.push(`${start} - ${end}`);
                                 }
                                 return parts.join(' | ');
                               }).filter((s: string) => s && s.trim());

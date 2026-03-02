@@ -1,6 +1,7 @@
 /**
  * Brochure Generator for Courses
  * Generates a multi-page PDF brochure for courses
+ * EDITED: Title and course info repositioned within yellow line area
  */
 
 import jsPDF from 'jspdf';
@@ -54,7 +55,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      
+
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
@@ -75,13 +76,13 @@ export const generateCourseBrochure = async (course: CourseData) => {
           resolve(null);
         }
       };
-      
+
       img.onerror = () => {
         console.error('Error loading second page background image');
         secondPageBgLoaded = true; // Mark as loaded to prevent retries
         resolve(null);
       };
-      
+
       img.src = '/Brochure2ndpage.jpeg';
     });
   };
@@ -121,26 +122,26 @@ export const generateCourseBrochure = async (course: CourseData) => {
     doc.setFont('helvetica', fontStyle);
     const lines = doc.splitTextToSize(text, maxWidth);
     const lineSpacing = fontSize * 0.35 * lineHeight;
-    
+
     let currentY = y;
     for (let i = 0; i < lines.length; i++) {
       currentY = await checkPageBreak(currentY, lineSpacing);
       doc.text(lines[i], x, currentY);
       currentY += lineSpacing;
     }
-    
+
     return currentY;
   };
 
   // ============================================================================
   // PAGE 1: COVER PAGE WITH BACKGROUND IMAGE
   // ============================================================================
-  
+
   // Load and add background image
   try {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    
+
     await new Promise((resolve) => {
       img.onload = () => {
         try {
@@ -196,50 +197,50 @@ export const generateCourseBrochure = async (course: CourseData) => {
     'VIRTUAL': 'Virtual',
   };
 
-  // Course title - lowered position
+  // EDITED: Repositioned for yellow line area
+  // Title positioned within the yellow line area - centered on the diagonal
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(28);
+  doc.setFontSize(26);
   doc.setFont('helvetica', 'bold');
-  const titleMaxWidth = contentWidth;
+  const titleMaxWidth = contentWidth - 20;
   const titleLines = doc.splitTextToSize(course.title, titleMaxWidth);
-  const titleY = 80; // Lowered from 50 to 80
-  
-  // Center or left-align title
+  const titleStartY = 90; // Positioned to be within the yellow diagonal area
+
   titleLines.forEach((line: string, index: number) => {
-    doc.text(line, margin, titleY + (index * 10));
+    doc.text(line, margin + 35, titleStartY + (index * 9));
   });
 
-  // Course details below title
-  let yPos = titleY + (titleLines.length * 10) + 25;
-  doc.setFontSize(13);
+  // Course details below title - smaller font, within yellow line
+  let yPos = titleStartY + (titleLines.length * 9) + 15;
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
 
   // Training Mode
   doc.setFont('helvetica', 'bold');
-  doc.text('Training Mode: ', margin, yPos);
+  doc.text('Training Mode:', margin + 35, yPos);
   doc.setFont('helvetica', 'normal');
   const modeText = courseTypeMap[course.courseType || 'IN_HOUSE'] || course.courseType || 'In-House';
-  doc.text(modeText, margin + 50, yPos);
-  yPos += 12;
+  doc.text(modeText, margin + 85, yPos);
+  yPos += 9;
 
-  // Date - on front page
+  // Date
   doc.setFont('helvetica', 'bold');
-  doc.text('Date: ', margin, yPos);
+  doc.text('Date:', margin + 35, yPos);
   doc.setFont('helvetica', 'normal');
-  const dateLines = doc.splitTextToSize(dateText, contentWidth - 50);
+  const dateLines = doc.splitTextToSize(dateText, contentWidth - 90);
   dateLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 50, yPos + (index * 6));
+    doc.text(line, margin + 85, yPos + (index * 5));
   });
-  yPos += Math.max(dateLines.length * 6, 12);
+  yPos += Math.max(dateLines.length * 5, 9);
 
-  // Venue - on front page
+  // Venue
   doc.setFont('helvetica', 'bold');
-  doc.text('Venue: ', margin, yPos);
+  doc.text('Venue:', margin + 35, yPos);
   doc.setFont('helvetica', 'normal');
   const venueText = course.venue || 'TBA';
-  const venueLines = doc.splitTextToSize(venueText, contentWidth - 50);
+  const venueLines = doc.splitTextToSize(venueText, contentWidth - 90);
   venueLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 50, yPos + (index * 6));
+    doc.text(line, margin + 85, yPos + (index * 5));
   });
 
   // Footer contact info
@@ -269,7 +270,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
 
   // Course details without table
   doc.setTextColor(0, 0, 0);
-  
+
   // Topic
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
@@ -452,7 +453,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
     const sortedDays = Object.keys(scheduleByDay).sort((a, b) => parseInt(a) - parseInt(b));
     for (const day of sortedDays) {
       const daySessions = scheduleByDay[parseInt(day)];
-      
+
       // Day header
       currentY = await checkPageBreak(currentY, 30);
       doc.setFillColor(0, 51, 102);
@@ -490,11 +491,11 @@ export const generateCourseBrochure = async (course: CourseData) => {
           // Module title (now a string, not array)
           const moduleTitle =
             typeof item.moduleTitle === 'string'
-            ? item.moduleTitle 
+              ? item.moduleTitle
               : Array.isArray(item.moduleTitle)
                 ? (item.moduleTitle as any[]).join(', ')
                 : '';
-          
+
           if (moduleTitle) {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
