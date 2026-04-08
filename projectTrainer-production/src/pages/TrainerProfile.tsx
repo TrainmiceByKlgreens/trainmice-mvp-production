@@ -196,7 +196,7 @@ export function TrainerProfile() {
       const updatedTrainer = await uploadTrainerProfileImage(user.id, file);
       setTrainer(updatedTrainer);
       setOriginalTrainer(updatedTrainer);
-      alert('Profile picture updated successfully.');
+      alert('Successfull upload');
     } catch (error) {
       console.error('Error uploading profile image:', error);
       alert(error instanceof Error ? error.message : 'Failed to upload profile picture');

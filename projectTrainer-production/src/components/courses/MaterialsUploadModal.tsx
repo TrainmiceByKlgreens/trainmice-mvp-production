@@ -66,6 +66,7 @@ export function MaterialsUploadModal({
       }
     }
 
+    alert('Successfull upload');
     setUploading(false);
     setUploadProgress('');
 
