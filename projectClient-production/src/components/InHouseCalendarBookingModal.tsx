@@ -1,0 +1,790 @@
+import { useState, useEffect } from 'react';
+import { X, ChevronLeft, ChevronRight, Info, Calendar } from 'lucide-react';
+import { Course, Trainer, TrainerAvailability } from '../lib/api-client';
+import { auth } from '../lib/auth';
+import { apiClient } from '../lib/api-client';
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  getDay,
+  addDays,
+  addMonths,
+  subMonths,
+  isSameMonth,
+} from 'date-fns';
+import { formatDuration } from '../utils/calendarHelpers';
+
+type InHouseCalendarBookingModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  course: Course;
+  trainer: Trainer | null;
+};
+
+type DateAvailabilityMap = {
+  [date: string]: TrainerAvailability[];
+};
+
+export function InHouseCalendarBookingModal({
+  isOpen,
+  onClose,
+  course,
+  trainer,
+}: InHouseCalendarBookingModalProps) {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [availability, setAvailability] = useState<TrainerAvailability[]>([]);
+  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
+  const [tentativeCounts, setTentativeCounts] = useState<Record<string, number>>({});
+  const [blockedWeekdays, setBlockedWeekdays] = useState<number[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [selectedAvailabilityIds, setSelectedAvailabilityIds] = useState<string[]>([]);
+  const [formData, setFormData] = useState({
+    companyName: '',
+    address: '',
+    city: '',
+    state: '',
+    userName: '',
+    userEmail: '',
+    courseMode: '',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAvailability();
+      fetchBlockedDays();
+      fetchUserData();
+    }
+  }, [isOpen, currentMonth]);
+
+  const fetchUserData = async () => {
+    try {
+      const { user } = await auth.getSession();
+      if (user) {
+        try {
+          // Fetch client profile to get company information
+          const profileResponse = await apiClient.getClientProfile();
+          const client = profileResponse.client;
+
+          const userName = user.fullName || client?.userName || user.email?.split('@')[0] || '';
+          const userEmail = user.email || client?.companyEmail || '';
+          setFormData(prev => ({
+            ...prev,
+            userName,
+            userEmail,
+            companyName: client?.companyName || '',
+            address: client?.companyAddress || '',
+            city: client?.city || '',
+            state: client?.state || '',
+          }));
+        } catch (profileError) {
+          console.error('Error fetching client profile:', profileError);
+          // Fallback to user data if profile fetch fails
+          const userName = user.fullName || user.email?.split('@')[0] || '';
+          const userEmail = user.email || '';
+          setFormData(prev => ({
+            ...prev,
+            userName,
+            userEmail,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
+
+  const fetchAvailability = async () => {
+    if (!trainer) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Fetch +/- 1 month to handle course durations that cross month boundaries
+      const monthStart = format(startOfMonth(subMonths(currentMonth, 1)), 'yyyy-MM-dd');
+      const monthEnd = format(endOfMonth(addMonths(currentMonth, 1)), 'yyyy-MM-dd');
+
+      const data = await apiClient.getTrainerAvailability(trainer.id, {
+        startDate: monthStart,
+        endDate: monthEnd,
+        courseId: course.id,
+      });
+      setAvailability(data?.availability || data || []);
+      setPendingCounts(data?.pendingCounts || {});
+      setTentativeCounts(data?.tentativeCounts || {});
+    } catch (error) {
+      console.error('Error fetching availability:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchBlockedDays = async () => {
+    if (!trainer) return;
+
+    try {
+      const response = await apiClient.getTrainerBlockedDays(trainer.id);
+      setBlockedWeekdays(response.blockedDays || []);
+    } catch (error) {
+      console.error('Error fetching blocked days:', error);
+      // Fail silently - blocked days check is optional
+    }
+  };
+
+  const getDateAvailabilityMap = (): DateAvailabilityMap => {
+    const map: DateAvailabilityMap = {};
+    availability.forEach(avail => {
+      if (!avail.date) return;
+      
+      let dateKey = '';
+      if (typeof avail.date === 'string') {
+        dateKey = avail.date.substring(0, 10);
+      } else if (avail.date instanceof Date) {
+        // Use UTC date parts to match the ISO substring from server
+        dateKey = avail.date.toISOString().substring(0, 10);
+      }
+
+      if (!dateKey) return;
+
+      // Normalize status to lowercase so comparisons work regardless of API casing
+      const normalizedAvail = {
+        ...avail,
+        status: typeof avail.status === 'string' ? avail.status.toLowerCase() : avail.status,
+      };
+
+      if (!map[dateKey]) {
+        map[dateKey] = [];
+      }
+      map[dateKey].push(normalizedAvail);
+    });
+    return map;
+  };
+
+  const isDateBlocked = (date: Date): boolean => {
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+    return blockedWeekdays.includes(dayOfWeek);
+  };
+
+  /**
+   * Checks if a single date is valid for selection (not past, not blocked, has available/tentative slot)
+   */
+  const isDateSelectable = (date: Date, availMap: DateAvailabilityMap): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // 1. Must not be in the past
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+    if (checkDate.getTime() < today.getTime()) return false;
+
+    // 2. Must not be a blocked weekday
+    if (isDateBlocked(checkDate)) return false;
+
+    // 3. Must have an available or tentative slot
+    const dateStr = format(checkDate, 'yyyy-MM-dd');
+    const slots = availMap[dateStr] || [];
+    return slots.some(s => s.status === 'available' || s.status === 'tentative');
+  };
+
+  /**
+   * Finds the next N selectable dates starting from a specific date.
+   * If N dates cannot be found within a reasonable window, returns null.
+   */
+  const getRequiredDates = (startDate: Date, daysNeeded: number, availMap: DateAvailabilityMap): string[] | null => {
+    const selected: string[] = [];
+    // Start date must be selectable to begin a sequence
+    if (!isDateSelectable(startDate, availMap)) return null;
+
+    let current = new Date(startDate);
+    let found = 0;
+    let searchCount = 0;
+    const maxSearchDays = 60; // Max days to look ahead (2 months)
+
+    while (found < daysNeeded && searchCount < maxSearchDays) {
+      if (isDateSelectable(current, availMap)) {
+        selected.push(format(current, 'yyyy-MM-dd'));
+        found++;
+      }
+      current.setDate(current.getDate() + 1);
+      searchCount++;
+    }
+
+    return found === daysNeeded ? selected : null;
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(subMonths(currentMonth, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(addMonths(currentMonth, 1));
+  };
+
+  const getCalendarDays = () => {
+    const start = startOfMonth(currentMonth);
+    const end = endOfMonth(currentMonth);
+    const days = eachDayOfInterval({ start, end });
+
+    const startDay = getDay(start);
+    const paddingDays = Array.from({ length: startDay }, (_, i) =>
+      addDays(start, -startDay + i)
+    );
+
+    return [...paddingDays, ...days];
+  };
+
+  // Calculate number of days needed based on course duration
+  const getCourseDays = (): number => {
+    if (!course.duration_hours || !course.duration_unit) return 1;
+
+    if (course.duration_unit === 'days') {
+      // If duration_unit is 'days', duration_hours contains the raw day value
+      // (e.g., if user entered 2 days, duration_hours = 2)
+      return course.duration_hours;
+    } else {
+      // If duration_unit is 'hours', calculate days (assuming 9 hours per day)
+      // Round up to ensure we cover all hours
+      return Math.ceil(course.duration_hours / 9);
+    }
+  };
+
+  const handleDateClick = (date: Date) => {
+    // Format date as YYYY-MM-DD string to avoid timezone issues
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+
+    // Always read the latest availability map at click time
+    const currentAvailMap = getDateAvailabilityMap();
+    const daysNeeded = getCourseDays();
+    
+    // Find next N available dates
+    const datesToSelect = getRequiredDates(date, daysNeeded, currentAvailMap);
+
+    if (!datesToSelect) {
+      setSubmitMessage({
+        type: 'error',
+        text: `Cannot select this date: insufficient available days found within the next 60 days to complete this ${daysNeeded}-day course.`,
+      });
+      return;
+    }
+
+    // If clicking the same start date, deselect
+    if (selectedDate === dateString) {
+      setSelectedDate(null);
+      setSelectedDates([]);
+      setSelectedAvailabilityIds([]);
+      setSubmitMessage(null);
+    } else {
+      setSelectedDate(dateString);
+      setSelectedDates(datesToSelect);
+
+      // Capture availability IDs for selected dates
+      const availabilityIds: string[] = [];
+      datesToSelect.forEach((dateStr) => {
+        const dateAvailForDay = currentAvailMap[dateStr] || [];
+        const available = dateAvailForDay.find(
+          (a) => a.status === 'available' || a.status === 'tentative'
+        );
+        if (available && available.id) {
+          availabilityIds.push(available.id);
+        }
+      });
+      setSelectedAvailabilityIds(availabilityIds);
+
+      // Show queue information if there are pending or tentative bookings
+      const queueCount = pendingCounts[dateString] || 0;
+      const tentativeCount = tentativeCounts[dateString] || 0;
+
+      if (tentativeCount > 0) {
+        let message = "";
+        // If there are PENDING counts, we use them to explain the "queue" part
+        if (queueCount > 0 && tentativeCount > queueCount) {
+          const approvedOrQuoted = tentativeCount - queueCount;
+          message = `Note: There ${queueCount === 1 ? 'is' : 'are'} ${queueCount} pending request${queueCount === 1 ? '' : 's'} and ${approvedOrQuoted} other tentative booking${approvedOrQuoted === 1 ? '' : 's'} for this date. Your request will be processed in order.`;
+        } else if (queueCount > 0) {
+          message = `Note: There ${queueCount === 1 ? 'is' : 'are'} ${queueCount} pending request${queueCount === 1 ? '' : 's'} before you for this date. Your request will be processed in order.`;
+        } else {
+          message = `Note: There ${tentativeCount === 1 ? 'is' : 'are'} ${tentativeCount} tentative booking${tentativeCount === 1 ? '' : 's'} for this date.`;
+        }
+        setSubmitMessage({ type: 'info', text: message });
+      } else {
+        setSubmitMessage(null);
+      }
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedDate) {
+      setSubmitMessage({
+        type: 'error',
+        text: 'Please select a date for your in-house booking.',
+      });
+      return;
+    }
+
+    if (!formData.companyName || !formData.address || !formData.city || !formData.state || !formData.userName || !formData.userEmail || !formData.courseMode) {
+      setSubmitMessage({
+        type: 'error',
+        text: 'Please fill in all required fields.',
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setSubmitMessage(null);
+
+      const { user } = await auth.getSession();
+      if (!user) {
+        setSubmitMessage({
+          type: 'error',
+          text: 'You must be logged in to submit a booking request.',
+        });
+        return;
+      }
+
+      // Ensure selectedDate is in YYYY-MM-DD format
+      const startDate = selectedDate; // Already in YYYY-MM-DD format from handleDateClick
+      const endDate = selectedDates.length > 1 ? selectedDates[selectedDates.length - 1] : startDate;
+
+      // Use the first availability ID (for the start date) as the primary trainerAvailabilityId
+      const trainerAvailabilityId = selectedAvailabilityIds.length > 0 ? selectedAvailabilityIds[0] : null;
+
+      await apiClient.createBookingRequest({
+        courseId: course.id,
+        trainerId: trainer.id,
+        clientId: user.id,
+        requestType: 'INHOUSE',
+        clientName: formData.userName,
+        clientEmail: formData.userEmail,
+        requestedDate: startDate,
+        endDate: endDate,
+        selectedDates: selectedDates,
+        trainerAvailabilityId: trainerAvailabilityId,
+        status: 'PENDING',
+        location: formData.address,
+        city: formData.city,
+        state: formData.state,
+        courseMode: formData.courseMode,
+      });
+
+      setSubmitMessage({
+        type: 'success',
+        text: `Your in-house booking request has been submitted to Trainer ${trainer.custom_trainer_id}. They will review and get back to you.`,
+      });
+
+      setTimeout(() => {
+        onClose();
+        resetForm();
+      }, 3000);
+    } catch (error) {
+      console.error('Error submitting booking:', error);
+      setSubmitMessage({
+        type: 'error',
+        text: 'Failed to submit booking request. Please try again.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedDate(null);
+    setSelectedDates([]);
+    setSelectedAvailabilityIds([]);
+    setFormData({ companyName: '', address: '', city: '', state: '', userName: '', userEmail: '', courseMode: '' });
+    setSubmitMessage(null);
+    setCurrentMonth(new Date());
+  };
+
+  if (!isOpen) return null;
+
+  if (!trainer) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg max-w-md w-full">
+          <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">In-House Booking</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          <div className="p-6 text-center">
+            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Info className="w-8 h-8 text-yellow-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Trainer Not Yet Assigned</h3>
+            <p className="text-gray-600 mb-6">
+              This course does not have an assigned trainer yet. Please check back later or choose the "Request for Public" option.
+            </p>
+            <button
+              onClick={onClose}
+              className="px-6 py-3 bg-teal-600 text-white font-medium rounded-lg hover:bg-teal-700 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const dateAvailMap = getDateAvailabilityMap();
+  const calendarDays = getCalendarDays();
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">{course.title}</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Trainer: {trainer.full_name} • Duration: {formatDuration(course.duration_hours, course.duration_unit)}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="flex flex-col lg:flex-row h-full">
+              {/* Left Side: Calendar */}
+              <div className="lg:w-1/2 p-6 border-b lg:border-b-0 lg:border-r border-gray-200">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3 mb-6">
+                  <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-900">
+                    <p className="font-medium">
+                      Select a start day for this {formatDuration(course.duration_hours, course.duration_unit)} course.
+                    </p>
+                    <p className="mt-1">
+                      Available days are in green.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {format(currentMonth, 'MMMM yyyy')}
+                    </h3>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handlePrevMonth}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={handleNextMonth}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-2 mb-4">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                      <div
+                        key={day}
+                        className="text-center text-xs font-semibold text-gray-600 h-8 flex items-center justify-center"
+                      >
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+
+                  {loading ? (
+                    <div className="text-center py-12">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <p className="mt-2 text-sm text-gray-600">Loading availability...</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-7 gap-2">
+                      {calendarDays.map((day, index) => {
+                        const year = day.getFullYear();
+                        const month = String(day.getMonth() + 1).padStart(2, '0');
+                        const dayNum = String(day.getDate()).padStart(2, '0');
+                        const dateString = `${year}-${month}-${dayNum}`;
+
+                        const isCurrentMonth = isSameMonth(day, currentMonth);
+                        const isPast = day.getTime() < new Date().setHours(0, 0, 0, 0);
+                        const isBlocked = isDateBlocked(day);
+
+                        const dateAvail = dateAvailMap[dateString] || [];
+                        const isDayBooked = dateAvail.every((a) => a.status === 'booked') && dateAvail.length > 0;
+
+                        let isSequenceAvailable = false;
+                        const daysNeeded = getCourseDays();
+
+                        if (!isPast && !isBlocked && !isDayBooked) {
+                          const requiredDates = getRequiredDates(day, daysNeeded, dateAvailMap);
+                          isSequenceAvailable = !!requiredDates;
+                        }
+
+                        const status =
+                          isPast
+                            ? 'past'
+                            : isBlocked
+                              ? 'unavailable'
+                              : dateAvail.length === 0
+                                ? 'unavailable'
+                                : isDayBooked
+                                  ? 'booked'
+                                  : isSequenceAvailable
+                                    ? 'available'
+                                    : 'unavailable';
+
+                        const isSelected = selectedDates.includes(dateString);
+
+                        const bgColor = !isCurrentMonth
+                          ? 'bg-gray-50 text-gray-300'
+                          : status === 'past'
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : status === 'available'
+                              ? 'bg-green-100 hover:bg-green-200 cursor-pointer'
+                              : status === 'booked'
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed';
+
+                        const canClick = isCurrentMonth && status === 'available';
+
+                        return (
+                          <button
+                            key={index}
+                            onClick={() => canClick && handleDateClick(day)}
+                            disabled={!canClick}
+                            className={`relative min-h-[50px] p-2 rounded-lg border-2 transition-all ${isSelected
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-transparent'
+                              } ${bgColor}`}
+                          >
+                            <div className="text-sm font-medium">{format(day, 'd')}</div>
+                            {tentativeCounts[dateString] > 0 && (
+                              <div className="absolute top-1 right-1 flex flex-col gap-0.5 text-[8px]">
+                                <div
+                                  className="bg-blue-600 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center font-semibold"
+                                  title={`${tentativeCounts[dateString]} tentative booking(s) (Pending/Approved/Quoted)`}
+                                >
+                                  {tentativeCounts[dateString]}
+                                </div>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex gap-3 flex-wrap text-[10px]">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-green-100 border border-green-300 rounded"></div>
+                      <span className="text-gray-600">Available</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                      <span className="text-gray-600">Tentative</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-gray-200 border border-gray-300 rounded"></div>
+                      <span className="text-gray-600">Booked</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-gray-300 border border-gray-400 rounded"></div>
+                      <span className="text-gray-600">Unavailable</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Side: Form */}
+              <div className="lg:w-1/2 p-6 flex flex-col">
+                <h3 className="text-lg font-semibold text-gray-900 mb-6">Booking Details</h3>
+
+                <form onSubmit={handleSubmit} className="space-y-4 flex-1">
+                  {selectedDate && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-blue-600" />
+                        <div>
+                          <p className="text-xs font-medium text-blue-900">Selected Start Date</p>
+                          <p className="text-sm text-blue-700">
+                            {(() => {
+                              const [year, month, day] = selectedDate.split('-').map(Number);
+                              const date = new Date(year, month - 1, day);
+                              return date.toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              });
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Course Mode <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        required
+                        value={formData.courseMode}
+                        onChange={e => setFormData({ ...formData, courseMode: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="">Select mode</option>
+                        <option value="Physical">Physical</option>
+                        <option value="Virtual">Virtual</option>
+                        <option value="Hybrid">Hybrid</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Company Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.companyName}
+                        onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        placeholder="Enter company name"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Your Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.userName}
+                        onChange={e => setFormData({ ...formData, userName: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        placeholder="Enter your name"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Company Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={formData.userEmail}
+                        onChange={e => setFormData({ ...formData, userEmail: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        placeholder="Enter company email"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Address <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.address}
+                        onChange={e => setFormData({ ...formData, address: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        placeholder="Enter address"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          City <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.city}
+                          onChange={e => setFormData({ ...formData, city: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                          placeholder="City"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          State <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.state}
+                          onChange={e => setFormData({ ...formData, state: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                          placeholder="State"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {submitMessage && (
+                    <div
+                      className={`p-4 rounded-lg text-sm ${submitMessage.type === 'success'
+                        ? 'bg-green-50 text-green-800 border border-green-200'
+                        : submitMessage.type === 'info'
+                          ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                          : 'bg-red-50 text-red-800 border border-red-200'
+                        }`}
+                    >
+                      {submitMessage.text}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-4 lg:mt-auto">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!selectedDate || isSubmitting}
+                      className="flex-1 px-6 py-3 bg-teal-600 text-white font-medium rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? 'Submitting...' : 'Submit Booking Request'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </>
+  );
+}

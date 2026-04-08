@@ -1,0 +1,79 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Prisma
+# Note: Keep migrations but ignore generated files
+prisma/migrations/*.sql
+!prisma/migrations/.gitkeep
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Vercel
+.vercel
+
+# Railway
+.railway
+
+# Package manager locks (optional - uncomment if you want to ignore)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# TypeScript
+*.tsbuildinfo
+
+# Optional: Keep these if you want to track them
+# !package-lock.json
+
+# Firebase Secrets
+serviceAccountKey.json
+backend-production/serviceAccountKey.json
+

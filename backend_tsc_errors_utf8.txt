@@ -1,0 +1,2 @@
+﻿src/routes/admin-trainers.routes.ts(179,13): error TS2322: Type 'any[] | null' is not assignable to type 'NullableJsonNullValueInput | InputJsonValue | undefined'.
+  Type 'null' is not assignable to type 'NullableJsonNullValueInput | InputJsonValue | undefined'.

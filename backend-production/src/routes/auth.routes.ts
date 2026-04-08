@@ -1,0 +1,800 @@
+import express, { Request, Response } from 'express';
+import { body, validationResult } from 'express-validator';
+import prisma from '../config/database';
+import { hashPassword, comparePassword } from '../utils/utils/password';
+import { generateToken } from '../utils/utils/jwt';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { generateTrainerId, generateAdminCode } from '../utils/utils/sequentialId';
+import { generateVerificationToken, getTokenExpiry, isTokenExpired } from '../utils/utils/verification';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
+import { isBlockedEmailDomain, isValidEmailFormat } from '../utils/utils/emailValidation';
+import { createActivityLog } from '../utils/utils/activityLogger';
+
+const router = express.Router();
+
+// Register
+router.post(
+  '/register',
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('password').isLength({ min: 8 }),
+    body('fullName').optional().trim(),
+    body('role').isIn(['CLIENT', 'TRAINER', 'ADMIN']),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { email, password, fullName, role, contactNumber, userName, position, companyName, companyAddress, city, state } = req.body;
+
+      // Validate admin email domain - only klgreens.com allowed
+      if (role === 'ADMIN') {
+        const emailDomain = email.split('@')[1]?.toLowerCase();
+        if (emailDomain !== 'klgreens.com') {
+          return res.status(400).json({
+            error: 'Only email addresses from klgreens.com domain can sign up as Admin'
+          });
+        }
+      }
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: 'User already exists' });
+      }
+
+      // Hash password
+      const passwordHash = await hashPassword(password);
+
+      // Generate verification token for all roles (including ADMIN)
+      const verificationToken = generateVerificationToken();
+      const tokenExpiry = getTokenExpiry();
+
+      // Create user with verification token
+      const user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          fullName,
+          role,
+          emailVerified: false, // All roles require email verification
+          verificationToken,
+          tokenExpiry,
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          emailVerified: true,
+          createdAt: true,
+        },
+      });
+
+      // Create role-specific profile
+      if (role === 'CLIENT') {
+        await prisma.client.create({
+          data: {
+            id: user.id,
+            companyEmail: email,
+            userName: userName || fullName || email.split('@')[0],
+            contactNumber: contactNumber || '',
+            position: position || null,
+            companyName: companyName || null,
+            companyAddress: companyAddress || null,
+            city: city || null,
+            state: state || null,
+          },
+        });
+      } else if (role === 'TRAINER') {
+        const customTrainerId = await generateTrainerId();
+        await prisma.trainer.create({
+          data: {
+            id: user.id,
+            customTrainerId,
+            fullName: fullName || email.split('@')[0],
+            icNumber: '',
+          },
+        });
+      } else if (role === 'ADMIN') {
+        const adminCode = await generateAdminCode();
+        await prisma.admin.create({
+          data: {
+            id: user.id,
+            adminCode,
+            email,
+            fullName: fullName || email.split('@')[0],
+          },
+        });
+      }
+
+      // Send verification email for all roles (including ADMIN)
+      try {
+        await sendVerificationEmail({
+          email,
+          token: verificationToken,
+          role: role === 'ADMIN' ? 'ADMIN' : (role === 'CLIENT' ? 'CLIENT' : 'TRAINER'),
+        });
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        // Don't fail registration if email fails - user can request resend
+      }
+
+      return res.status(201).json({
+        message: 'Account created successfully. Please verify your email to activate your account.',
+        user: {
+          ...user,
+          emailVerified: false,
+        },
+        requiresVerification: true,
+      });
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      return res.status(500).json({ error: 'Registration failed', details: error.message });
+    }
+  }
+);
+
+// Login
+router.post(
+  '/login',
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('password').notEmpty(),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { email, password } = req.body;
+
+      // Find user
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      // Verify password
+      const isValidPassword = await comparePassword(password, user.passwordHash);
+
+      if (!isValidPassword) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      // Check if email is verified
+      if (!user.emailVerified) {
+        return res.status(403).json({
+          error: 'Email not verified',
+          message: 'Please verify your email address before logging in. Check your inbox for the verification email.',
+          requiresVerification: true,
+        });
+      }
+
+      // Generate token
+      const token = generateToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      });
+
+      // Log trainer login
+      if (user.role === 'TRAINER') {
+        await createActivityLog({
+          userId: user.id,
+          actionType: 'LOGIN',
+          entityType: 'trainer',
+          entityId: user.id,
+          description: `Trainer ${user.fullName || user.email} logged in`,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      }
+
+      return res.json({
+        message: 'Login successful',
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+        },
+        token,
+      });
+    } catch (error: any) {
+      console.error('Login error:', error);
+      return res.status(500).json({ error: 'Login failed', details: error.message });
+    }
+  }
+);
+
+// Client Signup (Company Email Only)
+router.post(
+  '/client/signup',
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('password').isLength({ min: 8 }),
+    body('fullName').optional().trim(),
+    body('userName').optional().trim(),
+    body('contactNumber').optional().trim(),
+    body('position').optional().trim(),
+    body('companyName').optional().trim(),
+    body('companyAddress').optional().trim(),
+    body('city').optional().trim(),
+    body('state').optional().trim(),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { email, password, fullName, contactNumber, userName, position, companyName, companyAddress, city, state } = req.body;
+
+      // Validate email format
+      if (!isValidEmailFormat(email)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+      }
+
+      // Check if email domain is blocked (personal emails)
+      if (isBlockedEmailDomain(email)) {
+        return res.status(400).json({
+          error: 'Company email required',
+          message: 'Please use your company email address. Personal email addresses are not allowed for client accounts.',
+        });
+      }
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: 'User already exists with this email' });
+      }
+
+      // Hash password
+      const passwordHash = await hashPassword(password);
+
+      // Generate verification token
+      const verificationToken = generateVerificationToken();
+      const tokenExpiry = getTokenExpiry();
+
+      // Create user with verification token
+      const user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          fullName,
+          role: 'CLIENT',
+          emailVerified: false,
+          verificationToken,
+          tokenExpiry,
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          emailVerified: true,
+          createdAt: true,
+        },
+      });
+
+      // Create client profile
+      await prisma.client.create({
+        data: {
+          id: user.id,
+          companyEmail: email,
+          userName: userName || fullName || email.split('@')[0],
+          contactNumber: contactNumber || '',
+          position: position || null,
+          companyName: companyName || null,
+          companyAddress: companyAddress || null,
+          city: city || null,
+          state: state || null,
+        },
+      });
+
+      // Send verification email
+      try {
+        await sendVerificationEmail({
+          email,
+          token: verificationToken,
+          role: 'CLIENT',
+        });
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        // Don't fail signup if email fails - user can request resend
+      }
+
+      return res.status(201).json({
+        message: 'Account created successfully. Please verify your email to activate your account.',
+        user: {
+          ...user,
+          emailVerified: false,
+        },
+        requiresVerification: true,
+      });
+    } catch (error: any) {
+      console.error('Client signup error:', error);
+      return res.status(500).json({ error: 'Signup failed', details: error.message });
+    }
+  }
+);
+
+// Trainer Signup (Any Email Allowed)
+router.post(
+  '/trainer/signup',
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('password').isLength({ min: 8 }),
+    body('fullName').optional().trim(),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { email, password, fullName } = req.body;
+
+      // Validate email format only (no domain restrictions for trainers)
+      if (!isValidEmailFormat(email)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+      }
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: 'User already exists with this email' });
+      }
+
+      // Hash password
+      const passwordHash = await hashPassword(password);
+
+      // Generate verification token
+      const verificationToken = generateVerificationToken();
+      const tokenExpiry = getTokenExpiry();
+
+      // Create user with verification token
+      const user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          fullName,
+          role: 'TRAINER',
+          emailVerified: false,
+          verificationToken,
+          tokenExpiry,
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          emailVerified: true,
+          createdAt: true,
+        },
+      });
+
+      // Create trainer profile
+      const customTrainerId = await generateTrainerId();
+      await prisma.trainer.create({
+        data: {
+          id: user.id,
+          customTrainerId,
+          fullName: fullName || email.split('@')[0],
+          icNumber: '',
+        },
+      });
+
+      // Send verification email
+      try {
+        await sendVerificationEmail({
+          email,
+          token: verificationToken,
+          role: 'TRAINER',
+        });
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        // Don't fail signup if email fails - user can request resend
+      }
+
+      return res.status(201).json({
+        message: 'Account created successfully. Please verify your email to activate your account.',
+        user: {
+          ...user,
+          emailVerified: false,
+        },
+        requiresVerification: true,
+      });
+    } catch (error: any) {
+      console.error('Trainer signup error:', error);
+      return res.status(500).json({ error: 'Signup failed', details: error.message });
+    }
+  }
+);
+
+// Verify Email Handler (shared logic)
+const handleEmailVerification = async (token: string, res: Response) => {
+  if (!token || typeof token !== 'string') {
+    return res.status(400).json({ error: 'Verification token is required' });
+  }
+
+  // Find user by verification token
+  const user = await prisma.user.findFirst({
+    where: {
+      verificationToken: token,
+    },
+  });
+
+  if (!user) {
+    return res.status(400).json({ error: 'Invalid verification token' });
+  }
+
+  // Check if token is expired
+  if (!user.tokenExpiry || isTokenExpired(user.tokenExpiry)) {
+    return res.status(400).json({ error: 'Verification token has expired' });
+  }
+
+  // Check if already verified
+  if (user.emailVerified) {
+    return res.status(400).json({ error: 'Email already verified' });
+  }
+
+  // Verify email and clear token
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerified: true,
+      verificationToken: null,
+      tokenExpiry: null,
+    },
+  });
+
+  // Redirect to frontend home page (success page will auto-close/redirect)
+  let frontendUrl: string;
+  if (user.role === 'CLIENT') {
+    frontendUrl = process.env.FRONTEND_URL_CLIENT || 'http://localhost:5173';
+  } else if (user.role === 'ADMIN') {
+    frontendUrl = process.env.FRONTEND_URL_ADMIN || 'http://localhost:5175';
+  } else {
+    frontendUrl = process.env.FRONTEND_URL_TRAINER || 'http://localhost:5174';
+  }
+
+  return res.redirect(`${frontendUrl}/verify-email-success`);
+};
+
+// Short verification route (for shorter URLs in emails)
+router.get('/v', async (req: Request, res: Response) => {
+  try {
+    const token = req.query.t as string;
+    return await handleEmailVerification(token, res);
+  } catch (error: any) {
+    console.error('Email verification error:', error);
+    return res.status(500).json({ error: 'Verification failed', details: error.message });
+  }
+});
+
+// Verify Email (legacy route for backward compatibility)
+router.get('/verify-email', async (req: Request, res: Response) => {
+  try {
+    const token = req.query.token as string;
+    return await handleEmailVerification(token, res);
+  } catch (error: any) {
+    console.error('Email verification error:', error);
+    return res.status(500).json({ error: 'Verification failed', details: error.message });
+  }
+});
+
+// Resend Verification Email
+router.post(
+  '/resend-verification',
+  [
+    body('email').isEmail().normalizeEmail(),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { email } = req.body;
+
+      // Find user
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        // Don't reveal if user exists for security
+        return res.json({
+          message: 'If an account exists with this email, a verification email has been sent.',
+        });
+      }
+
+      // Check if already verified
+      if (user.emailVerified) {
+        return res.status(400).json({ error: 'Email is already verified' });
+      }
+
+      // Generate new verification token
+      const verificationToken = generateVerificationToken();
+      const tokenExpiry = getTokenExpiry();
+
+      // Update user with new token
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          verificationToken,
+          tokenExpiry,
+        },
+      });
+
+      // Send verification email
+      try {
+        await sendVerificationEmail({
+          email,
+          token: verificationToken,
+          role: user.role as 'CLIENT' | 'TRAINER' | 'ADMIN',
+        });
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        return res.status(500).json({ error: 'Failed to send verification email' });
+      }
+
+      return res.json({
+        message: 'Verification email sent. Please check your inbox.',
+      });
+    } catch (error: any) {
+      console.error('Resend verification error:', error);
+      return res.status(500).json({ error: 'Failed to resend verification email', details: error.message });
+    }
+  }
+);
+
+// Forgot Password - Request password reset
+router.post(
+  '/forgot-password',
+  [body('email').isEmail().normalizeEmail()],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { email } = req.body;
+
+      // Find user
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      // Always return success to prevent email enumeration
+      if (!user) {
+        return res.json({
+          message: 'If an account exists with this email, a password reset link has been sent.',
+        });
+      }
+
+      // Generate password reset token
+      const resetToken = generateVerificationToken();
+      const resetExpiry = new Date();
+      resetExpiry.setHours(resetExpiry.getHours() + 1); // 1 hour expiry
+
+      // Update user with reset token
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: resetToken,
+          passwordResetExpiry: resetExpiry,
+        },
+      });
+
+      // Send password reset email
+      try {
+        await sendPasswordResetEmail({
+          email: user.email,
+          token: resetToken,
+          role: user.role as 'CLIENT' | 'TRAINER' | 'ADMIN',
+        });
+      } catch (emailError) {
+        console.error('Failed to send password reset email:', emailError);
+        // Still return success to prevent information leakage
+      }
+
+      return res.json({
+        message: 'If an account exists with this email, a password reset link has been sent.',
+      });
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      return res.status(500).json({ error: 'Failed to process request', details: error.message });
+    }
+  }
+);
+
+// Reset Password - Set new password with token
+router.post(
+  '/reset-password',
+  [
+    body('token').notEmpty(),
+    body('password').isLength({ min: 8 }),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { token, password } = req.body;
+
+      // Find user by reset token
+      const user = await prisma.user.findFirst({
+        where: {
+          passwordResetToken: token,
+        },
+      });
+
+      if (!user) {
+        return res.status(400).json({ error: 'Invalid or expired reset token' });
+      }
+
+      // Check if token is expired
+      if (!user.passwordResetExpiry || isTokenExpired(user.passwordResetExpiry)) {
+        return res.status(400).json({ error: 'Reset token has expired. Please request a new one.' });
+      }
+
+      // Hash new password
+      const passwordHash = await hashPassword(password);
+
+      // Update user password and clear reset token
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          passwordResetToken: null,
+          passwordResetExpiry: null,
+        },
+      });
+
+      return res.json({
+        message: 'Password has been reset successfully. You can now log in with your new password.',
+      });
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      return res.status(500).json({ error: 'Failed to reset password', details: error.message });
+    }
+  }
+);
+
+// Get current user
+router.get('/me', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        emailVerified: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ user });
+  } catch (error: any) {
+    console.error('Get user error:', error);
+    return res.status(500).json({ error: 'Failed to get user', details: error.message });
+  }
+});
+
+// Get current client profile (authenticated client only)
+router.get(
+  '/client/profile',
+  authenticate,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.user!.role !== 'CLIENT') {
+        return res.status(403).json({ error: 'Access denied. Client access only.' });
+      }
+
+      const client = await prisma.client.findUnique({
+        where: { id: req.user!.id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              fullName: true,
+              role: true,
+            },
+          },
+        },
+      });
+
+      if (!client) {
+        return res.status(404).json({ error: 'Client profile not found' });
+      }
+
+      return res.json({ client });
+    } catch (error: any) {
+      console.error('Get client profile error:', error);
+      return res.status(500).json({ error: 'Failed to fetch client profile', details: error.message });
+    }
+  }
+);
+
+// Update current client profile (authenticated client only)
+router.put(
+  '/client/profile',
+  authenticate,
+  [
+    body('userName').optional().trim(),
+    body('contactNumber').optional().trim(),
+    body('position').optional().trim(),
+    body('companyName').optional().trim(),
+    body('companyAddress').optional().trim(),
+    body('city').optional().trim(),
+    body('state').optional().trim(),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.user!.role !== 'CLIENT') {
+        return res.status(403).json({ error: 'Access denied. Client access only.' });
+      }
+
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { userName, contactNumber, position, companyName, companyAddress, city, state } = req.body;
+
+      const client = await prisma.client.update({
+        where: { id: req.user!.id },
+        data: {
+          userName: userName !== undefined ? userName : undefined,
+          contactNumber: contactNumber !== undefined ? contactNumber : undefined,
+          position: position !== undefined ? position : undefined,
+          companyName: companyName !== undefined ? companyName : undefined,
+          companyAddress: companyAddress !== undefined ? companyAddress : undefined,
+          city: city !== undefined ? city : undefined,
+          state: state !== undefined ? state : undefined,
+        },
+      });
+
+      return res.json({ client, message: 'Profile updated successfully' });
+    } catch (error: any) {
+      console.error('Update client profile error:', error);
+      return res.status(500).json({ error: 'Failed to update client profile', details: error.message });
+    }
+  }
+);
+
+export default router;
+

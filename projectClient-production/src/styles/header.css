@@ -1,0 +1,267 @@
+/* ============================================
+   HEADER STYLES - Glassmorphism Theme
+   Ported from Trainmice 2
+   ============================================ */
+
+/* Header Container - Frosted Glass Effect */
+.header {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    height: 70px;
+    border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+
+.header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    width: 100%;
+    padding: 0 24px;
+}
+
+/* Logo Section - Keep Simple */
+.logo-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-section a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+}
+
+.logo-image {
+    height: 40px;
+    width: auto;
+}
+
+/* Navigation - Centered with Glass Effect */
+.nav-desktop {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.nav-menu {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-menu li {
+    margin: 0;
+}
+
+/* Glass Effect Navigation Buttons */
+.nav-menu button {
+    display: inline-block;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 10px;
+    border: 0.5px solid rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.nav-menu button:hover {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+}
+
+/* Active Navigation - Yellow Highlight */
+.nav-menu button.active {
+    background: var(--primary-yellow);
+    border-color: var(--yellow-dark);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Auth Buttons Section */
+.auth-buttons {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    min-width: 180px;
+    justify-content: flex-end;
+}
+
+/* Login Button - Glass Effect */
+.btn-login {
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-login:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Signup Button - Teal with Better Styling */
+.btn-signup {
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: white;
+    background: #14b8a6;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-signup:hover {
+    background: #0f766e;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+}
+
+/* User Profile Button - Keep Simple */
+.user-profile-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--primary-yellow);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.user-profile-btn:hover {
+    background: var(--yellow-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+/* Logout Button */
+.btn-logout {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-logout:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+/* Mobile Menu Toggle */
+.mobile-menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    color: var(--text-primary);
+}
+
+.hamburger-icon {
+    font-size: 24px;
+}
+
+/* Mobile Menu */
+.mobile-menu {
+    display: none;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 16px;
+    gap: 8px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.mobile-menu.show {
+    max-height: 500px;
+    display: flex;
+}
+
+.mobile-menu button {
+    padding: 12px 16px;
+    color: var(--text-primary);
+    text-decoration: none;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.mobile-menu button:hover {
+    background: rgba(255, 193, 7, 0.1);
+}
+
+.mobile-menu button.active {
+    background: rgba(255, 193, 7, 0.12);
+    color: var(--yellow-dark);
+    font-weight: 600;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 992px) {
+    .nav-desktop {
+        display: none;
+    }
+
+    .auth-buttons {
+        display: none;
+    }
+
+    .mobile-menu-toggle {
+        display: block;
+    }
+
+    .header-container {
+        padding: 0 20px;
+    }
+}
+
+@media (max-width: 576px) {
+    .logo-text {
+        display: none;
+    }
+}

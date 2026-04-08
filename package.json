@@ -1,0 +1,32 @@
+{
+  "name": "trainmice-production",
+  "version": "1.0.0",
+  "description": "TrainMICE Production Platform - Monorepo",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd backend-production && npm install && cd ../projectAdmin-production && npm install && cd ../projectClient-production && npm install && cd ../projectTrainer-production && npm install",
+    "dev:backend": "cd backend-production && npm run dev",
+    "dev:admin": "cd projectAdmin-production && npm run dev",
+    "dev:client": "cd projectClient-production && npm run dev",
+    "dev:trainer": "cd projectTrainer-production && npm run dev",
+    "build:backend": "cd backend-production && npm run build",
+    "build:admin": "cd projectAdmin-production && npm run build",
+    "build:client": "cd projectClient-production && npm run build",
+    "build:trainer": "cd projectTrainer-production && npm run build",
+    "build:all": "npm run build:backend && npm run build:admin && npm run build:client && npm run build:trainer"
+  },
+  "keywords": [
+    "trainmice",
+    "training",
+    "management",
+    "platform",
+    "monorepo"
+  ],
+  "author": "TrainMICE",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
+

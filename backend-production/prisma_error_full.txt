@@ -1,0 +1,113 @@
+﻿Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+node.exe : 
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" 
+"C:\Users\kevin\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified 
+   : (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeComman 
+   dError
+ 
+Error: Prisma schema validation - 
+(validate wasm)
+Error code: P1012
+[1;91merror[0m: [1mError parsing 
+attribute "@relation": The given 
+constraint name 
+`booking_requests_course_id_fkey` has to 
+be unique in the following namespace: on 
+model `BookingRequest` for primary key, 
+indexes, unique constraints and foreign 
+keys. Please provide a different name 
+using the `map` argument.[0m
+  [1;94m-->[0m  
+[4mprisma\schema.prisma:216[0m
+[1;94m   | [0m
+[1;94m215 | [0m  client                
+Client?              @relation(fields: 
+[clientId], references: [id])
+[1;94m216 | [0m  [1;91mcourse           
+     Course?              
+@relation(fields: [courseId], references: 
+[id])
+[0m
+[1;94m217 | [0m  trainerAvailability   
+TrainerAvailability? @relation(fields: 
+[trainerAvailabilityId], references: [id])
+[1;94m   | [0m
+[1;91merror[0m: [1mError parsing 
+attribute "@relation": The given 
+constraint name 
+`trainer_documents_uploaded_by_fkey` has 
+to be unique in the following namespace: 
+on model `TrainerDocument` for primary 
+key, indexes, unique constraints and 
+foreign keys. Please provide a different 
+name using the `map` argument.[0m
+  [1;94m-->[0m  
+[4mprisma\schema.prisma:409[0m
+[1;94m   | [0m
+[1;94m408 | [0m  trainer         Trainer 
+  @relation(fields: [trainerId], 
+references: [id], onDelete: Cascade)
+[1;94m409 | [0m  [1;91muploadedByAdmin 
+Admin?    @relation("UploadedDocuments", 
+fields: [uploadedBy], references: [id])
+[0m
+[1;94m410 | [0m  verifiedByAdmin Admin?  
+  @relation("VerifiedDocuments", fields: 
+[verifiedBy], references: [id])
+[1;94m   | [0m
+[1;91merror[0m: [1mError parsing 
+attribute "@relation": The given 
+constraint name 
+`trainer_documents_verifiedBy_fkey` has to 
+be unique in the following namespace: on 
+model `TrainerDocument` for primary key, 
+indexes, unique constraints and foreign 
+keys. Please provide a different name 
+using the `map` argument.[0m
+  [1;94m-->[0m  
+[4mprisma\schema.prisma:410[0m
+[1;94m   | [0m
+[1;94m409 | [0m  uploadedByAdmin Admin?  
+  @relation("UploadedDocuments", fields: 
+[uploadedBy], references: [id])
+[1;94m410 | [0m  [1;91mverifiedByAdmin 
+Admin?    @relation("VerifiedDocuments", 
+fields: [verifiedBy], references: [id])
+[0m
+[1;94m411 | [0m
+[1;94m   | [0m
+[1;91merror[0m: [1mError parsing 
+attribute "@relation": The given 
+constraint name 
+`trainer_bookings_confirmedBy_fkey` has to 
+be unique in the following namespace: on 
+model `TrainerBooking` for primary key, 
+indexes, unique constraints and foreign 
+keys. Please provide a different name 
+using the `map` argument.[0m
+  [1;94m-->[0m  
+[4mprisma\schema.prisma:584[0m
+[1;94m   | [0m
+[1;94m583 | [0m  updatedAt         
+DateTime             @updatedAt 
+@map("updated_at")
+[1;94m584 | [0m  [1;91mconfirmedByAdmin 
+ Admin?               @relation(fields: 
+[confirmedBy], references: [id])
+[0m
+[1;94m585 | [0m  trainer           
+Trainer              @relation(fields: 
+[trainerId], references: [id], onDelete: 
+Cascade)
+[1;94m   | [0m
+
+Validation Error Count: 4
+[Context: validate]
+
+Prisma CLI Version : 5.22.0

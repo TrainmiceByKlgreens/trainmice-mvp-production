@@ -1,0 +1,37 @@
+// This will be used inside the migration script
+// We need to ensure the order of operations respects foreign keys.
+
+const MIGRATION_ORDER = [
+  'User',
+  'Admin',
+  'Trainer',
+  'Client',
+  'Course',
+  'CourseMaterial',
+  'CourseSchedule',
+  'CourseTrainer',
+  'Event',
+  'EventRegistration',
+  'BookingRequest',
+  'TrainerAvailability',
+  'TrainerBlockedDay',
+  'TrainerWeeklyAvailability',
+  'TrainerBlockedDate',
+  'Notification',
+  'TrainerDocument',
+  'CourseReview',
+  'Qualification',
+  'WorkHistory',
+  'PastClient',
+  'CustomCourseRequest',
+  'ContactSubmission',
+  'Feedback',
+  'TrainerBooking',
+  'TrainerCourseConducted',
+  'ActivityLog',
+  'MessageThread',
+  'Message',
+  'TrainerMessage',
+  'EventEnquiry',
+  'EventEnquiryMessage'
+];
