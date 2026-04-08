@@ -433,8 +433,7 @@ export function ScheduleBuilder({ scheduleItems, onChange, requiredDurationHours
                             <span className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">{slot.name}</span>
                             <span className="text-[10px] font-bold text-amber-800">{formatSessionTime(slot.startTime)} - {formatSessionTime(slot.endTime)}</span>
                           </div>
-                          <p className="text-sm font-semibold text-amber-900 mt-4">Mandatory Lunch Break</p>
-                          <p className="text-xs text-amber-700 mt-1">This block is automatically inserted across the schedule and brochure output.</p>
+                          <p className="text-sm font-semibold text-amber-900 mt-4">Lunch Break</p>
                         </div>
                       );
                     }
@@ -491,7 +490,6 @@ export function ScheduleBuilder({ scheduleItems, onChange, requiredDurationHours
                             <div className="flex items-center justify-between gap-4">
                               <div>
                                 <p className="text-sm font-black text-amber-900 uppercase tracking-widest">{slot.name}</p>
-                                <p className="text-xs font-medium text-amber-700 mt-1">Automatically inserted. Editing is disabled in preview.</p>
                               </div>
                               <span className="text-xs font-bold text-amber-800">{formatSessionTime(slot.startTime)} - {formatSessionTime(slot.endTime)}</span>
                             </div>
