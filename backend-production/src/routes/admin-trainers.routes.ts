@@ -176,7 +176,7 @@ router.post(
             state: state || null,
             city: city || null,
             country: country || null,
-            areasOfExpertise: specialization ? [specialization] : null,
+            areasOfExpertise: specialization ? [specialization] : undefined,
           },
         });
 
