@@ -744,7 +744,6 @@ export const EnhancedCoursesPage: React.FC = () => {
                           }
                           
                           if (value && typeof value === 'object') {
-                            // If it's a non-array object, we might have issues, but let's try to stringify
                             return [JSON.stringify(value)];
                           }
 
@@ -806,11 +805,11 @@ export const EnhancedCoursesPage: React.FC = () => {
                             if (quals.length > 0) {
                               trainerEducation = quals.map((q: any) => {
                                 const parts: string[] = [];
-                                const title = q.title || q.qualification_name || q.name;
+                                const qTitle = q.title || q.qualification_name || q.name;
                                 const institution = q.institution || q.institute_name || q.organization;
                                 const year = q.yearObtained || q.year_obtained || q.year_awarded || q.year;
                                 
-                                if (title) parts.push(title);
+                                if (qTitle) parts.push(qTitle);
                                 if (institution) parts.push(institution);
                                 if (year) parts.push(String(year));
                                 
@@ -846,7 +845,6 @@ export const EnhancedCoursesPage: React.FC = () => {
                             }
 
                             // Languages (support relations, JSON, and raw strings)
-                            // Priority: trainerLanguages (relation) -> languagesSpoken (JSON) -> fallback strings
                             const rawLangInput =
                               (Array.isArray(trainer.trainerLanguages) && trainer.trainerLanguages.length > 0)
                                 ? trainer.trainerLanguages
@@ -867,16 +865,10 @@ export const EnhancedCoursesPage: React.FC = () => {
                                   const parsed = JSON.parse(rawLangInput);
                                   trainerLanguages = Array.isArray(parsed) ? parsed : [rawLangInput];
                                 } catch {
-                                  trainerLanguages = rawLangInput.split(',').map(s => s.trim()).filter(Boolean);
+                                  trainerLanguages = rawLangInput.split(',').map((s: string) => s.trim()).filter(Boolean);
                                 }
                               } else {
-                                trainerLanguages = rawLangInput.split(',').map(s => s.trim()).filter(Boolean);
-                              }
-                            }
-                                  trainerLanguages = rawLangInput.split(',').map(s => s.trim()).filter(Boolean);
-                                }
-                              } else {
-                                trainerLanguages = rawLangInput.split(',').map(s => s.trim()).filter(Boolean);
+                                trainerLanguages = rawLangInput.split(',').map((s: string) => s.trim()).filter(Boolean);
                               }
                             }
                           } catch (trainerError) {
@@ -892,16 +884,8 @@ export const EnhancedCoursesPage: React.FC = () => {
                           endDate: fullCourse.endDate || course.end_date,
                           venue: fullCourse.venue || course.venue,
                           description: fullCourse.description || course.description,
-                          learningObjectives: extractJsonField(
-                            fullCourse,
-                            'learningObjectives',
-                            'learning_objectives'
-                          ),
-                          learningOutcomes: extractJsonField(
-                            fullCourse,
-                            'learningOutcomes',
-                            'learning_outcomes'
-                          ),
+                          learningObjectives: extractJsonField(fullCourse, 'learningObjectives', 'learning_objectives'),
+                          learningOutcomes: extractJsonField(fullCourse, 'learningOutcomes', 'learning_outcomes'),
                           targetAudience: (() => {
                             const val = fullCourse.targetAudience ?? (course as any).target_audience;
                             if (Array.isArray(val)) return val.join('\n');
@@ -912,19 +896,10 @@ export const EnhancedCoursesPage: React.FC = () => {
                             if (Array.isArray(val)) return val.join('\n');
                             return val || null;
                           })(),
-                          prerequisites: extractJsonField(
-                            fullCourse,
-                            'prerequisite',
-                            'prerequisite'
-                          ),
-                          deliveryLanguages: extractJsonField(
-                            fullCourse,
-                            'deliveryLanguages',
-                            'delivery_languages'
-                          ),
+                          prerequisites: extractJsonField(fullCourse, 'prerequisite', 'prerequisite'),
+                          deliveryLanguages: extractJsonField(fullCourse, 'deliveryLanguages', 'delivery_languages'),
                           hrdcClaimable: fullCourse.hrdcClaimable || course.hrdc_claimable,
                           schedule: fullCourse.courseSchedule || [],
-                          // Trainer profile (can be edited in modal, not saved to DB)
                           trainerCustomId,
                           trainerProfessionalBio,
                           trainerEducation,
@@ -1041,69 +1016,69 @@ export const EnhancedCoursesPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Title</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedCourse.title}</p>
+                  <p className="mt-1 text-sm text-gray-900">{selectedCourse?.title || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Status</label>
                   <p className="mt-1">
-                    <Badge variant={getStatusVariant((selectedCourse as any).status || selectedCourse.status)}>
-                      {((selectedCourse as any).status || selectedCourse.status || '').replace('_', ' ')}
+                    <Badge variant={getStatusVariant((selectedCourse as any)?.status || selectedCourse?.status || 'DRAFT')}>
+                      {((selectedCourse as any)?.status || selectedCourse?.status || '').replace('_', ' ')}
                     </Badge>
                   </p>
                 </div>
-                {(selectedCourse as any).category && (
+                {(selectedCourse as any)?.category && (
                   <div>
                     <label className="text-sm font-medium text-gray-700">Category</label>
-                    <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).category}</p>
+                    <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any)?.category}</p>
                   </div>
                 )}
-                {selectedCourse.price !== null && selectedCourse.price !== undefined && (
+                {selectedCourse?.price !== null && selectedCourse?.price !== undefined && (
                   <div>
                     <label className="text-sm font-medium text-gray-700">Price</label>
-                    <p className="mt-1 text-sm text-gray-900">{formatCurrency(selectedCourse.price)}</p>
+                    <p className="mt-1 text-sm text-gray-900">{formatCurrency(selectedCourse?.price || 0)}</p>
                   </div>
                 )}
-                {selectedCourse.duration_hours !== null && selectedCourse.duration_hours !== undefined && (
+                {selectedCourse?.duration_hours !== null && selectedCourse?.duration_hours !== undefined && (
                   <div>
                     <label className="text-sm font-medium text-gray-700">Duration</label>
                     <p className="mt-1 text-sm text-gray-900">
-                      {selectedCourse.duration_hours} {(selectedCourse as any).durationUnit || 'hours'}
+                      {selectedCourse?.duration_hours} {(selectedCourse as any)?.durationUnit || 'hours'}
                     </p>
                   </div>
                 )}
-                {(selectedCourse as any).courseType && (
+                {(selectedCourse as any)?.courseType && (
                   <div>
                     <label className="text-sm font-medium text-gray-700">Course Type</label>
                     <p className="mt-1 text-sm text-gray-900">
-                      {Array.isArray((selectedCourse as any).courseType)
-                        ? (selectedCourse as any).courseType.join(', ')
-                        : (selectedCourse as any).courseType}
+                      {Array.isArray((selectedCourse as any)?.courseType)
+                        ? (selectedCourse as any)?.courseType.join(', ')
+                        : (selectedCourse as any)?.courseType}
                     </p>
                   </div>
                 )}
-                {(selectedCourse as any).courseMode && (
+                {(selectedCourse as any)?.courseMode && (
                   <div>
                     <label className="text-sm font-medium text-gray-700">Course Mode</label>
                     <p className="mt-1 text-sm text-gray-900">
-                      {Array.isArray((selectedCourse as any).courseMode)
-                        ? (selectedCourse as any).courseMode.join(', ')
-                        : (selectedCourse as any).courseMode}
+                      {Array.isArray((selectedCourse as any)?.courseMode)
+                        ? (selectedCourse as any)?.courseMode.join(', ')
+                        : (selectedCourse as any)?.courseMode}
                     </p>
                   </div>
                 )}
-                {selectedCourse.venue && (
+                {selectedCourse?.venue && (
                   <div>
                     <label className="text-sm font-medium text-gray-700">Venue</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedCourse.venue}</p>
+                    <p className="mt-1 text-sm text-gray-900">{selectedCourse?.venue}</p>
                   </div>
                 )}
-                {(selectedCourse as any).city && (
+                {(selectedCourse as any)?.city && (
                   <div>
                     <label className="text-sm font-medium text-gray-700">City</label>
-                    <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).city}</p>
+                    <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any)?.city}</p>
                   </div>
                 )}
-                {(selectedCourse as any).state && (
+                {(selectedCourse as any)?.state && (
                   <div>
                     <label className="text-sm font-medium text-gray-700">State</label>
                     <p className="mt-1 text-sm text-gray-900">{(selectedCourse as any).state}</p>
@@ -1416,11 +1391,11 @@ export const EnhancedCoursesPage: React.FC = () => {
                           for (const trainerId of trainerIds) {
                             await apiClient.sendNotification({
                               title: 'Course Schedule Required',
-                              message: `Please input the course schedule for "${selectedCourse.title}". The schedule is currently empty.`,
+                              message: `Please input the course schedule for "${selectedCourse?.title || 'Unknown Course'}". The schedule is currently empty.`,
                               type: 'INFO',
                               userId: trainerId,
                               relatedEntityType: 'course',
-                              relatedEntityId: selectedCourse.id,
+                              relatedEntityId: selectedCourse?.id || '',
                             });
                           }
 
@@ -1752,7 +1727,7 @@ export const EnhancedCoursesPage: React.FC = () => {
               {/* Trainer Notes */}
               <div>
                 <h3 className="font-semibold text-gray-800 mb-2 border-b pb-1">Notes from Trainer</h3>
-                {(!selectedCourseForNotes.courseNotes || selectedCourseForNotes.courseNotes.length === 0) ? (
+                {(!selectedCourseForNotes?.courseNotes || selectedCourseForNotes.courseNotes.length === 0) ? (
                   <p className="text-sm text-gray-500 italic">No notes from trainer.</p>
                 ) : (
                   <div className="space-y-2">
@@ -1760,7 +1735,7 @@ export const EnhancedCoursesPage: React.FC = () => {
                       <div key={note.id} className="bg-gray-50 p-3 rounded-md text-sm border border-gray-100">
                         <p className="text-gray-800">{note.note}</p>
                         <p className="text-xs text-gray-500 mt-2 text-right">
-                          {note.trainer?.fullName} - {new Date(note.createdAt).toLocaleString()}
+                          {note.trainer?.fullName || 'Trainer'} - {note.createdAt ? new Date(note.createdAt).toLocaleString() : 'N/A'}
                         </p>
                       </div>
                     ))}
