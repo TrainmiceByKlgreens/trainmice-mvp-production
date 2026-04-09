@@ -36,6 +36,13 @@ export interface ScheduleItemData {
   submodules?: string[];
 }
 
+const parseTextToArray = (text: string | string[] | null | undefined): string[] | null => {
+  if (!text) return null;
+  if (Array.isArray(text)) return text;
+  if (typeof text !== 'string') return null;
+  return text.split('\n').map(s => s.trim()).filter(Boolean);
+};
+
 // Map frontend CourseFormData → backend Course payload
 function mapToBackendCourse(trainerId: string, courseData: CourseFormData) {
   let storedDurationHours: number;
@@ -74,9 +81,9 @@ function mapToBackendCourse(trainerId: string, courseData: CourseFormData) {
     assessment: courseData.assessment,
     learningObjectives: courseData.learning_objectives,
     learningOutcomes: courseData.learning_outcomes,
-    targetAudience: courseData.target_audience,
-    methodology: courseData.methodology,
-    prerequisite: courseData.prerequisite,
+    targetAudience: parseTextToArray(courseData.target_audience),
+    methodology: parseTextToArray(courseData.methodology),
+    prerequisite: parseTextToArray(courseData.prerequisite),
     imageUrl: courseData.image_url || null,
     fixedDate: null,
     startDate: null,
@@ -165,9 +172,9 @@ export async function updateCourse(courseId: string, courseData: Partial<CourseF
     if (courseData.assessment !== undefined) updatePayload.assessment = courseData.assessment;
     if (courseData.learning_objectives !== undefined) updatePayload.learningObjectives = courseData.learning_objectives;
     if (courseData.learning_outcomes !== undefined) updatePayload.learningOutcomes = courseData.learning_outcomes;
-    if (courseData.target_audience !== undefined) updatePayload.targetAudience = courseData.target_audience;
-    if (courseData.methodology !== undefined) updatePayload.methodology = courseData.methodology;
-    if (courseData.prerequisite !== undefined) updatePayload.prerequisite = courseData.prerequisite;
+    if (courseData.target_audience !== undefined) updatePayload.targetAudience = parseTextToArray(courseData.target_audience);
+    if (courseData.methodology !== undefined) updatePayload.methodology = parseTextToArray(courseData.methodology);
+    if (courseData.prerequisite !== undefined) updatePayload.prerequisite = parseTextToArray(courseData.prerequisite);
     if (courseData.image_url !== undefined) updatePayload.imageUrl = courseData.image_url;
     if (courseData.status !== undefined) {
       updatePayload.status = courseData.status === 'published' ? 'ACTIVE' : 'DRAFT';

@@ -335,6 +335,7 @@ export const EnhancedCoursesPage: React.FC = () => {
         targetAudience: c.targetAudience,
         methodology: c.methodology,
         prerequisite: c.prerequisite,
+        deliveryLanguages: c.deliveryLanguages || c.delivery_languages,
         hrdcClaimable: c.hrdcClaimable,
         city: c.city,
         state: c.state,
@@ -718,16 +719,21 @@ export const EnhancedCoursesPage: React.FC = () => {
                         const extractJsonField = (obj: any, camelKey: string, snakeKey: string): string[] => {
                           let value = obj?.[camelKey] ?? obj?.[snakeKey];
 
-                          if (!value && course) {
+                          // Use list course data as fallback ONLY if fullCourse field is truly missing/null
+                          if ((value === undefined || value === null) && course) {
                             const courseAny = course as any;
                             value = courseAny[camelKey] ?? courseAny[snakeKey];
                           }
 
                           if (typeof value === 'string') {
-                            try {
-                              value = JSON.parse(value);
-                            } catch {
-                              value = value.split('\n').filter((s: string) => s.trim());
+                            if (value.startsWith('[') && value.endsWith(']')) {
+                              try {
+                                value = JSON.parse(value);
+                              } catch {
+                                value = value.split('\n').map((s: string) => s.trim()).filter(Boolean);
+                              }
+                            } else {
+                              value = value.split('\n').map((s: string) => s.trim()).filter(Boolean);
                             }
                           }
 
@@ -736,6 +742,12 @@ export const EnhancedCoursesPage: React.FC = () => {
                               .map((item) => (typeof item === 'string' ? item : String(item)))
                               .filter((item) => item && item.trim());
                           }
+                          
+                          if (value && typeof value === 'object') {
+                            // If it's a non-array object, we might have issues, but let's try to stringify
+                            return [JSON.stringify(value)];
+                          }
+
                           if (value) {
                             return [String(value)];
                           }
@@ -818,34 +830,28 @@ export const EnhancedCoursesPage: React.FC = () => {
                             }
 
                             // Languages (support a few possible field names / formats)
-                            const rawLang =
+                            const rawLangInput =
                               trainer.languagesSpoken ||
                               trainer.languageSpoken ||
                               trainer.languages ||
                               trainer.spokenLanguages ||
+                              trainer.languages_spoken ||
                               null;
-                            if (Array.isArray(rawLang)) {
-                              trainerLanguages = rawLang
-                                .map((l: any) => (typeof l === 'string' ? l : String(l)))
+
+                            if (Array.isArray(rawLangInput)) {
+                              trainerLanguages = rawLangInput
+                                .map((l: any) => (typeof l === 'string' ? l : l.language || l.name || String(l)))
                                 .filter((l: string) => l && l.trim());
-                            } else if (typeof rawLang === 'string') {
-                              try {
-                                const parsed = JSON.parse(rawLang);
-                                if (Array.isArray(parsed)) {
-                                  trainerLanguages = parsed
-                                    .map((l: any) => (typeof l === 'string' ? l : String(l)))
-                                    .filter((l: string) => l && l.trim());
-                                } else {
-                                  trainerLanguages = rawLang
-                                    .split(',')
-                                    .map((l: string) => l.trim())
-                                    .filter(Boolean);
+                            } else if (typeof rawLangInput === 'string') {
+                              if (rawLangInput.trim().startsWith('[') && rawLangInput.trim().endsWith(']')) {
+                                try {
+                                  const parsed = JSON.parse(rawLangInput);
+                                  trainerLanguages = Array.isArray(parsed) ? parsed : [rawLangInput];
+                                } catch {
+                                  trainerLanguages = rawLangInput.split(',').map(s => s.trim()).filter(Boolean);
                                 }
-                              } catch {
-                                trainerLanguages = rawLang
-                                  .split(',')
-                                  .map((l: string) => l.trim())
-                                  .filter(Boolean);
+                              } else {
+                                trainerLanguages = rawLangInput.split(',').map(s => s.trim()).filter(Boolean);
                               }
                             }
                           } catch (trainerError) {
@@ -871,9 +877,26 @@ export const EnhancedCoursesPage: React.FC = () => {
                             'learningOutcomes',
                             'learning_outcomes'
                           ),
-                          targetAudience:
-                            fullCourse.targetAudience || (course as any).target_audience || null,
-                          methodology: fullCourse.methodology || null,
+                          targetAudience: (() => {
+                            const val = fullCourse.targetAudience ?? (course as any).target_audience;
+                            if (Array.isArray(val)) return val.join('\n');
+                            return val || null;
+                          })(),
+                          methodology: (() => {
+                            const val = fullCourse.methodology;
+                            if (Array.isArray(val)) return val.join('\n');
+                            return val || null;
+                          })(),
+                          prerequisites: extractJsonField(
+                            fullCourse,
+                            'prerequisite',
+                            'prerequisite'
+                          ),
+                          deliveryLanguages: extractJsonField(
+                            fullCourse,
+                            'deliveryLanguages',
+                            'delivery_languages'
+                          ),
                           hrdcClaimable: fullCourse.hrdcClaimable || course.hrdc_claimable,
                           schedule: fullCourse.courseSchedule || [],
                           // Trainer profile (can be edited in modal, not saved to DB)
@@ -1531,6 +1554,36 @@ export const EnhancedCoursesPage: React.FC = () => {
                       methodology: e.target.value,
                     }))
                   }
+                />
+                <Textarea
+                  label="Prerequisites (one per line)"
+                  rows={3}
+                  value={(brochureData.prerequisites || []).join('\n')}
+                  onChange={(e) => {
+                    const lines = e.target.value
+                      .split('\n')
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    setBrochureData((prev: any) => ({
+                      ...prev,
+                      prerequisites: lines,
+                    }));
+                  }}
+                />
+                <Textarea
+                  label="Delivery Languages (one per line)"
+                  rows={2}
+                  value={(brochureData.deliveryLanguages || []).join('\n')}
+                  onChange={(e) => {
+                    const lines = e.target.value
+                      .split('\n')
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    setBrochureData((prev: any) => ({
+                      ...prev,
+                      deliveryLanguages: lines,
+                    }));
+                  }}
                 />
               </div>
 

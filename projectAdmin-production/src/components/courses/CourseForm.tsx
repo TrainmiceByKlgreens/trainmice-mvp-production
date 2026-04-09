@@ -571,6 +571,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         city: formData.city || null,
         state: formData.state || null,
         deliveryLanguages: formData.delivery_languages,
+        imageUrl: formData.image_url,
       };
 
       await onSubmit(

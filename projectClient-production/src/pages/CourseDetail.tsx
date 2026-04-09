@@ -284,14 +284,14 @@ export function CourseDetail() {
 
       if (activeTrainer) {
         trainerCustomId = (activeTrainer as any).custom_trainer_id || (activeTrainer as any).customTrainerId || null;
-        trainerProfessionalBio = (activeTrainer as any).bio || (activeTrainer as any).professionalBio || (activeTrainer as any).profileSummary || null;
+        trainerProfessionalBio = (activeTrainer as any).professionalBio || (activeTrainer as any).bio || (activeTrainer as any).profileSummary || (activeTrainer as any).professional_bio || null;
 
         if (Array.isArray((activeTrainer as any).qualifications)) {
           trainerEducation = (activeTrainer as any).qualifications.map((q: any) => {
             const parts: string[] = [];
-            if (q.title) parts.push(q.title);
-            if (q.institution) parts.push(q.institution);
-            if (q.yearObtained || q.year_obtained) parts.push(String(q.yearObtained || q.year_obtained));
+            if (q.title || q.qualification_name) parts.push(q.title || q.qualification_name);
+            if (q.institution || q.institute_name) parts.push(q.institution || q.institute_name);
+            if (q.yearObtained || q.year_obtained || q.year_awarded) parts.push(String(q.yearObtained || q.year_obtained || q.year_awarded));
             return parts.join(' - ');
           }).filter((s: string) => s && s.trim());
           trainerQualifications = trainerEducation;
@@ -301,22 +301,23 @@ export function CourseDetail() {
           trainerWorkHistory = (activeTrainer as any).workHistoryEntries.map((w: any) => {
             const parts: string[] = [];
             if (w.position) parts.push(w.position);
-            if (w.company) parts.push(w.company);
-            if (w.startDate || w.start_date) {
-              const start = w.startDate || w.start_date;
-              const end = w.endDate || w.end_date;
+            if (w.company || w.company_name) parts.push(w.company || w.company_name);
+            if (w.startDate || w.start_date || w.year_from) {
+              const start = w.startDate || w.start_date || w.year_from;
+              const end = w.endDate || w.end_date || w.year_to;
               parts.push(end ? `${start} - ${end}` : `${start} - Present`);
             }
             return parts.join(' | ');
           }).filter((s: string) => s && s.trim());
         }
 
-        if (Array.isArray((activeTrainer as any).trainerLanguages) && (activeTrainer as any).trainerLanguages.length > 0) {
-          trainerLanguages = (activeTrainer as any).trainerLanguages
-            .map((language: any) => language?.language || language?.name || null)
-            .filter((language: string | null): language is string => Boolean(language));
-        } else {
-          trainerLanguages = extractCommaSeparatedArray((activeTrainer as any).languagesSpoken || (activeTrainer as any).languages || null);
+        const rawTrainerLang = (activeTrainer as any).trainerLanguages || (activeTrainer as any).languagesSpoken || (activeTrainer as any).languages_spoken || (activeTrainer as any).languages || null;
+        if (Array.isArray(rawTrainerLang)) {
+          trainerLanguages = rawTrainerLang
+            .map((l: any) => (typeof l === 'string' ? l : l.language || l.name || String(l)))
+            .filter((l: string): l is string => Boolean(l && l.trim()));
+        } else if (typeof rawTrainerLang === 'string') {
+          trainerLanguages = extractCommaSeparatedArray(rawTrainerLang);
         }
       }
 
@@ -338,8 +339,16 @@ export function CourseDetail() {
         description: course.description || null,
         learningObjectives: extractArray(course.learning_objectives),
         learningOutcomes: extractArray(course.learning_outcomes),
-        targetAudience: (course as any).target_audience || null,
-        methodology: (course as any).methodology || null,
+        targetAudience: (() => {
+          const val = (course as any).target_audience || (course as any).targetAudience;
+          if (Array.isArray(val)) return val.join('\n');
+          return val || null;
+        })(),
+        methodology: (() => {
+          const val = (course as any).methodology;
+          if (Array.isArray(val)) return val.join('\n');
+          return val || null;
+        })(),
         prerequisites: prerequisiteItems,
         deliveryLanguages: currentDeliveryLanguages,
         hrdcClaimable: course.hrdc_claimable,
