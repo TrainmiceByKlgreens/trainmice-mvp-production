@@ -57,6 +57,7 @@ export function TrainerProfile() {
   const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [originalTrainer, setOriginalTrainer] = useState<Trainer | null>(null);
+  const [imgError, setImgError] = useState(false);
   const profileImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -202,6 +203,7 @@ export function TrainerProfile() {
       alert(error instanceof Error ? error.message : 'Failed to upload profile picture');
     } finally {
       setUploadingProfileImage(false);
+      setImgError(false);
       event.target.value = '';
     }
   };
@@ -315,11 +317,12 @@ export function TrainerProfile() {
               />
               <div className="relative group">
                 <div className="w-32 h-32 rounded-3xl overflow-hidden border-4 border-white shadow-modern-lg transition-all duration-500 group-hover:scale-[1.02]">
-                  {trainer.profile_pic ? (
+                  {(trainer.profile_pic && !imgError) ? (
                     <img
                       src={trainer.profile_pic}
                       alt="Profile"
                       className="w-full h-full object-cover"
+                      onError={() => setImgError(true)}
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-corporate-50 to-corporate-100 flex items-center justify-center">
