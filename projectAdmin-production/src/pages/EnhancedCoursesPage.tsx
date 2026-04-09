@@ -798,30 +798,46 @@ export const EnhancedCoursesPage: React.FC = () => {
                               trainer.profileSummary ||
                               null;
 
-                            // Education from qualifications
-                            if (Array.isArray(trainer.qualifications)) {
-                              trainerEducation = trainer.qualifications.map((q: any) => {
+                            // Education from qualifications (Relation) OR qualification (JSON)
+                            const quals = Array.isArray(trainer.qualifications) && trainer.qualifications.length > 0
+                              ? trainer.qualifications
+                              : (Array.isArray(trainer.qualification) ? trainer.qualification : []);
+
+                            if (quals.length > 0) {
+                              trainerEducation = quals.map((q: any) => {
                                 const parts: string[] = [];
-                                if (q.title) parts.push(q.title);
-                                if (q.institution) parts.push(q.institution);
-                                if (q.yearObtained || q.year_obtained) {
-                                  parts.push(String(q.yearObtained || q.year_obtained));
-                                }
+                                const title = q.title || q.qualification_name || q.name;
+                                const institution = q.institution || q.institute_name || q.organization;
+                                const year = q.yearObtained || q.year_obtained || q.year_awarded || q.year;
+                                
+                                if (title) parts.push(title);
+                                if (institution) parts.push(institution);
+                                if (year) parts.push(String(year));
+                                
                                 return parts.join(' - ');
                               }).filter((s: string) => s && s.trim());
 
                               trainerQualifications = trainerEducation;
                             }
 
-                            // Work history
-                            if (Array.isArray(trainer.workHistoryEntries)) {
-                              trainerWorkHistory = trainer.workHistoryEntries.map((w: any) => {
+                            // Work history (Relation) OR workHistory (JSON)
+                            const workHistoryItems = Array.isArray(trainer.workHistoryEntries) && trainer.workHistoryEntries.length > 0
+                              ? trainer.workHistoryEntries
+                              : (Array.isArray(trainer.workHistory) ? trainer.workHistory : []);
+
+                            if (workHistoryItems.length > 0) {
+                              trainerWorkHistory = workHistoryItems.map((w: any) => {
                                 const parts: string[] = [];
-                                if (w.position) parts.push(w.position);
-                                if (w.company) parts.push(w.company);
-                                if (w.startDate || w.start_date) {
-                                  const start = String(w.startDate || w.start_date).substring(0, 4);
-                                  const endValue = w.endDate || w.end_date;
+                                const pos = w.position || w.job_title || w.role;
+                                const comp = w.company || w.company_name || w.organization;
+                                
+                                if (pos) parts.push(pos);
+                                if (comp) parts.push(comp);
+                                
+                                const startRaw = w.startDate || w.start_date || w.year_from;
+                                if (startRaw) {
+                                  const start = String(startRaw).substring(0, 4);
+                                  const endValue = w.endDate || w.end_date || w.year_to;
                                   const end = endValue ? String(endValue).substring(0, 4) : 'Present';
                                   parts.push(`${start} - ${end}`);
                                 }
@@ -829,14 +845,17 @@ export const EnhancedCoursesPage: React.FC = () => {
                               }).filter((s: string) => s && s.trim());
                             }
 
-                            // Languages (support a few possible field names / formats)
+                            // Languages (support relations, JSON, and raw strings)
+                            // Priority: trainerLanguages (relation) -> languagesSpoken (JSON) -> fallback strings
                             const rawLangInput =
-                              trainer.languagesSpoken ||
-                              trainer.languageSpoken ||
-                              trainer.languages ||
-                              trainer.spokenLanguages ||
-                              trainer.languages_spoken ||
-                              null;
+                              (Array.isArray(trainer.trainerLanguages) && trainer.trainerLanguages.length > 0)
+                                ? trainer.trainerLanguages
+                                : (trainer.languagesSpoken ||
+                                  trainer.languageSpoken ||
+                                  trainer.languages ||
+                                  trainer.spokenLanguages ||
+                                  trainer.languages_spoken ||
+                                  null);
 
                             if (Array.isArray(rawLangInput)) {
                               trainerLanguages = rawLangInput
@@ -848,6 +867,12 @@ export const EnhancedCoursesPage: React.FC = () => {
                                   const parsed = JSON.parse(rawLangInput);
                                   trainerLanguages = Array.isArray(parsed) ? parsed : [rawLangInput];
                                 } catch {
+                                  trainerLanguages = rawLangInput.split(',').map(s => s.trim()).filter(Boolean);
+                                }
+                              } else {
+                                trainerLanguages = rawLangInput.split(',').map(s => s.trim()).filter(Boolean);
+                              }
+                            }
                                   trainerLanguages = rawLangInput.split(',').map(s => s.trim()).filter(Boolean);
                                 }
                               } else {

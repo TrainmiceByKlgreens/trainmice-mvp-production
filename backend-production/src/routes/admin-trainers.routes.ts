@@ -79,6 +79,7 @@ router.get('/:id', async (req: AuthRequest, res) => {
         trainerDocuments: true,
         weeklyAvailability: true,
         blockedDates: true,
+        trainerLanguages: true,
         courseTrainers: {
           include: {
             course: {

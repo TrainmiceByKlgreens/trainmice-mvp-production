@@ -286,26 +286,45 @@ export function CourseDetail() {
         trainerCustomId = (activeTrainer as any).custom_trainer_id || (activeTrainer as any).customTrainerId || null;
         trainerProfessionalBio = (activeTrainer as any).professionalBio || (activeTrainer as any).bio || (activeTrainer as any).profileSummary || (activeTrainer as any).professional_bio || null;
 
-        if (Array.isArray((activeTrainer as any).qualifications)) {
-          trainerEducation = (activeTrainer as any).qualifications.map((q: any) => {
+        const quals = (Array.isArray((activeTrainer as any).qualifications) && (activeTrainer as any).qualifications.length > 0)
+          ? (activeTrainer as any).qualifications
+          : (Array.isArray((activeTrainer as any).qualification) ? (activeTrainer as any).qualification : []);
+
+        if (quals.length > 0) {
+          trainerEducation = quals.map((q: any) => {
             const parts: string[] = [];
-            if (q.title || q.qualification_name) parts.push(q.title || q.qualification_name);
-            if (q.institution || q.institute_name) parts.push(q.institution || q.institute_name);
-            if (q.yearObtained || q.year_obtained || q.year_awarded) parts.push(String(q.yearObtained || q.year_obtained || q.year_awarded));
+            const title = q.title || q.qualification_name || q.name;
+            const institution = q.institution || q.institute_name || q.organization;
+            const year = q.yearObtained || q.year_obtained || q.year_awarded || q.year;
+            
+            if (title) parts.push(title);
+            if (institution) parts.push(institution);
+            if (year) parts.push(String(year));
+            
             return parts.join(' - ');
           }).filter((s: string) => s && s.trim());
           trainerQualifications = trainerEducation;
         }
 
-        if (Array.isArray((activeTrainer as any).workHistoryEntries)) {
-          trainerWorkHistory = (activeTrainer as any).workHistoryEntries.map((w: any) => {
+        const workHistoryItems = (Array.isArray((activeTrainer as any).workHistoryEntries) && (activeTrainer as any).workHistoryEntries.length > 0)
+          ? (activeTrainer as any).workHistoryEntries
+          : (Array.isArray((activeTrainer as any).workHistory) ? (activeTrainer as any).workHistory : []);
+
+        if (workHistoryItems.length > 0) {
+          trainerWorkHistory = workHistoryItems.map((w: any) => {
             const parts: string[] = [];
-            if (w.position) parts.push(w.position);
-            if (w.company || w.company_name) parts.push(w.company || w.company_name);
-            if (w.startDate || w.start_date || w.year_from) {
-              const start = w.startDate || w.start_date || w.year_from;
-              const end = w.endDate || w.end_date || w.year_to;
-              parts.push(end ? `${start} - ${end}` : `${start} - Present`);
+            const pos = w.position || w.job_title || w.role;
+            const comp = w.company || w.company_name || w.organization;
+            
+            if (pos) parts.push(pos);
+            if (comp) parts.push(comp);
+            
+            const startRaw = w.startDate || w.start_date || w.year_from;
+            if (startRaw) {
+              const start = String(startRaw).substring(0, 4);
+              const endValue = w.endDate || w.end_date || w.year_to;
+              const end = endValue ? String(endValue).substring(0, 4) : 'Present';
+              parts.push(`${start} - ${end}`);
             }
             return parts.join(' | ');
           }).filter((s: string) => s && s.trim());
