@@ -17,6 +17,8 @@ interface CourseData {
   learningOutcomes?: string[] | null;
   targetAudience?: string | null;
   methodology?: string | null;
+  prerequisites?: string[] | null;
+  deliveryLanguages?: string[] | null;
   hrdcClaimable?: boolean;
   schedule?: Array<{
     dayNumber: number;
@@ -398,6 +400,45 @@ export const generateCourseBrochure = async (course: CourseData) => {
     doc.text('N/A', margin, currentY);
     currentY += 6;
   }
+  currentY += 10;
+
+  // Prerequisites
+  currentY = await checkPageBreak(currentY, 20);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Prerequisites:', margin, currentY);
+  currentY += 7;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  if (course.prerequisites && course.prerequisites.length > 0) {
+    for (const prereq of course.prerequisites) {
+      if (prereq && prereq.trim()) {
+        currentY = await checkPageBreak(currentY, 12);
+        currentY = await addText(`• ${prereq.trim()}`, margin + 2, currentY, contentWidth - 2, 10);
+        currentY += 2;
+      }
+    }
+  } else {
+    doc.text('N/A', margin, currentY);
+    currentY += 6;
+  }
+  currentY += 10;
+
+  // Delivery Languages
+  currentY = await checkPageBreak(currentY, 20);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Delivery Languages:', margin, currentY);
+  currentY += 7;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  if (course.deliveryLanguages && course.deliveryLanguages.length > 0) {
+    currentY = await addText(course.deliveryLanguages.join(', '), margin, currentY, contentWidth, 10);
+  } else {
+    doc.text('English', margin, currentY);
+    currentY += 6;
+  }
+  currentY += 10;
 
   // ============================================================================
   // COURSE SCHEDULE (with automatic page breaks, no table)

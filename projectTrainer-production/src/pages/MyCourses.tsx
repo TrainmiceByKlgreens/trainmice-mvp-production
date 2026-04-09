@@ -156,7 +156,9 @@ export function MyCourses() {
       learning_outcomes: course.learning_outcomes && course.learning_outcomes.length > 0 ? course.learning_outcomes : [''],
       target_audience: course.target_audience || '',
       methodology: course.methodology || '',
-      prerequisite: course.prerequisite || '',
+      prerequisite: typeof course.prerequisite === 'string' 
+        ? course.prerequisite 
+        : (Array.isArray(course.prerequisite) ? (course.prerequisite as any[]).join('\n') : (course.prerequisite || '')),
       professional_development_points: course.professional_development_points || null,
       professional_development_points_other: course.professional_development_points_other || null,
       end_date: null, // end_date is not stored in Course, it's calculated from duration

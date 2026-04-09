@@ -320,6 +320,15 @@ export function CourseDetail() {
         }
       }
 
+      // Delivery Languages
+      let currentDeliveryLanguages: string[] = [];
+      const courseDeliveryLanguages = (course as any).delivery_languages || (course as any).deliveryLanguages;
+      if (Array.isArray(courseDeliveryLanguages)) {
+        currentDeliveryLanguages = courseDeliveryLanguages;
+      } else if (typeof courseDeliveryLanguages === 'string') {
+        currentDeliveryLanguages = [courseDeliveryLanguages];
+      }
+
       await generateCourseBrochure({
         title: course.title,
         courseType,
@@ -331,6 +340,8 @@ export function CourseDetail() {
         learningOutcomes: extractArray(course.learning_outcomes),
         targetAudience: (course as any).target_audience || null,
         methodology: (course as any).methodology || null,
+        prerequisites: prerequisiteItems,
+        deliveryLanguages: currentDeliveryLanguages,
         hrdcClaimable: course.hrdc_claimable,
         schedule: brochureSchedule,
         trainerCustomId,
