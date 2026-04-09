@@ -240,7 +240,7 @@ export function MessagesView() {
                                 onClick={handleSendMessage}
                                 disabled={!message.trim() || sending || success}
                                 size="sm"
-                                className="rounded-xl px-6 bg-corporate-900 hover:bg-accent-600 h-9"
+                                className="rounded-xl px-6 bg-black text-[#D4AF37] border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black h-9 transition-all duration-300 group"
                             >
                                 <div className="flex items-center gap-2">
                                     <Send className={`w-3 h-3 ${sending ? 'animate-bounce' : ''}`} />
