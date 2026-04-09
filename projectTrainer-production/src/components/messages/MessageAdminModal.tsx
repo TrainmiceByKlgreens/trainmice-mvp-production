@@ -313,8 +313,9 @@ export function MessageAdminModal({ engagement, onClose, onSuccess }: MessageAdm
                   
                   <Button
                     type="submit"
+                    variant="gold-black"
                     disabled={sending || !message.trim()}
-                    className="rounded-xl px-8 bg-black text-[#D4AF37] border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black shadow-gold-glow/20 active:scale-95 transition-all h-11 group"
+                    className="rounded-xl px-8 shadow-gold-glow/20 active:scale-95 h-11"
                   >
                     <div className="flex items-center gap-2">
                        <Send className={`w-3.5 h-3.5 ${sending ? 'animate-bounce' : ''}`} />

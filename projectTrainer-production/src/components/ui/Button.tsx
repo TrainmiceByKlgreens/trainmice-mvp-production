@@ -2,7 +2,7 @@ import { ButtonHTMLAttributes, forwardRef } from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'gold-black';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   fullWidth?: boolean;
@@ -16,7 +16,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       primary: 'bg-accent-gold text-black hover:bg-accent-gold-light hover:shadow-gold-glow hover:scale-[1.02] active:scale-95 focus:ring-4 focus:ring-accent-gold/20',
       secondary: 'bg-corporate-800 text-corporate-50 hover:bg-corporate-700 focus:ring-4 focus:ring-corporate-700/50',
       outline: 'border-2 border-accent-gold/50 text-accent-gold hover:bg-accent-gold/10 hover:border-accent-gold focus:ring-4 focus:ring-accent-gold/10',
-      danger: 'bg-red-900/20 border border-red-500/50 text-red-500 hover:bg-red-900/40 hover:shadow-lg hover:shadow-red-500/10 focus:ring-4 focus:ring-red-500/20'
+      danger: 'bg-red-900/20 border border-red-500/50 text-red-500 hover:bg-red-900/40 hover:shadow-lg hover:shadow-red-500/10 focus:ring-4 focus:ring-red-500/20',
+      'gold-black': 'bg-black text-[#D4AF37] border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black focus:ring-4 focus:ring-[#D4AF37]/20 group'
     };
 
     const sizeStyles = {

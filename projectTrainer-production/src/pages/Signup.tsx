@@ -192,10 +192,10 @@ export function Signup() {
 
             <Button
               type="submit"
-              variant="primary"
+              variant="gold-black"
               fullWidth
               isLoading={isLoading}
-              className="py-4.5 text-xs font-black uppercase tracking-[0.25em] shadow-lg shadow-black/20 hover:shadow-xl transition-all duration-300 rounded-2xl bg-black text-[#D4AF37] border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black mt-4 h-14"
+              className="py-4.5 text-xs font-black uppercase tracking-[0.25em] shadow-lg shadow-black/20 hover:shadow-xl mt-4 h-14"
             >
               Create Account
             </Button>
