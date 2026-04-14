@@ -591,7 +591,8 @@ router.post(
         return res.status(400).json({ error: 'Profile image is required' });
       }
 
-      const profilePic = `/uploads/profile-images/${req.file.filename}`;
+      const { bufferToDataUrl } = await import('../middleware/upload');
+      const profilePic = bufferToDataUrl(req.file.buffer, req.file.mimetype);
 
       const trainer = await prisma.trainer.update({
         where: { id: trainerId },

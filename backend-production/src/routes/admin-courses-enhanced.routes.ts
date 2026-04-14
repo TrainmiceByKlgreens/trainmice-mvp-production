@@ -3,8 +3,7 @@ import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
-import { uploadCourseImage } from '../middleware/upload';
-import fs from 'fs';
+import { uploadCourseImage, bufferToDataUrl } from '../middleware/upload';
 
 const router = express.Router();
 
@@ -369,15 +368,11 @@ router.post(
       });
 
       if (!course) {
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
         return res.status(404).json({ error: 'Course not found' });
       }
 
-      // Generate image URL based on where multer saves the file
-      // Assuming multer is configured to save to a directory that maps to /uploads/course-images
-      const imageUrl = `/uploads/course-images/${req.file.filename}`;
+      // Convert buffer to base64 data URL (persists in DB, survives Railway redeployments)
+      const imageUrl = bufferToDataUrl(req.file.buffer, req.file.mimetype);
 
       // Update course record
       const updatedCourse = await prisma.course.update({
@@ -395,9 +390,6 @@ router.post(
 
       return res.json({ course: updatedCourse });
     } catch (error: any) {
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
       console.error('Upload course image error:', error);
       return res.status(500).json({ error: 'Failed to upload course image', details: error.message });
     }

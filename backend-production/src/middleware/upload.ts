@@ -1,80 +1,23 @@
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 
-// Create uploads directories if they don't exist
-const materialsDir = path.join(__dirname, '../../uploads/course-materials');
-const imagesDir = path.join(__dirname, '../../uploads/course-images');
-const profileImagesDir = path.join(__dirname, '../../uploads/profile-images');
-const messageAttachmentsDir = path.join(__dirname, '../../uploads/message-attachments');
+// ============================================================================
+// MEMORY STORAGE (for all uploads — files stored as base64 in DB, not on disk)
+// ============================================================================
+// Railway uses ephemeral containers. Any files saved to disk are lost on redeploy.
+// All uploads now use memoryStorage and are converted to base64 data URLs
+// before being stored in the PostgreSQL database.
 
-if (!fs.existsSync(materialsDir)) {
-  fs.mkdirSync(materialsDir, { recursive: true });
-}
-if (!fs.existsSync(imagesDir)) {
-  fs.mkdirSync(imagesDir, { recursive: true });
-}
-if (!fs.existsSync(profileImagesDir)) {
-  fs.mkdirSync(profileImagesDir, { recursive: true });
-}
-if (!fs.existsSync(messageAttachmentsDir)) {
-  fs.mkdirSync(messageAttachmentsDir, { recursive: true });
+const memStorage = multer.memoryStorage();
+
+// ============================================================================
+// Helper: Convert multer buffer to a base64 data URL
+// ============================================================================
+export function bufferToDataUrl(buffer: Buffer, mimetype: string): string {
+  const base64 = buffer.toString('base64');
+  return `data:${mimetype};base64,${base64}`;
 }
 
-// Configure storage for materials
-const materialStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, materialsDir);
-  },
-  filename: (_req, file, cb) => {
-    // Generate unique filename: timestamp-originalname
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `${name}-${uniqueSuffix}${ext}`);
-  },
-});
-
-// Configure storage for images
-const imageStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, imagesDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `course-image-${name}-${uniqueSuffix}${ext}`);
-  },
-});
-
-// Configure storage for trainer profile images
-const profileImageStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, profileImagesDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `trainer-profile-${name}-${uniqueSuffix}${ext}`);
-  },
-});
-
-// Configure storage for message attachments
-const messageAttachmentStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, messageAttachmentsDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `msg-attach-${name}-${uniqueSuffix}${ext}`);
-  },
-});
-
-// File filter
+// File filter for general documents
 const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimes = [
     'application/pdf',
@@ -98,8 +41,18 @@ const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterC
   }
 };
 
+// Image-only file filter
+const imageFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid image type. Allowed: JPG, PNG, WEBP'));
+  }
+};
+
 export const uploadMaterial = multer({
-  storage: materialStorage,
+  storage: memStorage,
   fileFilter,
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB max file size
@@ -107,37 +60,23 @@ export const uploadMaterial = multer({
 });
 
 export const uploadCourseImage = multer({
-  storage: imageStorage,
-  fileFilter: (_req, file, cb) => {
-    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid image type. Allowed: JPG, PNG, WEBP'));
-    }
-  },
+  storage: memStorage,
+  fileFilter: imageFilter,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB max for images
   },
 });
 
 export const uploadProfileImage = multer({
-  storage: profileImageStorage,
-  fileFilter: (_req, file, cb) => {
-    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid image type. Allowed: JPG, PNG, WEBP'));
-    }
-  },
+  storage: memStorage,
+  fileFilter: imageFilter,
   limits: {
     fileSize: 5 * 1024 * 1024,
   },
 });
 
 export const uploadMessageAttachment = multer({
-  storage: messageAttachmentStorage,
+  storage: memStorage,
   fileFilter,
   limits: {
     fileSize: 20 * 1024 * 1024, // 20MB max for message attachments

@@ -19,7 +19,6 @@ import feedbackRoutes from './routes/feedback.routes';
 import categoryImagesRoutes from './routes/category-images.routes';
 import courseNotesRoutes from './routes/course-notes.routes';
 import prisma from './config/database';
-import path from 'path';
 import { createServer } from 'http';
 import { initSocket } from './lib/socket';
 import { initDBListener } from './lib/db-listener';
@@ -119,8 +118,8 @@ app.use(cors({
 }));
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Request timeout (30 seconds)
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -130,8 +129,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// NOTE: Static file serving for /uploads removed — all files now stored as base64 data URLs in DB
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {

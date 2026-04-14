@@ -210,7 +210,7 @@ export const EnhancedCoursesPage: React.FC = () => {
       const materialsData = (courseData?.courseMaterials || []).map((m: any) => ({
         id: m.id,
         fileName: m.fileName,
-        fileUrl: m.fileUrl?.startsWith('http') ? m.fileUrl : `${baseUrl}${m.fileUrl}`,
+        fileUrl: m.fileUrl?.startsWith('http') || m.fileUrl?.startsWith('data:') ? m.fileUrl : `${baseUrl}${m.fileUrl}`,
         uploadedAt: m.uploadedAt,
       }));
 

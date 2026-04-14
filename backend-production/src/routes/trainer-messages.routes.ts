@@ -32,7 +32,7 @@ router.post(
       const { message, subject, relatedEntityType, relatedEntityId } = req.body;
       const trainerId = req.user!.id;
 
-      const attachmentUrl = req.file ? `/uploads/message-attachments/${req.file.filename}` : undefined;
+      const attachmentUrl = req.file ? (await import('../middleware/upload')).bufferToDataUrl(req.file.buffer, req.file.mimetype) : undefined;
       const attachmentName = req.file ? req.file.originalname : undefined;
 
       // If it's an event enquiry, create EventEnquiry with first message

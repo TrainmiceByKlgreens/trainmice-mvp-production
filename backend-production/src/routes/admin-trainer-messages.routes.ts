@@ -235,7 +235,7 @@ router.post(
       const { message } = req.body;
       const adminId = req.user!.id;
 
-      const attachmentUrl = req.file ? `/uploads/message-attachments/${req.file.filename}` : undefined;
+      const attachmentUrl = req.file ? (await import('../middleware/upload')).bufferToDataUrl(req.file.buffer, req.file.mimetype) : undefined;
       const attachmentName = req.file ? req.file.originalname : undefined;
 
       // Get or create thread

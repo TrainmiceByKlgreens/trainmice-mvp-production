@@ -458,7 +458,7 @@ export async function uploadCourseMaterial(
     return {
       id: result.material.id,
       course_id: result.material.courseId,
-      file_url: result.material.fileUrl?.startsWith('http') ? result.material.fileUrl : `${baseUrl}${result.material.fileUrl}`,
+      file_url: result.material.fileUrl?.startsWith('http') || result.material.fileUrl?.startsWith('data:') ? result.material.fileUrl : `${baseUrl}${result.material.fileUrl}`,
       file_name: result.material.fileName,
       uploaded_at: result.material.uploadedAt,
     };
@@ -481,7 +481,7 @@ export async function fetchCourseMaterials(courseId: string) {
     return mats.map((m: any) => ({
       id: m.id,
       course_id: m.courseId,
-      file_url: m.fileUrl?.startsWith('http') ? m.fileUrl : `${baseUrl}${m.fileUrl}`,
+      file_url: m.fileUrl?.startsWith('http') || m.fileUrl?.startsWith('data:') ? m.fileUrl : `${baseUrl}${m.fileUrl}`,
       file_name: m.fileName,
       uploaded_at: m.uploadedAt,
     }));

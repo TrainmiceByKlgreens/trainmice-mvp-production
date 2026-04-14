@@ -631,7 +631,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                       <div className="w-40 h-40 bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-200 group hover:border-teal-300 transition-colors">
                         {imagePreview || formData.image_url ? (
                           <img
-                            src={imagePreview || (formData.image_url.startsWith('http') ? formData.image_url : `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${formData.image_url}`)}
+                            src={imagePreview || (formData.image_url.startsWith('http') || formData.image_url.startsWith('data:') ? formData.image_url : `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${formData.image_url}`)}
                             alt="Course Preview"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />

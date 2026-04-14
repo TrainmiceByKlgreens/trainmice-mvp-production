@@ -1,9 +1,7 @@
 import express, { Response } from 'express';
 import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
-import { uploadCourseImage } from '../middleware/upload';
-import path from 'path';
-import fs from 'fs';
+import { uploadCourseImage, bufferToDataUrl } from '../middleware/upload';
 
 const router = express.Router();
 
@@ -36,10 +34,6 @@ router.post(
             const files = req.files as Express.Multer.File[];
 
             if (!category) {
-                // Cleanup uploaded files if category is missing
-                if (files) {
-                    files.forEach(file => fs.unlinkSync(file.path));
-                }
                 return res.status(400).json({ error: 'Category is required' });
             }
 
@@ -49,7 +43,8 @@ router.post(
 
             const imageRecords = await Promise.all(
                 files.map(async (file) => {
-                    const imageUrl = `/uploads/course-images/${file.filename}`;
+                    // Convert buffer to base64 data URL (persists in DB, survives Railway redeployments)
+                    const imageUrl = bufferToDataUrl(file.buffer, file.mimetype);
                     return prisma.categoryImage.create({
                         data: {
                             category,
@@ -65,12 +60,6 @@ router.post(
             });
         } catch (error: any) {
             console.error('Upload category images error:', error);
-            // Cleanup files on error
-            if (req.files) {
-                (req.files as Express.Multer.File[]).forEach(file => {
-                    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-                });
-            }
             return res.status(500).json({ error: 'Failed to upload category images', details: error.message });
         }
     }
@@ -92,12 +81,7 @@ router.delete(
                 return res.status(404).json({ error: 'Image not found' });
             }
 
-            // Delete file from filesystem
-            const filePath = path.join(__dirname, '../../', image.imageUrl);
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-            }
-
+            // Delete from database (data URL is stored in DB, no filesystem cleanup needed)
             await prisma.categoryImage.delete({
                 where: { id },
             });

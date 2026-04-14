@@ -3,10 +3,8 @@ import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest, authenticateOptional } from '../middleware/auth';
 import { generateCourseCode } from '../utils/utils/sequentialId';
 import { calculateCourseRating, calculateCourseRatings } from '../utils/utils/ratingCalculator';
-import { uploadMaterial } from '../middleware/upload';
+import { uploadMaterial, uploadCourseImage, bufferToDataUrl } from '../middleware/upload';
 import { createActivityLog } from '../utils/utils/activityLogger';
-import path from 'path';
-import fs from 'fs';
 import { broadcastUpdate } from '../lib/socket';
 
 const router = express.Router();
@@ -904,20 +902,16 @@ router.post(
       });
 
       if (!course) {
-        // Delete uploaded file if course doesn't exist
-        fs.unlinkSync(req.file.path);
         return res.status(404).json({ error: 'Course not found' });
       }
 
       // Trainers can only upload materials to their own courses
       if (req.user!.role === 'TRAINER' && course.trainerId !== req.user!.id) {
-        // Delete uploaded file if unauthorized
-        fs.unlinkSync(req.file.path);
         return res.status(403).json({ error: 'Not authorized to upload materials to this course' });
       }
 
-      // Generate file URL (relative to /uploads)
-      const fileUrl = `/uploads/course-materials/${req.file.filename}`;
+      // Convert buffer to base64 data URL (persists in DB, survives Railway redeployments)
+      const fileUrl = bufferToDataUrl(req.file.buffer, req.file.mimetype);
 
       // Create material record
       const material = await prisma.courseMaterial.create({
@@ -943,10 +937,6 @@ router.post(
 
       return res.status(201).json({ material });
     } catch (error: any) {
-      // Delete uploaded file on error
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
       console.error('Upload course material error:', error);
       return res.status(500).json({ error: 'Failed to upload course material', details: error.message });
     }
@@ -990,13 +980,7 @@ router.delete(
         return res.status(403).json({ error: 'Not authorized to delete materials from this course' });
       }
 
-      // Delete file from filesystem
-      const filePath = path.join(__dirname, '../../', material.fileUrl);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-
-      // Delete material record
+      // Delete material record (data URL is in DB, no filesystem cleanup needed)
       await prisma.courseMaterial.delete({
         where: { id: materialId },
       });
@@ -1027,7 +1011,7 @@ router.post(
   '/:id/image',
   authenticate,
   authorize('TRAINER', 'ADMIN'),
-  uploadMaterial.single('image'),
+  uploadCourseImage.single('image'),
   async (req: AuthRequest, res) => {
     try {
       const courseId = req.params.id;
@@ -1042,24 +1026,16 @@ router.post(
       });
 
       if (!course) {
-        fs.unlinkSync(req.file.path);
         return res.status(404).json({ error: 'Course not found' });
       }
 
       // Trainers can only upload images to their own courses
       if (req.user!.role === 'TRAINER' && course.trainerId !== req.user!.id) {
-        fs.unlinkSync(req.file.path);
         return res.status(403).json({ error: 'Not authorized to upload images to this course' });
       }
 
-      // Generate image URL
-      const imageUrl = `/uploads/course-images/${req.file.filename}`;
-
-      // Ensure directory exists (uploadMiddleware might handle this, but let's be safe)
-      const dir = path.join(__dirname, '../../uploads/course-images');
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
+      // Convert buffer to base64 data URL (persists in DB, survives Railway redeployments)
+      const imageUrl = bufferToDataUrl(req.file.buffer, req.file.mimetype);
 
       // Update course record
       const updatedCourse = await prisma.course.update({
@@ -1069,9 +1045,6 @@ router.post(
 
       return res.json({ course: updatedCourse });
     } catch (error: any) {
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
       console.error('Upload course image error:', error);
       return res.status(500).json({ error: 'Failed to upload course image', details: error.message });
     }
