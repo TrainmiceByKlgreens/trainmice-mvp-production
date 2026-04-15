@@ -57,12 +57,12 @@ export function Header() {
 
     try {
       const [notificationsResult, sidebarCountsResult] = await Promise.allSettled([
-        apiClient.getNotifications({ page: 1 }),
+        apiClient.getNotifications({ page: 1, limit: 1, isRead: false }),
         apiClient.getSidebarCounts(),
       ]);
 
       if (notificationsResult.status === 'fulfilled') {
-        nextUnreadNotifications = notificationsResult.value.notifications?.filter((n: any) => !n.isRead).length || 0;
+        nextUnreadNotifications = notificationsResult.value.total || notificationsResult.value.notifications?.length || 0;
       } else {
         console.error('Error fetching unread notifications:', notificationsResult.reason);
       }

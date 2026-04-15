@@ -4,11 +4,23 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
 import { broadcastUpdate } from '../lib/socket';
+import { sendNotification } from '../utils/utils/notificationHelper';
 import { uploadMessageAttachment } from '../middleware/upload';
 
 const router = express.Router();
 
 router.use(authenticate);
+
+const requireMessageOrAttachment = body('message').custom((value, { req }) => {
+  const hasMessage = typeof value === 'string' && value.trim().length > 0;
+  const hasAttachment = Boolean((req as any).file);
+
+  if (hasMessage || hasAttachment) {
+    return true;
+  }
+
+  throw new Error('Message text or attachment is required');
+});
 
 // Get enquiries by eventId (for trainers to find existing enquiry)
 router.get('/trainer/enquiries', authorize('TRAINER'), async (req: AuthRequest, res: Response) => {
@@ -196,7 +208,7 @@ router.post(
   '/trainer/:enquiryId/reply',
   authorize('TRAINER'),
   uploadMessageAttachment.single('attachment'),
-  [body('message').notEmpty().trim()],
+  [requireMessageOrAttachment],
   async (req: AuthRequest, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -205,11 +217,12 @@ router.post(
       }
 
       const { enquiryId } = req.params;
-      const { message } = req.body;
       const trainerId = req.user!.id;
 
       const attachmentUrl = req.file ? (await import('../middleware/upload')).bufferToDataUrl(req.file.buffer, req.file.mimetype) : undefined;
       const attachmentName = req.file ? req.file.originalname : undefined;
+      const normalizedMessage = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+      const notificationText = normalizedMessage || (attachmentName ? `Attachment shared: ${attachmentName}` : 'Attachment shared');
 
       // Verify enquiry belongs to trainer
       const enquiry = await prisma.eventEnquiry.findFirst({
@@ -229,12 +242,30 @@ router.post(
           enquiryId: enquiry.id,
           senderType: 'TRAINER',
           senderId: trainerId,
-          message: message.trim(),
+          message: normalizedMessage,
           attachmentUrl,
           attachmentName,
           isRead: false, // Admin needs to read it
         },
       });
+
+      const adminUsers = await prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: { id: true },
+      });
+
+      if (adminUsers.length > 0) {
+        await sendNotification({
+          userId: adminUsers.map((adminUser) => adminUser.id),
+          title: 'New Event Enquiry Reply',
+          message: notificationText,
+          type: 'INFO',
+          relatedEntityType: 'event_enquiry',
+          relatedEntityId: enquiry.id,
+        });
+      }
+
+      broadcastUpdate('event_enquiries', 'UPDATE', { id: enquiry.id, trainerId });
 
       // Update enquiry metadata
       await prisma.eventEnquiry.update({
@@ -371,7 +402,7 @@ router.post(
   '/admin/:enquiryId/reply',
   authorize('ADMIN'),
   uploadMessageAttachment.single('attachment'),
-  [body('message').notEmpty().trim()],
+  [requireMessageOrAttachment],
   async (req: AuthRequest, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -380,11 +411,12 @@ router.post(
       }
 
       const { enquiryId } = req.params;
-      const { message } = req.body;
       const adminId = req.user!.id;
 
       const attachmentUrl = req.file ? (await import('../middleware/upload')).bufferToDataUrl(req.file.buffer, req.file.mimetype) : undefined;
       const attachmentName = req.file ? req.file.originalname : undefined;
+      const normalizedMessage = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+      const notificationText = normalizedMessage || (attachmentName ? `Attachment shared: ${attachmentName}` : 'Attachment shared');
 
       const enquiry = await prisma.eventEnquiry.findUnique({
         where: { id: enquiryId },
@@ -400,11 +432,20 @@ router.post(
           enquiryId: enquiry.id,
           senderType: 'ADMIN',
           senderId: adminId,
-          message: message.trim(),
+          message: normalizedMessage,
           attachmentUrl,
           attachmentName,
           isRead: false, // Trainer needs to read it
         },
+      });
+
+      await sendNotification({
+        userId: enquiry.trainerId,
+        title: 'New Event Enquiry Reply',
+        message: notificationText,
+        type: 'INFO',
+        relatedEntityType: 'event_enquiry',
+        relatedEntityId: enquiry.id,
       });
 
       // Update enquiry metadata
@@ -439,4 +480,3 @@ router.post(
 );
 
 export default router;
-

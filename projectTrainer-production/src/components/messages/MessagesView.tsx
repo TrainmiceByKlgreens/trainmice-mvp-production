@@ -19,6 +19,24 @@ interface Message {
     createdAt: string;
 }
 
+const IMAGE_ATTACHMENT_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
+
+const isImageAttachment = (attachmentUrl?: string | null, attachmentName?: string | null) => {
+    if (!attachmentUrl) return false;
+    if (attachmentUrl.startsWith('data:image/')) return true;
+    return IMAGE_ATTACHMENT_PATTERN.test(attachmentName || attachmentUrl);
+};
+
+const downloadAttachment = (url: string, fileName: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || 'attachment';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
 export function MessagesView() {
     const { user } = useAuth();
     const [message, setMessage] = useState('');
@@ -28,6 +46,7 @@ export function MessagesView() {
     const [loading, setLoading] = useState(true);
     const [success, setSuccess] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const hasSendableContent = Boolean(message.trim() || attachment);
 
     useEffect(() => {
         if (user?.id) {
@@ -65,7 +84,7 @@ export function MessagesView() {
     });
 
     const handleSendMessage = async () => {
-        if (!message.trim() || !user?.id) return;
+        if (!hasSendableContent || !user?.id) return;
 
         try {
             setSending(true);
@@ -124,6 +143,8 @@ export function MessagesView() {
                     <div className="space-y-6">
                         {messages.map((msg) => {
                             const isTrainer = msg.senderType === 'TRAINER';
+                            const resolvedAttachmentUrl = apiClient.resolveImageUrl(msg.attachmentUrl || null);
+                            const isImage = isImageAttachment(resolvedAttachmentUrl, msg.attachmentName);
                             return (
                                 <div
                                     key={msg.id}
@@ -136,34 +157,78 @@ export function MessagesView() {
                                                 : 'bg-white border border-corporate-100 rounded-2xl rounded-tl-none text-corporate-800'
                                                 }`}
                                         >
-                                            <p className="whitespace-pre-wrap text-sm leading-relaxed tracking-tight font-medium break-words">{msg.message}</p>
+                                            {msg.message?.trim() && (
+                                                <p className="whitespace-pre-wrap text-sm leading-relaxed tracking-tight font-medium break-words">
+                                                    {msg.message}
+                                                </p>
+                                            )}
 
-                                            {msg.attachmentUrl && (
-                                                <div className={`mt-3 p-3 rounded-xl flex items-center gap-3 border ${isTrainer
-                                                        ? 'bg-white/10 border-white/20'
-                                                        : 'bg-corporate-50 border-corporate-100'
-                                                    }`}>
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isTrainer ? 'bg-white/20' : 'bg-white shadow-sm'
-                                                        }`}>
-                                                        <FileText className={`w-4 h-4 ${isTrainer ? 'text-white' : 'text-accent-600'}`} />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className={`text-[10px] font-black uppercase tracking-widest truncate ${isTrainer ? 'text-white/80' : 'text-corporate-500'
-                                                            }`} title={msg.attachmentName || 'Attachment'}>
-                                                            {truncateFileName(msg.attachmentName || 'Attachment')}
-                                                        </p>
-                                                    </div>
-                                                    <a
-                                                        href={apiClient.resolveImageUrl(msg.attachmentUrl) || '#'}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className={`p-1.5 rounded-lg transition-colors ${isTrainer
-                                                                ? 'hover:bg-white/20 text-white'
-                                                                : 'hover:bg-corporate-100 text-corporate-400 hover:text-accent-600'
-                                                            }`}
-                                                    >
-                                                        <Download className="w-4 h-4" />
-                                                    </a>
+                                            {resolvedAttachmentUrl && (
+                                                <div className={`mt-3 ${msg.message?.trim() ? '' : 'mt-0'}`}>
+                                                    {isImage ? (
+                                                        <div className={`overflow-hidden rounded-2xl border ${isTrainer
+                                                            ? 'border-white/20 bg-white/10'
+                                                            : 'border-corporate-100 bg-corporate-50'
+                                                            }`}>
+                                                            <a
+                                                                href={resolvedAttachmentUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="block"
+                                                            >
+                                                                <img
+                                                                    src={resolvedAttachmentUrl}
+                                                                    alt={msg.attachmentName || 'Image attachment'}
+                                                                    className="max-h-72 w-full object-cover"
+                                                                />
+                                                            </a>
+                                                            <div className="flex items-center justify-between gap-3 px-3 py-2">
+                                                                <p
+                                                                    className={`min-w-0 flex-1 truncate text-[10px] font-black uppercase tracking-widest ${isTrainer ? 'text-white/80' : 'text-corporate-500'
+                                                                        }`}
+                                                                    title={msg.attachmentName || 'Image attachment'}
+                                                                >
+                                                                    {truncateFileName(msg.attachmentName || 'Image attachment')}
+                                                                </p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => downloadAttachment(resolvedAttachmentUrl, msg.attachmentName || 'image')}
+                                                                    className={`p-1.5 rounded-lg transition-colors ${isTrainer
+                                                                        ? 'hover:bg-white/20 text-white'
+                                                                        : 'hover:bg-corporate-100 text-corporate-400 hover:text-accent-600'
+                                                                        }`}
+                                                                >
+                                                                    <Download className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className={`p-3 rounded-xl flex items-center gap-3 border ${isTrainer
+                                                            ? 'bg-white/10 border-white/20'
+                                                            : 'bg-corporate-50 border-corporate-100'
+                                                            }`}>
+                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isTrainer ? 'bg-white/20' : 'bg-white shadow-sm'
+                                                                }`}>
+                                                                <FileText className={`w-4 h-4 ${isTrainer ? 'text-white' : 'text-accent-600'}`} />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className={`text-[10px] font-black uppercase tracking-widest truncate ${isTrainer ? 'text-white/80' : 'text-corporate-500'
+                                                                    }`} title={msg.attachmentName || 'Attachment'}>
+                                                                    {truncateFileName(msg.attachmentName || 'Attachment')}
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => downloadAttachment(resolvedAttachmentUrl, msg.attachmentName || 'attachment')}
+                                                                className={`p-1.5 rounded-lg transition-colors ${isTrainer
+                                                                    ? 'hover:bg-white/20 text-white'
+                                                                    : 'hover:bg-corporate-100 text-corporate-400 hover:text-accent-600'
+                                                                    }`}
+                                                            >
+                                                                <Download className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -238,7 +303,7 @@ export function MessagesView() {
                             </div>
                             <Button
                                 onClick={handleSendMessage}
-                                disabled={!message.trim() || sending || success}
+                                disabled={!hasSendableContent || sending || success}
                                 size="sm"
                                 variant="gold-black"
                                 className="rounded-xl px-6 h-9"

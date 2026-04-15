@@ -22,6 +22,7 @@ export function MessageAdmin() {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const hasSendableContent = Boolean(message.trim() || attachment);
 
   const eventDetails = location.state as LocationState | null;
 
@@ -37,15 +38,18 @@ export function MessageAdmin() {
   };
 
   const handleSendMessage = async () => {
-    if (!message.trim() || !user || !eventDetails) return;
+    if (!hasSendableContent || !user || !eventDetails) return;
 
     setIsLoading(true);
     try {
       const subject = `Message from Trainer - Event ${eventDetails.eventId.slice(0, 8)}`;
-      const fullMessage = `Event: ${eventDetails.courseTitle}\nVenue: ${eventDetails.location}\nDate: ${formatDate(
+      const detailsBlock = `Event: ${eventDetails.courseTitle}\nVenue: ${eventDetails.location}\nDate: ${formatDate(
         eventDetails.date,
         eventDetails.time
-      )}\n\nMessage:\n${message}`;
+      )}`;
+      const fullMessage = message.trim()
+        ? `${detailsBlock}\n\nMessage:\n${message.trim()}`
+        : detailsBlock;
 
       await apiClient.sendMessageToAdmin({
         message: fullMessage,
@@ -239,8 +243,8 @@ export function MessageAdmin() {
                 <div className="flex flex-col sm:flex-row gap-5 pt-8 border-t border-corporate-50">
                   <Button
                     onClick={handleSendMessage}
-                    disabled={!message.trim() || isLoading || success}
-                    className={`flex-1 h-14 rounded-2xl shadow-modern shadow-accent-600/20 gap-3 group/btn relative overflow-hidden transition-all duration-500 ${!message.trim() ? 'grayscale' : 'hover:scale-[1.02] active:scale-95'}`}
+                    disabled={!hasSendableContent || isLoading || success}
+                    className={`flex-1 h-14 rounded-2xl shadow-modern shadow-accent-600/20 gap-3 group/btn relative overflow-hidden transition-all duration-500 ${!hasSendableContent ? 'grayscale' : 'hover:scale-[1.02] active:scale-95'}`}
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-accent-600 to-accent-400 opacity-0 group-hover/btn:opacity-10 dark:opacity-0" />
                     <Send className={`w-5 h-5 relative z-10 ${isLoading ? 'animate-bounce' : 'group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform duration-500'}`} />

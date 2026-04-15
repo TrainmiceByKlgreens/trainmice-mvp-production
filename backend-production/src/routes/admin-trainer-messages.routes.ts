@@ -4,13 +4,24 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
 import { broadcastUpdate } from '../lib/socket';
-import { admin } from '../config/firebaseAdmin';
+import { sendNotification } from '../utils/utils/notificationHelper';
 import { uploadMessageAttachment } from '../middleware/upload';
 
 const router = express.Router();
 
 router.use(authenticate);
 router.use(authorize('ADMIN'));
+
+const requireMessageOrAttachment = body('message').custom((value, { req }) => {
+  const hasMessage = typeof value === 'string' && value.trim().length > 0;
+  const hasAttachment = Boolean((req as any).file);
+
+  if (hasMessage || hasAttachment) {
+    return true;
+  }
+
+  throw new Error('Message text or attachment is required');
+});
 
 // Get all trainer message threads (with unread counts)
 router.get('/trainer-messages', async (req: AuthRequest, res: Response) => {
@@ -222,7 +233,7 @@ router.post(
   '/trainer-messages/:trainerId/reply',
   uploadMessageAttachment.single('attachment'),
   [
-    body('message').notEmpty().trim(),
+    requireMessageOrAttachment,
   ],
   async (req: AuthRequest, res: Response) => {
     try {
@@ -232,11 +243,13 @@ router.post(
       }
 
       const { trainerId } = req.params;
-      const { message } = req.body;
       const adminId = req.user!.id;
 
       const attachmentUrl = req.file ? (await import('../middleware/upload')).bufferToDataUrl(req.file.buffer, req.file.mimetype) : undefined;
       const attachmentName = req.file ? req.file.originalname : undefined;
+      const normalizedMessage = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+      const previewMessage = normalizedMessage || (attachmentName ? `[Attachment] ${attachmentName}` : 'Attachment');
+      const notificationText = normalizedMessage || (attachmentName ? `Attachment shared: ${attachmentName}` : 'Attachment shared');
 
       // Get or create thread
       let thread = await prisma.messageThread.findFirst({
@@ -247,7 +260,7 @@ router.post(
         thread = await prisma.messageThread.create({
           data: {
             trainerId,
-            lastMessage: message,
+            lastMessage: previewMessage,
             lastMessageTime: new Date(),
             lastMessageBy: 'ADMIN',
             unreadCount: 1, // Trainer will see this as unread
@@ -257,7 +270,7 @@ router.post(
         thread = await prisma.messageThread.update({
           where: { id: thread.id },
           data: {
-            lastMessage: message,
+            lastMessage: previewMessage,
             lastMessageTime: new Date(),
             lastMessageBy: 'ADMIN',
             unreadCount: { increment: 1 }, // Increment unread count for trainer
@@ -271,7 +284,7 @@ router.post(
           threadId: thread.id,
           senderType: 'ADMIN',
           senderId: adminId,
-          message: message.trim(),
+          message: normalizedMessage,
           attachmentUrl,
           attachmentName,
           isRead: false, // Trainer needs to read it
@@ -280,32 +293,14 @@ router.post(
 
       console.log('✅ Message saved to database:', newMessage.id);
 
-      // Trigger Firebase Cloud Messaging if receiver has fcmToken
-      try {
-        const receiver = await prisma.user.findUnique({
-          where: { id: trainerId },
-          select: { fcmToken: true }
-        });
-
-        if (receiver?.fcmToken) {
-          await admin.messaging().send({
-            token: receiver.fcmToken,
-            data: {
-              type: 'MESSAGE',
-              title: 'You have a new message',
-              body: message.trim()
-            },
-            notification: {
-              title: 'You have a new message',
-              body: message.trim()
-            }
-          });
-          console.log('✅ FCM push notification sent to trainer:', trainerId);
-        }
-      } catch (fcmError) {
-        console.error('❌ FCM push notification failed:', fcmError);
-        // Do not break the message creation flow if FCM fails
-      }
+      await sendNotification({
+        userId: trainerId,
+        title: 'New Message from Admin',
+        message: notificationText,
+        type: 'INFO',
+        relatedEntityType: 'message',
+        relatedEntityId: newMessage.id,
+      });
 
       await createActivityLog({
         userId: adminId,

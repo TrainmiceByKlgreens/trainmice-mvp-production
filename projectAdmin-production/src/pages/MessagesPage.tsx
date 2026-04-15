@@ -141,6 +141,100 @@ interface EventEnquiryMessage {
   createdAt: string;
 }
 
+const IMAGE_ATTACHMENT_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
+
+const isImageAttachment = (attachmentUrl?: string | null, attachmentName?: string | null) => {
+  if (!attachmentUrl) return false;
+  if (attachmentUrl.startsWith('data:image/')) return true;
+  return IMAGE_ATTACHMENT_PATTERN.test(attachmentName || attachmentUrl);
+};
+
+const downloadAttachment = (url: string, fileName: string) => {
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName || 'attachment';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const ChatAttachmentPreview: React.FC<{
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  isOwn?: boolean;
+}> = ({ attachmentUrl, attachmentName, isOwn = false }) => {
+  const resolvedAttachmentUrl = apiClient.resolveImageUrl(attachmentUrl || null);
+
+  if (!resolvedAttachmentUrl) {
+    return null;
+  }
+
+  const isImage = isImageAttachment(resolvedAttachmentUrl, attachmentName);
+
+  if (isImage) {
+    return (
+      <div className={`mt-2 overflow-hidden rounded-2xl border ${isOwn
+        ? 'bg-white/10 border-white/20'
+        : 'bg-gray-50 border-gray-200'
+        }`}>
+        <a
+          href={resolvedAttachmentUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+        >
+          <img
+            src={resolvedAttachmentUrl}
+            alt={attachmentName || 'Image attachment'}
+            className="max-h-72 w-full object-cover"
+          />
+        </a>
+        <div className="flex items-center justify-between gap-3 px-3 py-2">
+          <span
+            className={`min-w-0 flex-1 truncate text-[10px] font-medium ${isOwn ? 'text-white/80' : 'text-gray-500'}`}
+            title={attachmentName || 'Image attachment'}
+          >
+            {attachmentName || 'Image attachment'}
+          </span>
+          <button
+            type="button"
+            onClick={() => downloadAttachment(resolvedAttachmentUrl, attachmentName || 'image')}
+            className={`p-1 rounded-md transition-colors ${isOwn
+              ? 'hover:bg-white/20 text-white'
+              : 'hover:bg-gray-200 text-gray-400 hover:text-teal-600'
+              }`}
+          >
+            <Download size={14} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`mt-2 p-2 rounded-xl flex items-center gap-2 border ${isOwn
+      ? 'bg-white/10 border-white/20'
+      : 'bg-gray-50 border-gray-100'
+      }`}>
+      <FileText size={16} className={isOwn ? 'text-white' : 'text-teal-600'} />
+      <span className={`text-[10px] font-medium truncate flex-1 ${isOwn ? 'text-white/80' : 'text-gray-500'}`}>
+        {attachmentName || 'Attachment'}
+      </span>
+      <button
+        type="button"
+        onClick={() => downloadAttachment(resolvedAttachmentUrl, attachmentName || 'attachment')}
+        className={`p-1 rounded-md transition-colors ${isOwn
+          ? 'hover:bg-white/20 text-white'
+          : 'hover:bg-gray-200 text-gray-400 hover:text-teal-600'
+          }`}
+      >
+        <Download size={14} />
+      </button>
+    </div>
+  );
+};
+
 const SearchableTrainerDropdown: React.FC<{
   trainers: Array<{ id: string; fullName: string; email: string; customTrainerId?: string }>;
   value: string;
@@ -277,6 +371,8 @@ export const MessagesPage: React.FC = () => {
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [allTrainers, setAllTrainers] = useState<Array<{ id: string; fullName: string; email: string; customTrainerId?: string }>>([]);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const hasReplyContent = Boolean(replyMessage.trim() || replyAttachment);
+  const hasEventEnquiryReplyContent = Boolean(eventEnquiryReply.trim() || eventEnquiryReplyAttachment);
 
   const [sendForm, setSendForm] = useState({
     title: '',
@@ -713,7 +809,7 @@ export const MessagesPage: React.FC = () => {
 
   // Handle sending reply
   const handleSendReply = async () => {
-    if (!replyMessage.trim() || !selectedThread) return;
+    if (!hasReplyContent || !selectedThread) return;
 
     try {
       setReplying(true);
@@ -904,19 +1000,11 @@ export const MessagesPage: React.FC = () => {
                       <p className="text-gray-700 mb-3">{submission.message}</p>
 
                       {submission.attachmentUrl && (
-                        <div className="mb-3 p-2 rounded-lg bg-gray-50 border border-gray-100 flex items-center gap-2 max-w-sm">
-                          <FileText size={16} className="text-teal-600" />
-                          <span className="text-xs font-medium truncate flex-1 text-gray-600">
-                            {submission.attachmentName || 'Attachment'}
-                          </span>
-                          <a
-                            href={apiClient.resolveImageUrl(submission.attachmentUrl) || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-teal-600 transition-colors"
-                          >
-                            <Download size={14} />
-                          </a>
+                        <div className="mb-3 max-w-sm">
+                          <ChatAttachmentPreview
+                            attachmentUrl={submission.attachmentUrl}
+                            attachmentName={submission.attachmentName}
+                          />
                         </div>
                       )}
 
@@ -1117,36 +1205,21 @@ export const MessagesPage: React.FC = () => {
                             key={msg.id}
                             className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}
                           >
-                            <div
-                              className={`max-w-[70%] rounded-2xl px-4 py-2 shadow-sm ${isAdmin
-                                ? 'bg-teal-600 text-white rounded-tr-sm'
-                                : 'bg-white text-gray-900 rounded-tl-sm border border-gray-200'
-                                }`}
-                            >
-                              <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.message}</p>
-
-                              {msg.attachmentUrl && (
-                                <div className={`mt-2 p-2 rounded-xl flex items-center gap-2 border ${isAdmin
-                                  ? 'bg-white/10 border-white/20'
-                                  : 'bg-gray-50 border-gray-100'
-                                  }`}>
-                                  <FileText size={16} className={isAdmin ? 'text-white' : 'text-teal-600'} />
-                                  <span className={`text-[10px] font-medium truncate flex-1 ${isAdmin ? 'text-white/80' : 'text-gray-500'}`}>
-                                    {msg.attachmentName || 'Attachment'}
-                                  </span>
-                                  <a
-                                    href={apiClient.resolveImageUrl(msg.attachmentUrl) || '#'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={`p-1 rounded-md transition-colors ${isAdmin
-                                      ? 'hover:bg-white/20 text-white'
-                                      : 'hover:bg-gray-200 text-gray-400 hover:text-teal-600'
-                                      }`}
-                                  >
-                                    <Download size={14} />
-                                  </a>
-                                </div>
+                          <div
+                            className={`max-w-[70%] rounded-2xl px-4 py-2 shadow-sm ${isAdmin
+                              ? 'bg-teal-600 text-white rounded-tr-sm'
+                              : 'bg-white text-gray-900 rounded-tl-sm border border-gray-200'
+                              }`}
+                          >
+                              {msg.message?.trim() && (
+                                <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.message}</p>
                               )}
+
+                              <ChatAttachmentPreview
+                                attachmentUrl={msg.attachmentUrl}
+                                attachmentName={msg.attachmentName}
+                                isOwn={isAdmin}
+                              />
 
                               <p
                                 className={`text-xs mt-1 ${isAdmin ? 'text-teal-100' : 'text-gray-500'
@@ -1188,7 +1261,7 @@ export const MessagesPage: React.FC = () => {
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                               e.preventDefault();
-                              if (replyMessage.trim() && !replying) {
+                              if (hasReplyContent && !replying) {
                                 handleSendReply();
                               }
                             }
@@ -1212,7 +1285,7 @@ export const MessagesPage: React.FC = () => {
                     <Button
                       variant="primary"
                       onClick={handleSendReply}
-                      disabled={!replyMessage.trim() || replying}
+                      disabled={!hasReplyContent || replying}
                       className="px-6 py-2 rounded-lg"
                     >
                       <Send size={18} className="mr-1" />
@@ -1278,7 +1351,14 @@ export const MessagesPage: React.FC = () => {
                               : 'bg-white text-gray-900 rounded-tl-sm border border-gray-200'
                               }`}
                           >
-                            <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.message}</p>
+                            {msg.message?.trim() && (
+                              <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.message}</p>
+                            )}
+                            <ChatAttachmentPreview
+                              attachmentUrl={msg.attachmentUrl}
+                              attachmentName={msg.attachmentName}
+                              isOwn={isAdmin}
+                            />
                             <p
                               className={`text-xs mt-1 ${isAdmin ? 'text-teal-100' : 'text-gray-500'
                                 }`}
@@ -1335,7 +1415,7 @@ export const MessagesPage: React.FC = () => {
                   <Button
                     variant="primary"
                     onClick={handleSendReply}
-                    disabled={!replyMessage.trim() || replying}
+                    disabled={!hasReplyContent || replying}
                     size="sm"
                   >
                     <Send size={16} />
@@ -1614,7 +1694,14 @@ export const MessagesPage: React.FC = () => {
                             {isAdmin ? 'You (Admin)' : 'Trainer'}
                           </span>
                         </div>
-                        <p className="whitespace-pre-wrap text-sm">{msg.message}</p>
+                        {msg.message?.trim() && (
+                          <p className="whitespace-pre-wrap text-sm">{msg.message}</p>
+                        )}
+                        <ChatAttachmentPreview
+                          attachmentUrl={msg.attachmentUrl}
+                          attachmentName={msg.attachmentName}
+                          isOwn={isAdmin}
+                        />
                         <p className={`text-xs mt-1 opacity-75`}>
                           {formatDate(msg.createdAt)}
                         </p>
@@ -1663,7 +1750,7 @@ export const MessagesPage: React.FC = () => {
                 <Button
                   variant="primary"
                   onClick={async () => {
-                    if (!replyMessage.trim() || !selectedThread) return;
+                    if (!hasReplyContent || !selectedThread) return;
 
                     try {
                       setReplying(true);
@@ -1682,7 +1769,7 @@ export const MessagesPage: React.FC = () => {
                       setReplying(false);
                     }
                   }}
-                  disabled={!replyMessage.trim() || replying}
+                  disabled={!hasReplyContent || replying}
                 >
                   <Send size={18} className="mr-2" />
                   {replying ? 'Sending...' : 'Send Reply'}
@@ -1752,7 +1839,14 @@ export const MessagesPage: React.FC = () => {
                             {isAdmin ? 'You (Admin)' : 'Trainer'}
                           </span>
                         </div>
-                        <p className="whitespace-pre-wrap text-sm">{msg.message}</p>
+                        {msg.message?.trim() && (
+                          <p className="whitespace-pre-wrap text-sm">{msg.message}</p>
+                        )}
+                        <ChatAttachmentPreview
+                          attachmentUrl={msg.attachmentUrl}
+                          attachmentName={msg.attachmentName}
+                          isOwn={isAdmin}
+                        />
                         <p className={`text-xs mt-1 opacity-75`}>
                           {formatDate(msg.createdAt)}
                         </p>
@@ -1801,7 +1895,7 @@ export const MessagesPage: React.FC = () => {
                 <Button
                   variant="primary"
                   onClick={async () => {
-                    if (!eventEnquiryReply.trim() || !selectedEventEnquiry) return;
+                    if (!hasEventEnquiryReplyContent || !selectedEventEnquiry) return;
 
                     try {
                       setReplyingToEnquiry(true);
@@ -1820,7 +1914,7 @@ export const MessagesPage: React.FC = () => {
                       setReplyingToEnquiry(false);
                     }
                   }}
-                  disabled={!eventEnquiryReply.trim() || replyingToEnquiry}
+                  disabled={!hasEventEnquiryReplyContent || replyingToEnquiry}
                 >
                   <Send size={18} className="mr-2" />
                   {replyingToEnquiry ? 'Sending...' : 'Send Reply'}

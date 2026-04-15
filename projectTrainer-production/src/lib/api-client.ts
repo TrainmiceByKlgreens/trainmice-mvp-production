@@ -499,8 +499,8 @@ export class ApiClient {
     return this.put<{ message: string }>('/trainer/messages/read');
   }
 
-  async getNotifications(params?: { page?: number; type?: string }) {
-    return this.get<{ notifications: any[]; totalPages: number }>('/notifications', params);
+  async getNotifications(params?: { page?: number; limit?: number; type?: string; isRead?: boolean }) {
+    return this.get<{ notifications: any[]; total: number; totalPages: number }>('/notifications', params);
   }
 
   async getSidebarCounts() {

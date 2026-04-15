@@ -4,6 +4,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
 import { broadcastUpdate } from '../lib/socket';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 import { uploadMessageAttachment } from '../middleware/upload';
 
@@ -12,12 +13,23 @@ const router = express.Router();
 router.use(authenticate);
 router.use(authorize('TRAINER'));
 
+const requireMessageOrAttachment = body('message').custom((value, { req }) => {
+  const hasMessage = typeof value === 'string' && value.trim().length > 0;
+  const hasAttachment = Boolean((req as any).file);
+
+  if (hasMessage || hasAttachment) {
+    return true;
+  }
+
+  throw new Error('Message text or attachment is required');
+});
+
 // Send message to admin (creates or updates thread)
 router.post(
   '/',
   uploadMessageAttachment.single('attachment'),
   [
-    body('message').notEmpty().trim(),
+    requireMessageOrAttachment,
     body('subject').optional().trim(),
     body('relatedEntityType').optional().trim(),
     body('relatedEntityId').optional().trim(),
@@ -29,11 +41,14 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { message, subject, relatedEntityType, relatedEntityId } = req.body;
+      const { subject, relatedEntityType, relatedEntityId } = req.body;
       const trainerId = req.user!.id;
 
       const attachmentUrl = req.file ? (await import('../middleware/upload')).bufferToDataUrl(req.file.buffer, req.file.mimetype) : undefined;
       const attachmentName = req.file ? req.file.originalname : undefined;
+      const normalizedMessage = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+      const previewMessage = normalizedMessage || (attachmentName ? `[Attachment] ${attachmentName}` : 'Attachment');
+      const notificationText = normalizedMessage || (attachmentName ? `Attachment shared: ${attachmentName}` : 'Attachment shared');
 
       // If it's an event enquiry, create EventEnquiry with first message
       if (relatedEntityType === 'event' && relatedEntityId) {
@@ -51,7 +66,7 @@ router.post(
             data: {
               eventId: relatedEntityId,
               trainerId,
-              message: message.trim(), // Initial message stored in enquiry
+              message: previewMessage, // Keep a useful summary for admin listings
               subject: subject || `Enquiry about event`,
               isRead: false,
               lastMessageTime: new Date(),
@@ -77,12 +92,28 @@ router.post(
             enquiryId: enquiry.id,
             senderType: 'TRAINER',
             senderId: trainerId,
-            message: message.trim(),
+            message: normalizedMessage,
             attachmentUrl,
             attachmentName,
             isRead: false,
           },
         });
+
+        const adminUsers = await prisma.user.findMany({
+          where: { role: 'ADMIN' },
+          select: { id: true },
+        });
+
+        if (adminUsers.length > 0) {
+          await sendNotification({
+            userId: adminUsers.map((adminUser) => adminUser.id),
+            title: 'New Event Enquiry',
+            message: notificationText,
+            type: 'INFO',
+            relatedEntityType: 'event_enquiry',
+            relatedEntityId: enquiry.id,
+          });
+        }
 
         await createActivityLog({
           userId: trainerId,
@@ -91,6 +122,8 @@ router.post(
           entityId: enquiry.id,
           description: `Sent event enquiry to admin`,
         });
+
+        broadcastUpdate('event_enquiries', 'UPDATE', { id: enquiry.id, trainerId });
 
         return res.status(201).json({
           message: 'Event enquiry sent successfully',
@@ -108,7 +141,7 @@ router.post(
         thread = await prisma.messageThread.create({
           data: {
             trainerId,
-            lastMessage: message,
+            lastMessage: previewMessage,
             lastMessageTime: new Date(),
             lastMessageBy: 'TRAINER',
             unreadCount: 1, // First unread message for admin
@@ -118,7 +151,7 @@ router.post(
         thread = await prisma.messageThread.update({
           where: { id: thread.id },
           data: {
-            lastMessage: message,
+            lastMessage: previewMessage,
             lastMessageTime: new Date(),
             lastMessageBy: 'TRAINER',
             unreadCount: { increment: 1 }, // Increment unread count for admin
@@ -132,7 +165,7 @@ router.post(
           threadId: thread.id,
           senderType: 'TRAINER',
           senderId: trainerId,
-          message: message.trim(),
+          message: normalizedMessage,
           attachmentUrl,
           attachmentName,
           isRead: false, // Admin needs to read it
@@ -148,7 +181,7 @@ router.post(
         trainerMessage = await prisma.trainerMessage.create({
           data: {
             trainerId,
-            lastMessage: message,
+            lastMessage: previewMessage,
             platform: 'WEBSITE',
             isRead: false,
           },
@@ -157,10 +190,26 @@ router.post(
         trainerMessage = await prisma.trainerMessage.update({
           where: { trainerId },
           data: {
-            lastMessage: message,
+            lastMessage: previewMessage,
             lastMessageTime: new Date(),
             isRead: false,
           },
+        });
+      }
+
+      const adminUsers = await prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: { id: true },
+      });
+
+      if (adminUsers.length > 0) {
+        await sendNotification({
+          userId: adminUsers.map((adminUser) => adminUser.id),
+          title: 'New Message from Trainer',
+          message: notificationText,
+          type: 'INFO',
+          relatedEntityType: 'message',
+          relatedEntityId: newMessage.id,
         });
       }
 

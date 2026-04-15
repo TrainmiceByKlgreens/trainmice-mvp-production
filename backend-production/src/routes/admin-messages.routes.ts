@@ -2,8 +2,9 @@ import express, { Response } from 'express';
 import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
-import { admin } from '../config/firebaseAdmin';
 import { createActivityLog } from '../utils/utils/activityLogger';
+import { broadcastUpdate } from '../lib/socket';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -173,37 +174,14 @@ router.post(
 
       // If userId is provided, send to specific user
       if (userId) {
-        const notification = await prisma.notification.create({
-          data: {
-            userId,
-            title,
-            message,
-            type,
-            relatedEntityType: relatedEntityType || null,
-            relatedEntityId: relatedEntityId || null,
-          },
-        });
-
-        // Send FCM notification
-        const receiver = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { fcmToken: true }
-        });
-
-        if (receiver?.fcmToken) {
-          admin.messaging().send({
-            token: receiver.fcmToken,
-            data: {
-              type: 'MESSAGE',
-              title,
-              body: message
-            },
-            notification: {
-              title,
-              body: message
-            }
-          }).catch((err) => console.error(`Failed to send FCM to user ${userId}:`, err));
-        }
+        const notification = await sendNotification({
+          userId,
+          title,
+          message,
+          type,
+          relatedEntityType: relatedEntityType || undefined,
+          relatedEntityId: relatedEntityId || undefined,
+        }) as any;
 
         await createActivityLog({
           userId: req.user!.id,
@@ -223,45 +201,34 @@ router.post(
           select: { id: true },
         });
 
-        const notifications = await Promise.all(
-          users.map((user) =>
-            prisma.notification.create({
-              data: {
-                userId: user.id,
-                title,
-                message,
-                type,
-                isBroadcast: true,
-                broadcastId,
-                targetRole: userRole,
-                relatedEntityType: relatedEntityType || null,
-                relatedEntityId: relatedEntityId || null,
-              },
-            })
-          )
-        );
+        const notifications = users.length > 0
+          ? await sendNotification({
+            userId: users.map((user) => user.id),
+            title,
+            message,
+            type,
+            relatedEntityType: relatedEntityType || undefined,
+            relatedEntityId: relatedEntityId || undefined,
+          })
+          : [];
 
-        // Send FCM notifications to all users with tokens
-        const usersWithToken = await prisma.user.findMany({
-          where: { role: userRole, fcmToken: { not: null } },
-          select: { fcmToken: true }
-        });
+        const notificationList = Array.isArray(notifications) ? notifications : [notifications];
 
-        if (usersWithToken.length > 0) {
-          Promise.all(usersWithToken.map(u =>
-            admin.messaging().send({
-              token: u.fcmToken!,
-              data: {
-                type: 'MESSAGE',
-                title,
-                body: message
-              },
-              notification: {
-                title,
-                body: message
-              }
-            }).catch(() => null)
-          ));
+        for (const notification of notificationList) {
+          const updatedNotification = await prisma.notification.update({
+            where: { id: notification.id },
+            data: {
+              isBroadcast: true,
+              broadcastId,
+              targetRole: userRole,
+            },
+          });
+
+          broadcastUpdate('notifications', 'UPDATE', {
+            userId: updatedNotification.userId,
+            notificationId: updatedNotification.id,
+            broadcastId,
+          });
         }
 
         await createActivityLog({
@@ -269,10 +236,10 @@ router.post(
           actionType: 'CREATE',
           entityType: 'notification',
           entityId: undefined,
-          description: `Sent ${notifications.length} notifications to all ${userRole}s (Broadcast ID: ${broadcastId})`,
+          description: `Sent ${notificationList.length} notifications to all ${userRole}s (Broadcast ID: ${broadcastId})`,
         });
 
-        return res.json({ notifications, count: notifications.length, message: 'Notifications sent successfully' });
+        return res.json({ notifications: notificationList, count: notificationList.length, message: 'Notifications sent successfully' });
       }
 
       // Global notification - send to all users
@@ -280,45 +247,34 @@ router.post(
         select: { id: true },
       });
 
-      const notifications = await Promise.all(
-        users.map((user) =>
-          prisma.notification.create({
-            data: {
-              userId: user.id,
-              title,
-              message,
-              type,
-              isBroadcast: true,
-              broadcastId,
-              targetRole: 'ALL',
-              relatedEntityType: relatedEntityType || null,
-              relatedEntityId: relatedEntityId || null,
-            },
-          })
-        )
-      );
+      const notifications = users.length > 0
+        ? await sendNotification({
+          userId: users.map((user) => user.id),
+          title,
+          message,
+          type,
+          relatedEntityType: relatedEntityType || undefined,
+          relatedEntityId: relatedEntityId || undefined,
+        })
+        : [];
 
-      // Send Global FCM notifications
-      const usersWithToken = await prisma.user.findMany({
-        where: { fcmToken: { not: null } },
-        select: { fcmToken: true }
-      });
+      const notificationList = Array.isArray(notifications) ? notifications : [notifications];
 
-      if (usersWithToken.length > 0) {
-        Promise.all(usersWithToken.map(u =>
-          admin.messaging().send({
-            token: u.fcmToken!,
-            data: {
-              type: 'MESSAGE',
-              title,
-              body: message
-            },
-            notification: {
-              title,
-              body: message
-            }
-          }).catch(() => null)
-        ));
+      for (const notification of notificationList) {
+        const updatedNotification = await prisma.notification.update({
+          where: { id: notification.id },
+          data: {
+            isBroadcast: true,
+            broadcastId,
+            targetRole: 'ALL',
+          },
+        });
+
+        broadcastUpdate('notifications', 'UPDATE', {
+          userId: updatedNotification.userId,
+          notificationId: updatedNotification.id,
+          broadcastId,
+        });
       }
 
       await createActivityLog({
@@ -326,10 +282,10 @@ router.post(
         actionType: 'CREATE',
         entityType: 'notification',
         entityId: undefined,
-        description: `Sent ${notifications.length} global notifications (Broadcast ID: ${broadcastId})`,
+        description: `Sent ${notificationList.length} global notifications (Broadcast ID: ${broadcastId})`,
       });
 
-      return res.json({ notifications, count: notifications.length, message: 'Global notifications sent successfully' });
+      return res.json({ notifications: notificationList, count: notificationList.length, message: 'Global notifications sent successfully' });
     } catch (error: any) {
       console.error('Send notification error:', error);
       return res.status(500).json({ error: 'Failed to send notification', details: error.message });
@@ -343,6 +299,11 @@ router.put('/notifications/:id/read', async (req: AuthRequest, res: Response) =>
     const notification = await prisma.notification.update({
       where: { id: req.params.id },
       data: { isRead: true },
+    });
+
+    broadcastUpdate('notifications', 'UPDATE', {
+      userId: notification.userId,
+      notificationId: notification.id,
     });
 
     return res.json({ notification });
@@ -364,14 +325,32 @@ router.delete('/notifications/:id', async (req: AuthRequest, res: Response) => {
     }
 
     if (notification.isBroadcast && notification.broadcastId) {
+      const affectedNotifications = await prisma.notification.findMany({
+        where: { broadcastId: notification.broadcastId },
+        select: { id: true, userId: true },
+      });
+
       // Delete all notifications in this broadcast
       await prisma.notification.deleteMany({
         where: { broadcastId: notification.broadcastId },
+      });
+
+      affectedNotifications.forEach((item) => {
+        broadcastUpdate('notifications', 'DELETE', {
+          userId: item.userId,
+          notificationId: item.id,
+          broadcastId: notification.broadcastId,
+        });
       });
     } else {
       // Delete single notification
       await prisma.notification.delete({
         where: { id: req.params.id },
+      });
+
+      broadcastUpdate('notifications', 'DELETE', {
+        userId: notification.userId,
+        notificationId: notification.id,
       });
     }
 

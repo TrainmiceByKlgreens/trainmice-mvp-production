@@ -18,6 +18,24 @@ interface Message {
   relatedEntityType?: string | null;
 }
 
+const IMAGE_ATTACHMENT_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
+
+const isImageAttachment = (attachmentUrl?: string | null, attachmentName?: string | null) => {
+  if (!attachmentUrl) return false;
+  if (attachmentUrl.startsWith('data:image/')) return true;
+  return IMAGE_ATTACHMENT_PATTERN.test(attachmentName || attachmentUrl);
+};
+
+const downloadAttachment = (url: string, fileName: string) => {
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName || 'attachment';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 interface EventEnquirySummary {
   id: string;
 }
@@ -46,6 +64,7 @@ export function MessageAdminModal({ engagement, onClose, onSuccess }: MessageAdm
   const [success, setSuccess] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isEventEngagement = engagement.type === 'event';
+  const hasSendableContent = Boolean(message.trim() || attachment);
 
   const engagementTitle = engagement.type === 'event'
     ? engagement.course?.title || 'Event'
@@ -100,7 +119,7 @@ export function MessageAdminModal({ engagement, onClose, onSuccess }: MessageAdm
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || sending) return;
+    if (!hasSendableContent || sending) return;
 
     setSending(true);
     setError(null);
@@ -205,34 +224,82 @@ export function MessageAdminModal({ engagement, onClose, onSuccess }: MessageAdm
                           : 'bg-corporate-900 border border-white/5 rounded-2xl rounded-tl-none text-corporate-100'
                           }`}
                       >
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed tracking-tight break-words">{msg.message}</p>
-
-                        {msg.attachmentUrl && (
-                          <div className={`mt-3 p-3 rounded-xl flex items-center gap-3 border ${isTrainer
-                            ? 'bg-black/10 border-black/20'
-                            : 'bg-corporate-950 border-white/5'
-                            }`}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isTrainer ? 'bg-black/20' : 'bg-corporate-900'}`}>
-                              <FileText className={`w-4 h-4 ${isTrainer ? 'text-black' : 'text-accent-gold'}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-[10px] font-black uppercase tracking-widest truncate ${isTrainer ? 'text-black/60' : 'text-corporate-500'}`} title={msg.attachmentName || 'Attachment'}>
-                                {truncateFileName(msg.attachmentName || 'Attachment')}
-                              </p>
-                            </div>
-                            <a
-                              href={apiClient.resolveImageUrl(msg.attachmentUrl) || '#'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`p-1.5 rounded-lg transition-all ${isTrainer
-                                ? 'hover:bg-black/10 text-black'
-                                : 'hover:bg-accent-gold/10 text-corporate-400 hover:text-accent-gold'
-                                }`}
-                            >
-                              <Download className="w-4 h-4" />
-                            </a>
-                          </div>
+                        {msg.message?.trim() && (
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed tracking-tight break-words">{msg.message}</p>
                         )}
+
+                        {msg.attachmentUrl && (() => {
+                          const resolvedAttachmentUrl = apiClient.resolveImageUrl(msg.attachmentUrl || null);
+                          if (!resolvedAttachmentUrl) return null;
+
+                          const isImage = isImageAttachment(resolvedAttachmentUrl, msg.attachmentName);
+
+                          if (isImage) {
+                            return (
+                              <div className={`mt-3 overflow-hidden rounded-2xl border ${isTrainer
+                                ? 'border-black/20 bg-black/10'
+                                : 'border-white/5 bg-corporate-950'
+                                }`}>
+                                <a
+                                  href={resolvedAttachmentUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block"
+                                >
+                                  <img
+                                    src={resolvedAttachmentUrl}
+                                    alt={msg.attachmentName || 'Image attachment'}
+                                    className="max-h-72 w-full object-cover"
+                                  />
+                                </a>
+                                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                                  <p
+                                    className={`min-w-0 flex-1 truncate text-[10px] font-black uppercase tracking-widest ${isTrainer ? 'text-black/60' : 'text-corporate-500'}`}
+                                    title={msg.attachmentName || 'Image attachment'}
+                                  >
+                                    {truncateFileName(msg.attachmentName || 'Image attachment')}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadAttachment(resolvedAttachmentUrl, msg.attachmentName || 'image')}
+                                    className={`p-1.5 rounded-lg transition-all ${isTrainer
+                                      ? 'hover:bg-black/10 text-black'
+                                      : 'hover:bg-accent-gold/10 text-corporate-400 hover:text-accent-gold'
+                                      }`}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className={`mt-3 p-3 rounded-xl flex items-center gap-3 border ${isTrainer
+                              ? 'bg-black/10 border-black/20'
+                              : 'bg-corporate-950 border-white/5'
+                              }`}>
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isTrainer ? 'bg-black/20' : 'bg-corporate-900'}`}>
+                                <FileText className={`w-4 h-4 ${isTrainer ? 'text-black' : 'text-accent-gold'}`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-[10px] font-black uppercase tracking-widest truncate ${isTrainer ? 'text-black/60' : 'text-corporate-500'}`} title={msg.attachmentName || 'Attachment'}>
+                                  {truncateFileName(msg.attachmentName || 'Attachment')}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => downloadAttachment(resolvedAttachmentUrl, msg.attachmentName || 'attachment')}
+                                className={`p-1.5 rounded-lg transition-all ${isTrainer
+                                  ? 'hover:bg-black/10 text-black'
+                                  : 'hover:bg-accent-gold/10 text-corporate-400 hover:text-accent-gold'
+                                  }`}
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className={`flex items-center gap-2 mt-2 px-1 ${isTrainer ? 'flex-row-reverse' : 'flex-row'}`}>
                         <span className={`text-[9px] font-black uppercase tracking-widest ${isTrainer ? 'text-accent-gold' : 'text-corporate-500'}`}>
@@ -267,7 +334,6 @@ export function MessageAdminModal({ engagement, onClose, onSuccess }: MessageAdm
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Inquire administration about this sequence..."
-                required
                 disabled={sending}
                 className="w-full min-h-[100px] resize-none border-white/10 focus:border-accent-gold/50 focus:ring-4 focus:ring-accent-gold/5 transition-all duration-500 rounded-2xl p-5 text-sm font-medium bg-corporate-950 text-white"
               />
@@ -314,7 +380,7 @@ export function MessageAdminModal({ engagement, onClose, onSuccess }: MessageAdm
                   <Button
                     type="submit"
                     variant="gold-black"
-                    disabled={sending || !message.trim()}
+                    disabled={sending || !hasSendableContent}
                     className="rounded-xl px-8 shadow-gold-glow/20 active:scale-95 h-11"
                   >
                     <div className="flex items-center gap-2">

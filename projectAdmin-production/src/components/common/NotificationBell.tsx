@@ -42,7 +42,7 @@ export const NotificationBell: React.FC = () => {
       fetchNotifications();
 
       // Show toast notifications for specific events
-      if (payload.action === 'INSERT') {
+      if (payload.action === 'CREATE') {
         if (payload.table === 'trainer_messages' || payload.table === 'messages') {
           showToast('New message from trainer!', 'info');
         } else if (payload.table === 'event_enquiries') {

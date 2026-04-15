@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { apiClient } from '../../lib/api-client';
 import { CheckCircle, AlertCircle, Info, XCircle } from 'lucide-react';
 import { formatDate } from '../../utils/helpers';
+import { useRealtime } from '../../hooks/useRealtime';
 
 interface Notification {
     id: string;
@@ -24,13 +25,19 @@ export function NotificationsView() {
     useEffect(() => {
         if (user?.id) {
             fetchNotifications();
-            markAllAsRead();
         }
     }, [user?.id, filter]);
+
+    useEffect(() => {
+        if (user?.id) {
+            markAllAsRead();
+        }
+    }, [user?.id]);
 
     const markAllAsRead = async () => {
         try {
             await apiClient.markAllNotificationsAsRead();
+            setNotifications(prev => prev.map(notification => ({ ...notification, isRead: true })));
             window.dispatchEvent(new CustomEvent('notification:read'));
         } catch (error) {
             console.error('Error marking all notifications as read:', error);
@@ -67,6 +74,16 @@ export function NotificationsView() {
             console.error('Error marking notification as read:', error);
         }
     };
+
+    useRealtime((payload) => {
+        if (
+            payload.table === 'notifications' &&
+            ['CREATE', 'UPDATE', 'DELETE'].includes(payload.action) &&
+            payload.data?.userId === user?.id
+        ) {
+            fetchNotifications();
+        }
+    });
 
     const getNotificationIcon = (type: string) => {
         switch (type) {

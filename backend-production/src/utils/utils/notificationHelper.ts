@@ -1,5 +1,6 @@
 import prisma from '../../config/database';
 import { admin } from '../../config/firebaseAdmin';
+import { broadcastUpdate } from '../../lib/socket';
 
 export interface NotificationPayload {
     userId: string | string[];
@@ -31,6 +32,12 @@ export async function sendNotification(payload: NotificationPayload) {
                     relatedEntityType,
                     relatedEntityId,
                 },
+            });
+
+            broadcastUpdate('notifications', 'CREATE', {
+                userId: id,
+                notificationId: dbNotification.id,
+                type: dbNotification.type,
             });
 
             // 2. Fetch user's FCM token
