@@ -226,6 +226,7 @@ export function CourseDetail() {
         ? [item.submoduleTitle ?? item.submodule_title]
         : [],
   }));
+  const brochureLearningOutcomes = extractArray(course?.learning_outcomes);
 
   const prerequisiteItems = extractArray(course?.prerequisite);
 
@@ -710,13 +711,27 @@ export function CourseDetail() {
                   </div>
 
                   <div className="pt-4 space-y-3">
+                    {course.brochure_url && (
+                      <button
+                        onClick={() => setIsBrochureModalOpen(true)}
+                        className="w-full py-3 px-4 bg-white text-gray-900 border border-gray-200 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm flex items-center justify-center gap-2 text-sm"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Preview Uploaded Brochure
+                      </button>
+                    )}
+
                     <button
                       onClick={handleDownloadBrochure}
                       disabled={isDownloadingBrochure}
                       className="w-full py-3 px-4 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 text-sm"
                     >
                       <FileText className="w-4 h-4 border-white" />
-                      {isDownloadingBrochure ? 'Generating...' : 'Download Brochure'}
+                      {isDownloadingBrochure
+                        ? 'Generating...'
+                        : course.brochure_url
+                          ? 'Download Generated Brochure'
+                          : 'Download Brochure'}
                     </button>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -932,7 +947,7 @@ export function CourseDetail() {
           onClose={() => setIsBrochureModalOpen(false)}
           brochureUrl={course.brochure_url}
           courseTitle={course.title}
-          learningOutcomes={course.learning_outcomes}
+          learningOutcomes={brochureLearningOutcomes}
         />
       )}
     </div>

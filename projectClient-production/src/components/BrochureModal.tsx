@@ -5,11 +5,37 @@ interface BrochureModalProps {
   onClose: () => void;
   brochureUrl: string;
   courseTitle: string;
-  learningOutcomes?: string[] | null;
+  learningOutcomes?: string[] | string | null;
 }
 
 export function BrochureModal({ isOpen, onClose, brochureUrl, courseTitle, learningOutcomes }: BrochureModalProps) {
   if (!isOpen) return null;
+
+  const normalizedLearningOutcomes = (() => {
+    if (Array.isArray(learningOutcomes)) {
+      return learningOutcomes.map(String).map((item) => item.trim()).filter(Boolean);
+    }
+
+    if (typeof learningOutcomes === 'string') {
+      try {
+        const parsed = JSON.parse(learningOutcomes);
+        if (Array.isArray(parsed)) {
+          return parsed.map(String).map((item) => item.trim()).filter(Boolean);
+        }
+      } catch {
+        // Fall back to line parsing below.
+      }
+
+      return learningOutcomes
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+
+    return [];
+  })();
+
+  const brochureFileName = `${courseTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_brochure.pdf`;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -34,13 +60,13 @@ export function BrochureModal({ isOpen, onClose, brochureUrl, courseTitle, learn
           
           <div className="flex-1 overflow-y-auto p-6">
             {/* Learning Outcomes Section */}
-            {learningOutcomes && learningOutcomes.length > 0 && (
+            {normalizedLearningOutcomes.length > 0 && (
               <div className="mb-6 p-4 bg-teal-50 border border-teal-200 rounded-lg">
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Learning Outcomes</h3>
                 <ul className="space-y-2">
-                  {learningOutcomes.map((outcome, idx) => (
+                  {normalizedLearningOutcomes.map((outcome, idx) => (
                     <li key={idx} className="flex items-start gap-2">
-                      <span className="text-teal-600 mt-1">•</span>
+                      <span className="text-teal-600 mt-1">-</span>
                       <span className="text-gray-700">{outcome}</span>
                     </li>
                   ))}
@@ -61,6 +87,13 @@ export function BrochureModal({ isOpen, onClose, brochureUrl, courseTitle, learn
           <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
             <a
               href={brochureUrl}
+              download={brochureFileName}
+              className="px-4 py-2 bg-white text-gray-700 font-medium rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+            >
+              Download PDF
+            </a>
+            <a
+              href={brochureUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="px-4 py-2 bg-teal-600 text-white font-medium rounded-lg hover:bg-teal-700 transition-colors"
@@ -79,4 +112,3 @@ export function BrochureModal({ isOpen, onClose, brochureUrl, courseTitle, learn
     </div>
   );
 }
-
