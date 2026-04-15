@@ -29,6 +29,7 @@ interface CourseData {
   hrdcClaimable?: boolean;
   schedule?: CourseScheduleItem[];
   // Trainer details (brochure-only, does NOT change database)
+  trainerName?: string | null;
   trainerCustomId?: string | null;
   trainerProfessionalBio?: string | null;
   trainerEducation?: string[] | null;
@@ -625,6 +626,16 @@ export const generateCourseBrochure = async (course: CourseData) => {
 
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(12);
+
+  // Trainer Name
+  if (course.trainerName) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Trainer Name:', margin, currentY);
+    currentY += 7;
+    doc.setFont('helvetica', 'normal');
+    currentY = await addText(course.trainerName, margin, currentY, contentWidth, 10);
+    currentY += 10;
+  }
 
   // Trainer ID
   if (course.trainerCustomId) {

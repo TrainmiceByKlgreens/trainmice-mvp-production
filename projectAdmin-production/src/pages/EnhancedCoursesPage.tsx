@@ -771,6 +771,144 @@ export const EnhancedCoursesPage: React.FC = () => {
                         };
 
                         // Try to fetch primary trainer details (for trainer profile section)
+                        const formatTrainerQualification = (qualification: any): string => {
+                          const parts: string[] = [];
+                          const title = qualification.title || qualification.qualification_name || qualification.name;
+                          const institution = qualification.institution || qualification.institute_name || qualification.organization;
+                          const year =
+                            qualification.yearObtained ||
+                            qualification.year_obtained ||
+                            qualification.year_awarded ||
+                            qualification.year;
+
+                          if (title) parts.push(title);
+                          if (institution) parts.push(institution);
+                          if (year) parts.push(String(year));
+
+                          return parts.join(' - ');
+                        };
+
+                        const isProfessionalQualification = (qualification: any): boolean => {
+                          const rawType = String(
+                            qualification.qualificationType ||
+                            qualification.qualification_type ||
+                            qualification.type ||
+                            ''
+                          ).toLowerCase();
+                          const title = String(
+                            qualification.title || qualification.qualification_name || qualification.name || ''
+                          ).toLowerCase();
+
+                          return rawType === 'professional' || title.includes('cert') || title.includes('license');
+                        };
+
+                        const buildTrainerBrochureProfile = (trainer: any) => {
+                          if (!trainer) {
+                            return {
+                              trainerName: null,
+                              trainerCustomId: null,
+                              trainerProfessionalBio: null,
+                              trainerEducation: [] as string[],
+                              trainerWorkHistory: [] as string[],
+                              trainerQualifications: [] as string[],
+                              trainerLanguages: [] as string[],
+                            };
+                          }
+
+                          const trainerName =
+                            trainer.fullName ||
+                            trainer.full_name ||
+                            trainer.customTrainerId ||
+                            trainer.custom_trainer_id ||
+                            null;
+
+                          const trainerCustomId = trainer.customTrainerId || trainer.custom_trainer_id || null;
+                          const trainerProfessionalBio =
+                            trainer.professionalBio ||
+                            trainer.professional_bio ||
+                            trainer.bio ||
+                            trainer.profileSummary ||
+                            null;
+
+                          const qualifications = Array.isArray(trainer.qualifications) && trainer.qualifications.length > 0
+                            ? trainer.qualifications
+                            : (Array.isArray(trainer.qualification) ? trainer.qualification : []);
+
+                          const trainerEducation = qualifications
+                            .filter((q: any) => !isProfessionalQualification(q))
+                            .map(formatTrainerQualification)
+                            .filter((item: string) => item && item.trim());
+
+                          const trainerQualifications = qualifications
+                            .filter((q: any) => isProfessionalQualification(q))
+                            .map(formatTrainerQualification)
+                            .filter((item: string) => item && item.trim());
+
+                          const workHistoryItems = Array.isArray(trainer.workHistoryEntries) && trainer.workHistoryEntries.length > 0
+                            ? trainer.workHistoryEntries
+                            : (Array.isArray(trainer.workHistory) ? trainer.workHistory : []);
+
+                          const trainerWorkHistory = workHistoryItems
+                            .map((w: any) => {
+                              const parts: string[] = [];
+                              const position = w.position || w.job_title || w.role;
+                              const company = w.company || w.company_name || w.organization;
+
+                              if (position) parts.push(position);
+                              if (company) parts.push(company);
+
+                              const startRaw = w.startDate || w.start_date || w.year_from;
+                              if (startRaw) {
+                                const start = String(startRaw).substring(0, 4);
+                                const endValue = w.endDate || w.end_date || w.year_to;
+                                const end = endValue ? String(endValue).substring(0, 4) : 'Present';
+                                parts.push(`${start} - ${end}`);
+                              }
+
+                              return parts.join(' | ');
+                            })
+                            .filter((item: string) => item && item.trim());
+
+                          const rawLangInput =
+                            (Array.isArray(trainer.trainerLanguages) && trainer.trainerLanguages.length > 0)
+                              ? trainer.trainerLanguages
+                              : (trainer.languagesSpoken ||
+                                trainer.languageSpoken ||
+                                trainer.languages ||
+                                trainer.spokenLanguages ||
+                                trainer.languages_spoken ||
+                                null);
+
+                          let trainerLanguages: string[] = [];
+                          if (Array.isArray(rawLangInput)) {
+                            trainerLanguages = rawLangInput
+                              .map((language: any) => (typeof language === 'string' ? language : language.language || language.name || String(language)))
+                              .filter((language: string) => language && language.trim());
+                          } else if (typeof rawLangInput === 'string') {
+                            if (rawLangInput.trim().startsWith('[') && rawLangInput.trim().endsWith(']')) {
+                              try {
+                                const parsed = JSON.parse(rawLangInput);
+                                trainerLanguages = Array.isArray(parsed) ? parsed : [rawLangInput];
+                              } catch {
+                                trainerLanguages = rawLangInput.split(',').map((s: string) => s.trim()).filter(Boolean);
+                              }
+                            } else {
+                              trainerLanguages = rawLangInput.split(',').map((s: string) => s.trim()).filter(Boolean);
+                            }
+                          }
+
+                          return {
+                            trainerName,
+                            trainerCustomId,
+                            trainerProfessionalBio,
+                            trainerEducation,
+                            trainerWorkHistory,
+                            trainerQualifications,
+                            trainerLanguages,
+                          };
+                        };
+
+                        let trainerName: string | null = null;
                         let trainerCustomId: string | null = null;
                         let trainerProfessionalBio: string | null = null;
                         let trainerEducation: string[] = [];
@@ -780,6 +918,7 @@ export const EnhancedCoursesPage: React.FC = () => {
 
                         // Determine primary trainer id from course
                         const primaryTrainerId: string | null =
+                          (fullCourse.courseTrainers && fullCourse.courseTrainers.find((ct: any) => ct.role === 'PRIMARY')?.trainerId) ||
                           fullCourse.trainerId ||
                           (fullCourse.trainer && fullCourse.trainer.id) ||
                           (fullCourse.courseTrainers && fullCourse.courseTrainers.length > 0
@@ -790,87 +929,15 @@ export const EnhancedCoursesPage: React.FC = () => {
                           try {
                             const trainerRes = await apiClient.getTrainer(primaryTrainerId);
                             const trainer = trainerRes.trainer;
-                            trainerCustomId = trainer.customTrainerId || trainer.custom_trainer_id || null;
-                            trainerProfessionalBio =
-                              trainer.professionalBio ||
-                              trainer.bio ||
-                              trainer.profileSummary ||
-                              null;
-
-                            // Education from qualifications (Relation) OR qualification (JSON)
-                            const quals = Array.isArray(trainer.qualifications) && trainer.qualifications.length > 0
-                              ? trainer.qualifications
-                              : (Array.isArray(trainer.qualification) ? trainer.qualification : []);
-
-                            if (quals.length > 0) {
-                              trainerEducation = quals.map((q: any) => {
-                                const parts: string[] = [];
-                                const qTitle = q.title || q.qualification_name || q.name;
-                                const institution = q.institution || q.institute_name || q.organization;
-                                const year = q.yearObtained || q.year_obtained || q.year_awarded || q.year;
-                                
-                                if (qTitle) parts.push(qTitle);
-                                if (institution) parts.push(institution);
-                                if (year) parts.push(String(year));
-                                
-                                return parts.join(' - ');
-                              }).filter((s: string) => s && s.trim());
-
-                              trainerQualifications = trainerEducation;
-                            }
-
-                            // Work history (Relation) OR workHistory (JSON)
-                            const workHistoryItems = Array.isArray(trainer.workHistoryEntries) && trainer.workHistoryEntries.length > 0
-                              ? trainer.workHistoryEntries
-                              : (Array.isArray(trainer.workHistory) ? trainer.workHistory : []);
-
-                            if (workHistoryItems.length > 0) {
-                              trainerWorkHistory = workHistoryItems.map((w: any) => {
-                                const parts: string[] = [];
-                                const pos = w.position || w.job_title || w.role;
-                                const comp = w.company || w.company_name || w.organization;
-                                
-                                if (pos) parts.push(pos);
-                                if (comp) parts.push(comp);
-                                
-                                const startRaw = w.startDate || w.start_date || w.year_from;
-                                if (startRaw) {
-                                  const start = String(startRaw).substring(0, 4);
-                                  const endValue = w.endDate || w.end_date || w.year_to;
-                                  const end = endValue ? String(endValue).substring(0, 4) : 'Present';
-                                  parts.push(`${start} - ${end}`);
-                                }
-                                return parts.join(' | ');
-                              }).filter((s: string) => s && s.trim());
-                            }
-
-                            // Languages (support relations, JSON, and raw strings)
-                            const rawLangInput =
-                              (Array.isArray(trainer.trainerLanguages) && trainer.trainerLanguages.length > 0)
-                                ? trainer.trainerLanguages
-                                : (trainer.languagesSpoken ||
-                                  trainer.languageSpoken ||
-                                  trainer.languages ||
-                                  trainer.spokenLanguages ||
-                                  trainer.languages_spoken ||
-                                  null);
-
-                            if (Array.isArray(rawLangInput)) {
-                              trainerLanguages = rawLangInput
-                                .map((l: any) => (typeof l === 'string' ? l : l.language || l.name || String(l)))
-                                .filter((l: string) => l && l.trim());
-                            } else if (typeof rawLangInput === 'string') {
-                              if (rawLangInput.trim().startsWith('[') && rawLangInput.trim().endsWith(']')) {
-                                try {
-                                  const parsed = JSON.parse(rawLangInput);
-                                  trainerLanguages = Array.isArray(parsed) ? parsed : [rawLangInput];
-                                } catch {
-                                  trainerLanguages = rawLangInput.split(',').map((s: string) => s.trim()).filter(Boolean);
-                                }
-                              } else {
-                                trainerLanguages = rawLangInput.split(',').map((s: string) => s.trim()).filter(Boolean);
-                              }
-                            }
+                            ({
+                              trainerName,
+                              trainerCustomId,
+                              trainerProfessionalBio,
+                              trainerEducation,
+                              trainerWorkHistory,
+                              trainerQualifications,
+                              trainerLanguages,
+                            } = buildTrainerBrochureProfile(trainer));
                           } catch (trainerError) {
                             console.warn('Could not load trainer details for brochure:', trainerError);
                           }
@@ -900,6 +967,7 @@ export const EnhancedCoursesPage: React.FC = () => {
                           deliveryLanguages: extractJsonField(fullCourse, 'deliveryLanguages', 'delivery_languages'),
                           hrdcClaimable: fullCourse.hrdcClaimable || course.hrdc_claimable,
                           schedule: fullCourse.courseSchedule || [],
+                          trainerName,
                           trainerCustomId,
                           trainerProfessionalBio,
                           trainerEducation,
@@ -1590,6 +1658,16 @@ export const EnhancedCoursesPage: React.FC = () => {
               {/* Trainer profile details */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-800">Trainer Profile (Brochure Only)</h3>
+                <Input
+                  label="Trainer Name"
+                  value={brochureData.trainerName || ''}
+                  onChange={(e) =>
+                    setBrochureData((prev: any) => ({
+                      ...prev,
+                      trainerName: e.target.value,
+                    }))
+                  }
+                />
                 <Input
                   label="Trainer ID"
                   value={brochureData.trainerCustomId || ''}
