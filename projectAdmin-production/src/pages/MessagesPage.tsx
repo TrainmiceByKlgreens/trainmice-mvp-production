@@ -146,7 +146,29 @@ const IMAGE_ATTACHMENT_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
 const isImageAttachment = (attachmentUrl?: string | null, attachmentName?: string | null) => {
   if (!attachmentUrl) return false;
   if (attachmentUrl.startsWith('data:image/')) return true;
-  return IMAGE_ATTACHMENT_PATTERN.test(attachmentName || attachmentUrl);
+  const normalizedName = (attachmentName || attachmentUrl).split('?')[0].split('#')[0];
+  return IMAGE_ATTACHMENT_PATTERN.test(normalizedName);
+};
+
+const normalizePreviewUrl = (attachmentUrl?: string | null, attachmentName?: string | null) => {
+  if (!attachmentUrl) return null;
+
+  const normalizedName = (attachmentName || '').toLowerCase();
+  const isImageByName = IMAGE_ATTACHMENT_PATTERN.test(normalizedName);
+
+  if (attachmentUrl.startsWith('data:application/octet-stream;base64,') && isImageByName) {
+    const mimeType =
+      normalizedName.endsWith('.png') ? 'image/png'
+        : normalizedName.endsWith('.gif') ? 'image/gif'
+          : normalizedName.endsWith('.webp') ? 'image/webp'
+            : normalizedName.endsWith('.bmp') ? 'image/bmp'
+              : normalizedName.endsWith('.svg') ? 'image/svg+xml'
+                : 'image/jpeg';
+
+    return attachmentUrl.replace('data:application/octet-stream', `data:${mimeType}`);
+  }
+
+  return attachmentUrl;
 };
 
 const downloadAttachment = (url: string, fileName: string) => {
@@ -164,7 +186,10 @@ const ChatAttachmentPreview: React.FC<{
   attachmentName?: string | null;
   isOwn?: boolean;
 }> = ({ attachmentUrl, attachmentName, isOwn = false }) => {
-  const resolvedAttachmentUrl = apiClient.resolveImageUrl(attachmentUrl || null);
+  const resolvedAttachmentUrl = normalizePreviewUrl(
+    apiClient.resolveImageUrl(attachmentUrl || null),
+    attachmentName,
+  );
 
   if (!resolvedAttachmentUrl) {
     return null;
@@ -1048,8 +1073,8 @@ export const MessagesPage: React.FC = () => {
                 <input
                   type="text"
                   placeholder="Search contacts..."
-                  value={contactSearchTerm}
-                  onChange={(e) => setContactSearchTerm(e.target.value)}
+                  value={trainerSearchTerm}
+                  onChange={(e) => setTrainerSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 />
               </div>
@@ -1197,7 +1222,7 @@ export const MessagesPage: React.FC = () => {
                       <p>No messages yet. Start the conversation!</p>
                     </div>
                   ) : (
-                    <>
+                    <div className="min-h-full flex flex-col justify-end gap-4">
                       {threadMessages.map((msg) => {
                         const isAdmin = msg.senderType === 'ADMIN';
                         return (
@@ -1232,7 +1257,7 @@ export const MessagesPage: React.FC = () => {
                         );
                       })}
                       <div ref={messagesEndRef} />
-                    </>
+                    </div>
                   )}
                 </div>
 
@@ -1337,7 +1362,7 @@ export const MessagesPage: React.FC = () => {
                     <p>No messages yet. Start the conversation!</p>
                   </div>
                 ) : (
-                  <>
+                  <div className="min-h-full flex flex-col justify-end gap-4">
                     {threadMessages.map((msg) => {
                       const isAdmin = msg.senderType === 'ADMIN';
                       return (
@@ -1370,7 +1395,7 @@ export const MessagesPage: React.FC = () => {
                       );
                     })}
                     <div ref={messagesEndRef} />
-                  </>
+                  </div>
                 )}
               </div>
 
