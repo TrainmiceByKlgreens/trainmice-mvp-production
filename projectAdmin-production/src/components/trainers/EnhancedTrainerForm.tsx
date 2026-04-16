@@ -116,15 +116,15 @@ export const EnhancedTrainerForm: React.FC<EnhancedTrainerFormProps> = ({
                 icNumber: trainer.ic_number,
                 hrdcAccreditationId: trainer.hrdc_accreditation_id,
                 hrdcAccreditationValidUntil: trainer.hrdc_accreditation_valid_until,
-                bio: trainer.professional_bio,
+                professionalBio: trainer.professional_bio,
                 race: trainer.race,
                 state: trainer.state,
                 city: trainer.city,
                 country: trainer.country,
-                specialization: trainer.areas_of_expertise // Backend expects 'specialization' or 'areasOfExpertise'
+                areasOfExpertise: trainer.areas_of_expertise
             };
 
-            await apiClient.updateTrainer(trainerId, updateData);
+            await apiClient.updateTrainerProfile(trainerId, updateData);
             showToast('Trainer profile updated successfully', 'success');
             loadAllData();
             onSuccess();

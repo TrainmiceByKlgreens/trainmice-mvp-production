@@ -1,11 +1,10 @@
 import express from 'express';
 import prisma from '../config/database';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth';
-import { config } from '../config/env';
-import jwt from 'jsonwebtoken';
+import { authenticate, authenticateOptional, authorize, AuthRequest } from '../middleware/auth';
 import { calculateTrainerRating, calculateTrainerRatings } from '../utils/utils/ratingCalculator';
 import { createActivityLog } from '../utils/utils/activityLogger';
 import { uploadProfileImage } from '../middleware/upload';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -60,10 +59,86 @@ interface AnalyticsKPIs {
   insight_summary: string;
 }
 
+const getTrainerProfileReviewState = () => ({
+  profileApprovalStatus: 'PENDING_APPROVAL' as const,
+  profileApprovalNotes: null,
+  profileApprovalUpdatedAt: new Date(),
+  profileApprovedAt: null,
+  profileApprovedBy: null,
+});
+
+const canViewUnapprovedTrainerProfile = (req: AuthRequest, trainerId: string) =>
+  req.user?.role === 'ADMIN' || (req.user?.role === 'TRAINER' && req.user.id === trainerId);
+
+const ensureTrainerProfileIsPublished = async (req: AuthRequest, trainerId: string) => {
+  if (canViewUnapprovedTrainerProfile(req, trainerId)) {
+    return true;
+  }
+
+  const trainer = await prisma.trainer.findUnique({
+    where: { id: trainerId },
+    select: { id: true, profileApprovalStatus: true },
+  });
+
+  return trainer?.profileApprovalStatus === 'APPROVED';
+};
+
+const notifyAdminsAboutTrainerProfileReview = async (trainerId: string, trainerName: string) => {
+  const admins = await prisma.admin.findMany({
+    select: { id: true },
+  });
+
+  if (admins.length === 0) {
+    return;
+  }
+
+  await sendNotification({
+    userId: admins.map((admin) => admin.id),
+    title: 'Trainer Profile Review Needed',
+    message: `${trainerName} submitted profile changes for review.`,
+    type: 'WARNING',
+    relatedEntityType: 'trainer_profile',
+    relatedEntityId: trainerId,
+  }).catch((error) => {
+    console.error('Error sending trainer profile review notification:', error);
+  });
+};
+
+const markTrainerProfilePendingReview = async (trainerId: string, actorRole: string | undefined) => {
+  if (actorRole !== 'TRAINER') {
+    return;
+  }
+
+  const trainer = await prisma.trainer.findUnique({
+    where: { id: trainerId },
+    select: {
+      id: true,
+      fullName: true,
+      profileApprovalStatus: true,
+    },
+  });
+
+  if (!trainer) {
+    return;
+  }
+
+  await prisma.trainer.update({
+    where: { id: trainerId },
+    data: {
+      ...getTrainerProfileReviewState(),
+    },
+  });
+
+  if (trainer.profileApprovalStatus !== 'PENDING_APPROVAL') {
+    await notifyAdminsAboutTrainerProfileReview(trainer.id, trainer.fullName || 'A trainer');
+  }
+};
+
 // Get all trainers (public)
-router.get('/', async (_req, res) => {
+router.get('/', authenticateOptional, async (req: AuthRequest, res) => {
   try {
     const trainers = await prisma.trainer.findMany({
+      where: req.user?.role === 'ADMIN' ? undefined : { profileApprovalStatus: 'APPROVED' },
       include: {
         courses: {
           select: {
@@ -81,12 +156,23 @@ router.get('/', async (_req, res) => {
     const ratingsMap = await calculateTrainerRatings(trainerIds);
 
     // Add ratings to trainers
-    const trainersWithRating = trainers.map(trainer => ({
-      ...trainer,
-      profilePic: null,
-      avgRating: ratingsMap.get(trainer.id) ?? null,
-      courseCount: trainer.courses.length,
-    }));
+    const trainersWithRating = trainers.map(trainer => {
+      const {
+        profileApprovalStatus,
+        profileApprovalNotes,
+        profileApprovalUpdatedAt,
+        profileApprovedAt,
+        profileApprovedBy,
+        ...publicTrainerFields
+      } = trainer as any;
+
+      return {
+        ...publicTrainerFields,
+        profilePic: null,
+        avgRating: ratingsMap.get(trainer.id) ?? null,
+        courseCount: trainer.courses.length,
+      };
+    });
 
     return res.json({ trainers: trainersWithRating });
   } catch (error: any) {
@@ -96,8 +182,10 @@ router.get('/', async (_req, res) => {
 });
 
 // Get single trainer (public - excludes sensitive info for non-authenticated users)
-router.get('/:id', async (req: any, res) => {
+router.get('/:id', authenticateOptional, async (req: AuthRequest, res) => {
   try {
+    const canViewUnapproved = canViewUnapprovedTrainerProfile(req, req.params.id);
+
     const trainer = await prisma.trainer.findUnique({
       where: { id: req.params.id },
       include: {
@@ -132,25 +220,14 @@ router.get('/:id', async (req: any, res) => {
       return res.status(404).json({ error: 'Trainer not found' });
     }
 
+    if (!canViewUnapproved && trainer.profileApprovalStatus !== 'APPROVED') {
+      return res.status(404).json({ error: 'Trainer not found' });
+    }
+
     // Calculate rating from feedbacks
     const trainerRating = await calculateTrainerRating(trainer.id);
 
-    // Check if request is from authenticated trainer viewing their own profile
-    let isOwnProfile = false;
-    try {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
-        const decoded = jwt.verify(token, config.jwt.secret) as {
-          userId: string;
-          email: string;
-          role: string;
-        };
-        isOwnProfile = decoded.userId === req.params.id && decoded.role === 'TRAINER';
-      }
-    } catch (e) {
-      // Not authenticated or invalid token - treat as public access
-    }
+    const isOwnProfile = req.user?.role === 'TRAINER' && req.user.id === req.params.id;
 
     // For public access (clients), exclude sensitive information
     if (!isOwnProfile) {
@@ -170,6 +247,11 @@ router.get('/:id', async (req: any, res) => {
           delete publicTrainer[key];
         }
       });
+      delete publicTrainer.profileApprovalStatus;
+      delete publicTrainer.profileApprovalNotes;
+      delete publicTrainer.profileApprovalUpdatedAt;
+      delete publicTrainer.profileApprovedAt;
+      delete publicTrainer.profileApprovedBy;
       return res.json({ trainer: publicTrainer });
     } else {
       return res.json({
@@ -517,6 +599,18 @@ router.put(
         return res.status(403).json({ error: 'Not authorized to update this profile' });
       }
 
+      const existingTrainer = await prisma.trainer.findUnique({
+        where: { id: trainerId },
+        select: {
+          fullName: true,
+          profileApprovalStatus: true,
+        },
+      });
+
+      if (!existingTrainer) {
+        return res.status(404).json({ error: 'Trainer not found' });
+      }
+
       // Sanitize updateData to only include valid Prisma fields
       const allowedFields = [
         'profilePic',
@@ -549,10 +643,20 @@ router.put(
         updateData.hrdcAccreditationValidUntil = new Date(updateData.hrdcAccreditationValidUntil);
       }
 
+      if (req.user!.role === 'TRAINER') {
+        Object.assign(updateData, {
+          ...getTrainerProfileReviewState(),
+        });
+      }
+
       const trainer = await prisma.trainer.update({
         where: { id: trainerId },
         data: updateData,
       });
+
+      if (req.user!.role === 'TRAINER' && existingTrainer.profileApprovalStatus !== 'PENDING_APPROVAL') {
+        await notifyAdminsAboutTrainerProfileReview(trainerId, trainer.fullName || existingTrainer.fullName || 'A trainer');
+      }
 
       // Log profile update
       await createActivityLog({
@@ -560,7 +664,10 @@ router.put(
         actionType: 'UPDATE',
         entityType: 'trainer',
         entityId: trainerId,
-        description: `Trainer ${trainer.fullName} updated their profile`,
+        description:
+          req.user!.role === 'TRAINER'
+            ? `Trainer ${trainer.fullName} updated their profile and submitted it for review`
+            : `Admin updated trainer profile for ${trainer.fullName}`,
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
       });
@@ -594,10 +701,33 @@ router.post(
       const { bufferToDataUrl } = await import('../middleware/upload');
       const profilePic = bufferToDataUrl(req.file.buffer, req.file.mimetype);
 
+      const existingTrainer = await prisma.trainer.findUnique({
+        where: { id: trainerId },
+        select: {
+          fullName: true,
+          profileApprovalStatus: true,
+        },
+      });
+
+      if (!existingTrainer) {
+        return res.status(404).json({ error: 'Trainer not found' });
+      }
+
+      const updateData: any = { profilePic };
+      if (req.user!.role === 'TRAINER') {
+        Object.assign(updateData, {
+          ...getTrainerProfileReviewState(),
+        });
+      }
+
       const trainer = await prisma.trainer.update({
         where: { id: trainerId },
-        data: { profilePic },
+        data: updateData,
       });
+
+      if (req.user!.role === 'TRAINER' && existingTrainer.profileApprovalStatus !== 'PENDING_APPROVAL') {
+        await notifyAdminsAboutTrainerProfileReview(trainerId, trainer.fullName || existingTrainer.fullName || 'A trainer');
+      }
 
       await createActivityLog({
         userId: req.user!.id,
@@ -622,8 +752,13 @@ router.post(
 // ============================================================================
 
 // Get all qualifications for a trainer
-router.get('/:id/qualifications', async (req, res) => {
+router.get('/:id/qualifications', authenticateOptional, async (req: AuthRequest, res) => {
   try {
+    const canAccess = await ensureTrainerProfileIsPublished(req, req.params.id);
+    if (!canAccess) {
+      return res.status(404).json({ error: 'Trainer not found' });
+    }
+
     const qualifications = await prisma.qualification.findMany({
       where: { trainerId: req.params.id },
       orderBy: { yearObtained: 'desc' },
@@ -653,6 +788,8 @@ router.post(
           ...req.body,
         },
       });
+
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
 
       // Log qualification creation
       await createActivityLog({
@@ -700,6 +837,8 @@ router.put(
         data: req.body,
       });
 
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
+
       // Log qualification update
       await createActivityLog({
         userId: trainerId,
@@ -745,6 +884,8 @@ router.delete(
         where: { id: qualId },
       });
 
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
+
       // Log qualification deletion
       await createActivityLog({
         userId: trainerId,
@@ -769,8 +910,13 @@ router.delete(
 // ============================================================================
 
 // Get all work history for a trainer
-router.get('/:id/work-history', async (req, res) => {
+router.get('/:id/work-history', authenticateOptional, async (req: AuthRequest, res) => {
   try {
+    const canAccess = await ensureTrainerProfileIsPublished(req, req.params.id);
+    if (!canAccess) {
+      return res.status(404).json({ error: 'Trainer not found' });
+    }
+
     const workHistory = await prisma.workHistory.findMany({
       where: { trainerId: req.params.id },
       orderBy: { endDate: 'desc' },
@@ -809,6 +955,8 @@ router.post(
           ...req.body,
         },
       });
+
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
 
       // Log work history creation
       await createActivityLog({
@@ -856,6 +1004,8 @@ router.put(
         data: req.body,
       });
 
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
+
       // Log work history update
       await createActivityLog({
         userId: trainerId,
@@ -901,6 +1051,8 @@ router.delete(
         where: { id: workId },
       });
 
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
+
       // Log work history deletion
       await createActivityLog({
         userId: trainerId,
@@ -925,8 +1077,13 @@ router.delete(
 // ============================================================================
 
 // Get all past clients for a trainer
-router.get('/:id/past-clients', async (req, res) => {
+router.get('/:id/past-clients', authenticateOptional, async (req: AuthRequest, res) => {
   try {
+    const canAccess = await ensureTrainerProfileIsPublished(req, req.params.id);
+    if (!canAccess) {
+      return res.status(404).json({ error: 'Trainer not found' });
+    }
+
     const pastClients = await prisma.pastClient.findMany({
       where: { trainerId: req.params.id },
       orderBy: { year: 'desc' },
@@ -965,6 +1122,8 @@ router.post(
           ...req.body,
         },
       });
+
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
 
       // Log past client creation
       await createActivityLog({
@@ -1012,6 +1171,8 @@ router.put(
         data: req.body,
       });
 
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
+
       // Log past client update
       await createActivityLog({
         userId: trainerId,
@@ -1049,13 +1210,15 @@ router.delete(
         return res.status(404).json({ error: 'Past client not found' });
       }
 
-      if (req.user!.id !== trainerId) {
+      if (req.user!.role !== 'ADMIN' && req.user!.id !== trainerId) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
       await prisma.pastClient.delete({
         where: { id: clientId },
       });
+
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
 
       // Log past client deletion
       await createActivityLog({
@@ -1284,8 +1447,13 @@ router.delete(
 // ============================================================================
 
 // Get all languages for a trainer
-router.get('/:id/languages', async (req, res) => {
+router.get('/:id/languages', authenticateOptional, async (req: AuthRequest, res) => {
   try {
+    const canAccess = await ensureTrainerProfileIsPublished(req, req.params.id);
+    if (!canAccess) {
+      return res.status(404).json({ error: 'Trainer not found' });
+    }
+
     const languages = await prisma.trainerLanguage.findMany({
       where: { trainerId: req.params.id },
       orderBy: { createdAt: 'desc' },
@@ -1321,6 +1489,8 @@ router.post(
           proficiency,
         },
       });
+
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
 
       // Log language creation
       await createActivityLog({
@@ -1370,6 +1540,8 @@ router.put(
         },
       });
 
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
+
       // Log language update
       await createActivityLog({
         userId: trainerId,
@@ -1414,6 +1586,8 @@ router.delete(
       await prisma.trainerLanguage.delete({
         where: { id: langId },
       });
+
+      await markTrainerProfilePendingReview(trainerId, req.user?.role);
 
       // Log language deletion
       await createActivityLog({

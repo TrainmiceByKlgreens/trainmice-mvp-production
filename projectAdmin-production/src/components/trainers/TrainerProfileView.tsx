@@ -10,14 +10,17 @@ import {
   Briefcase,
   Building2,
   Calendar,
+  CheckCircle2,
   Clock3,
   Download,
+  FileClock,
   FileText,
   Globe,
   Languages,
   Mail,
   MapPin,
   Phone,
+  ShieldAlert,
   UserRound,
   Wallet,
 } from 'lucide-react';
@@ -28,6 +31,7 @@ interface TrainerProfileViewProps {
   onEdit: () => void;
   onViewAnalytics: () => void;
   onOpenCalendar: () => void;
+  onReviewProfile: (status: 'PENDING_APPROVAL' | 'APPROVED' | 'DENIED') => void;
 }
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -127,6 +131,36 @@ const toInitials = (name?: string | null) =>
     .map((part) => part[0]?.toUpperCase() || '')
     .join('');
 
+const normalizeProfileStatus = (value: unknown): 'PENDING_APPROVAL' | 'APPROVED' | 'DENIED' => {
+  if (value === 'APPROVED' || value === 'DENIED') {
+    return value;
+  }
+  return 'PENDING_APPROVAL';
+};
+
+const getProfileStatusBadge = (status: 'PENDING_APPROVAL' | 'APPROVED' | 'DENIED') => {
+  switch (status) {
+    case 'APPROVED':
+      return {
+        label: 'Profile Approved',
+        variant: 'success' as const,
+        accent: 'text-emerald-700',
+      };
+    case 'DENIED':
+      return {
+        label: 'Changes Requested',
+        variant: 'danger' as const,
+        accent: 'text-red-700',
+      };
+    default:
+      return {
+        label: 'Pending Review',
+        variant: 'warning' as const,
+        accent: 'text-amber-700',
+      };
+  }
+};
+
 const InfoRow: React.FC<{
   icon: React.ReactNode;
   label: string;
@@ -173,7 +207,10 @@ export const TrainerProfileView: React.FC<TrainerProfileViewProps> = ({
   onEdit,
   onViewAnalytics,
   onOpenCalendar,
+  onReviewProfile,
 }) => {
+  const profileApprovalStatus = normalizeProfileStatus(trainer?.profileApprovalStatus);
+  const profileStatusMeta = getProfileStatusBadge(profileApprovalStatus);
   const expertise = toStringArray(trainer?.areasOfExpertise);
   const languageBadges =
     Array.isArray(trainer?.trainerLanguages) && trainer.trainerLanguages.length > 0
@@ -194,6 +231,8 @@ export const TrainerProfileView: React.FC<TrainerProfileViewProps> = ({
         .map((entry: any) => entry.course)
         .filter(Boolean)
     : [];
+  const pendingDocuments = documents.filter((item: any) => !item?.verified).length;
+  const pendingCourses = assignedCourses.filter((course: any) => course?.status === 'PENDING_APPROVAL').length;
   const location = [trainer?.city, trainer?.state, trainer?.country].filter(Boolean).join(', ');
 
   return (
@@ -228,6 +267,7 @@ export const TrainerProfileView: React.FC<TrainerProfileViewProps> = ({
                   <Badge variant="info">
                     {(trainer?.customTrainerId || 'No trainer ID').toString()}
                   </Badge>
+                  <Badge variant={profileStatusMeta.variant}>{profileStatusMeta.label}</Badge>
                   {trainer?.hrdcAccreditationId ? (
                     <Badge variant="success">HRDC Certified</Badge>
                   ) : (
@@ -286,6 +326,10 @@ export const TrainerProfileView: React.FC<TrainerProfileViewProps> = ({
 
         <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+            <p className="text-sm text-gray-500">Profile Status</p>
+            <p className={`mt-2 text-lg font-bold ${profileStatusMeta.accent}`}>{profileStatusMeta.label}</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
             <p className="text-sm text-gray-500">Qualifications</p>
             <p className="mt-2 text-2xl font-bold text-gray-900">{qualifications.length}</p>
           </div>
@@ -293,13 +337,13 @@ export const TrainerProfileView: React.FC<TrainerProfileViewProps> = ({
             <p className="text-sm text-gray-500">Work History Entries</p>
             <p className="mt-2 text-2xl font-bold text-gray-900">{workHistory.length}</p>
           </div>
-          <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
-            <p className="text-sm text-gray-500">Past Clients</p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">{pastClients.length}</p>
-          </div>
           <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
-            <p className="text-sm text-gray-500">Assigned Courses</p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">{assignedCourses.length}</p>
+            <p className="text-sm text-gray-500">Pending Documents</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{pendingDocuments}</p>
+          </div>
+          <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+            <p className="text-sm text-gray-500">Courses Pending Approval</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{pendingCourses}</p>
           </div>
         </div>
       </Card>
@@ -456,6 +500,56 @@ export const TrainerProfileView: React.FC<TrainerProfileViewProps> = ({
         </div>
 
         <div className="space-y-6">
+          <SectionCard
+            title="Profile Review"
+            subtitle="Control whether this trainer profile can appear on the website"
+            icon={<ShieldAlert size={20} />}
+          >
+            <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Current Review State</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Badge variant={profileStatusMeta.variant}>{profileStatusMeta.label}</Badge>
+                    {trainer?.profileApprovalUpdatedAt ? (
+                      <span className="text-sm text-gray-500">
+                        Updated {toDisplayDate(trainer.profileApprovalUpdatedAt)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="text-right text-sm text-gray-600">
+                  <p>{pendingDocuments} document(s) awaiting verification</p>
+                  <p>{pendingCourses} course(s) awaiting approval</p>
+                </div>
+              </div>
+
+              {trainer?.profileApprovalNotes ? (
+                <div className="mt-4 rounded-xl border border-amber-100 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Review Notes</p>
+                  <p className="mt-2 text-sm leading-6 text-gray-700">{trainer.profileApprovalNotes}</p>
+                </div>
+              ) : null}
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Button variant="success" onClick={() => onReviewProfile('APPROVED')}>
+                  <CheckCircle2 size={16} className="mr-2" />
+                  Approve Profile
+                </Button>
+                <Button variant="outline" onClick={() => onReviewProfile('DENIED')}>
+                  <ShieldAlert size={16} className="mr-2" />
+                  Request Changes
+                </Button>
+                {profileApprovalStatus !== 'PENDING_APPROVAL' ? (
+                  <Button variant="secondary" onClick={() => onReviewProfile('PENDING_APPROVAL')}>
+                    <FileClock size={16} className="mr-2" />
+                    Move to Pending
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </SectionCard>
+
           <SectionCard
             title="Expertise & Languages"
             subtitle="What this trainer covers and how they communicate"

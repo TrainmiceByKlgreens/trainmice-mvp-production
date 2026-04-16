@@ -42,6 +42,11 @@ export async function fetchTrainerProfile(trainerId: string): Promise<Trainer | 
       country: trainer.country || null,
       areas_of_expertise: trainer.areasOfExpertise || trainer.areas_of_expertise || null,
       languages_spoken: trainer.languagesSpoken || trainer.languages_spoken || null,
+      profile_approval_status: trainer.profileApprovalStatus || trainer.profile_approval_status || 'PENDING_APPROVAL',
+      profile_approval_notes: trainer.profileApprovalNotes || trainer.profile_approval_notes || null,
+      profile_approval_updated_at: trainer.profileApprovalUpdatedAt || trainer.profile_approval_updated_at || null,
+      profile_approved_at: trainer.profileApprovedAt || trainer.profile_approved_at || null,
+      profile_approved_by: trainer.profileApprovedBy || trainer.profile_approved_by || null,
       created_at: trainer.createdAt || trainer.created_at || new Date().toISOString(),
     } as Trainer;
   } catch (error: any) {
@@ -99,6 +104,11 @@ export async function updateTrainerProfile(
       country: trainer.country || null,
       areas_of_expertise: trainer.areasOfExpertise || trainer.areas_of_expertise || null,
       languages_spoken: trainer.languagesSpoken || trainer.languages_spoken || null,
+      profile_approval_status: trainer.profileApprovalStatus || trainer.profile_approval_status || 'PENDING_APPROVAL',
+      profile_approval_notes: trainer.profileApprovalNotes || trainer.profile_approval_notes || null,
+      profile_approval_updated_at: trainer.profileApprovalUpdatedAt || trainer.profile_approval_updated_at || null,
+      profile_approved_at: trainer.profileApprovedAt || trainer.profile_approved_at || null,
+      profile_approved_by: trainer.profileApprovedBy || trainer.profile_approved_by || null,
       created_at: trainer.createdAt || trainer.created_at || new Date().toISOString(),
     } as Trainer;
   } catch (error: any) {
@@ -134,6 +144,11 @@ export async function uploadTrainerProfileImage(
       country: trainer.country || null,
       areas_of_expertise: trainer.areasOfExpertise || trainer.areas_of_expertise || null,
       languages_spoken: trainer.languagesSpoken || trainer.languages_spoken || null,
+      profile_approval_status: trainer.profileApprovalStatus || trainer.profile_approval_status || 'PENDING_APPROVAL',
+      profile_approval_notes: trainer.profileApprovalNotes || trainer.profile_approval_notes || null,
+      profile_approval_updated_at: trainer.profileApprovalUpdatedAt || trainer.profile_approval_updated_at || null,
+      profile_approved_at: trainer.profileApprovedAt || trainer.profile_approved_at || null,
+      profile_approved_by: trainer.profileApprovedBy || trainer.profile_approved_by || null,
       created_at: trainer.createdAt || trainer.created_at || new Date().toISOString(),
     } as Trainer;
   } catch (error: any) {

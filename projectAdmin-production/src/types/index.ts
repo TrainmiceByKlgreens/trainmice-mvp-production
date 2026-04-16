@@ -16,6 +16,11 @@ export interface Trainer {
   bio: string | null;
   hourly_rate: number | null;
   hrdc_certified: boolean;
+  profile_approval_status?: 'PENDING_APPROVAL' | 'APPROVED' | 'DENIED';
+  profile_approval_notes?: string | null;
+  profile_approval_updated_at?: string | null;
+  profile_approved_at?: string | null;
+  profile_approved_by?: string | null;
   created_at: string;
   updated_at: string;
 }

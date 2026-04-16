@@ -250,7 +250,7 @@ export class ApiClient {
   // TRAINERS
   // ============================================================================
 
-  async getTrainers(params?: { search?: string; category?: string; state?: string }) {
+  async getTrainers(params?: { search?: string; category?: string; state?: string; profileStatus?: string }) {
     return this.get<{ trainers: any[] }>('/admin/trainers', params);
   }
 
@@ -768,6 +768,16 @@ export class ApiClient {
     verified: boolean;
   }) {
     return this.put<{ trainer: any; message: string }>(`/admin/trainers/${trainerId}/hrdc/verify`, data);
+  }
+
+  async updateTrainerProfileApproval(
+    trainerId: string,
+    data: {
+      status: 'PENDING_APPROVAL' | 'APPROVED' | 'DENIED';
+      notes?: string;
+    }
+  ) {
+    return this.put<{ trainer: any; message: string }>(`/admin/trainers/${trainerId}/profile-approval`, data);
   }
 
   async createTrainerAvailability(

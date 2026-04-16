@@ -10,6 +10,32 @@ import { broadcastUpdate } from '../lib/socket';
 const router = express.Router();
 
 const shouldRedactTrainerImages = (req: AuthRequest) => !req.user || req.user.role === 'CLIENT';
+const shouldHideUnapprovedTrainerProfiles = (req: AuthRequest) => !req.user || req.user.role === 'CLIENT';
+
+const stripTrainerApprovalState = (trainer: any) => {
+  if (!trainer) {
+    return trainer;
+  }
+
+  const { profileApprovalStatus, ...safeTrainer } = trainer;
+  return safeTrainer;
+};
+
+const hideUnapprovedCourseTrainers = (course: any) => ({
+  ...course,
+  trainer:
+    course.trainer?.profileApprovalStatus === 'APPROVED'
+      ? stripTrainerApprovalState(course.trainer)
+      : null,
+  courseTrainers: Array.isArray(course.courseTrainers)
+    ? course.courseTrainers
+        .filter((courseTrainer: any) => courseTrainer.trainer?.profileApprovalStatus === 'APPROVED')
+        .map((courseTrainer: any) => ({
+          ...courseTrainer,
+          trainer: stripTrainerApprovalState(courseTrainer.trainer),
+        }))
+    : course.courseTrainers,
+});
 
 const redactCourseTrainerImages = (course: any) => ({
   ...course,
@@ -76,6 +102,7 @@ router.get('/', authenticateOptional, async (req: AuthRequest, res) => {
             customTrainerId: true,
             fullName: true,
             profilePic: true,
+            profileApprovalStatus: true,
           },
         },
         courseTrainers: {
@@ -86,6 +113,7 @@ router.get('/', authenticateOptional, async (req: AuthRequest, res) => {
                 customTrainerId: true,
                 fullName: true,
                 profilePic: true,
+                profileApprovalStatus: true,
               }
             }
           }
@@ -177,9 +205,13 @@ router.get('/', authenticateOptional, async (req: AuthRequest, res) => {
       courseRating: ratingsMap.get(course.id) ?? null,
     }));
 
-    const responseCourses = shouldRedactTrainerImages(req)
-      ? coursesWithRatings.map(redactCourseTrainerImages)
-      : coursesWithRatings;
+    let responseCourses = coursesWithRatings;
+    if (shouldHideUnapprovedTrainerProfiles(req)) {
+      responseCourses = responseCourses.map(hideUnapprovedCourseTrainers);
+    }
+    if (shouldRedactTrainerImages(req)) {
+      responseCourses = responseCourses.map(redactCourseTrainerImages);
+    }
 
     return res.json({ courses: responseCourses });
   } catch (error: any) {
@@ -208,6 +240,7 @@ router.get('/:id', authenticateOptional, async (req: AuthRequest, res) => {
             fullName: true,
             profilePic: true,
             professionalBio: true,
+            profileApprovalStatus: true,
           },
         },
         courseTrainers: {
@@ -219,6 +252,7 @@ router.get('/:id', authenticateOptional, async (req: AuthRequest, res) => {
                 fullName: true,
                 profilePic: true,
                 professionalBio: true,
+                profileApprovalStatus: true,
               }
             }
           }
@@ -288,11 +322,15 @@ router.get('/:id', authenticateOptional, async (req: AuthRequest, res) => {
       courseRating,
     };
 
-    return res.json({
-      course: shouldRedactTrainerImages(req)
-        ? redactCourseTrainerImages(courseWithRating)
-        : courseWithRating,
-    });
+    let responseCourse = courseWithRating;
+    if (shouldHideUnapprovedTrainerProfiles(req)) {
+      responseCourse = hideUnapprovedCourseTrainers(responseCourse);
+    }
+    if (shouldRedactTrainerImages(req)) {
+      responseCourse = redactCourseTrainerImages(responseCourse);
+    }
+
+    return res.json({ course: responseCourse });
   } catch (error: any) {
     console.error('Get course error:', error);
     return res.status(500).json({ error: 'Failed to fetch course', details: error.message });

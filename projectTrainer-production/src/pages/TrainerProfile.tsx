@@ -118,8 +118,12 @@ export function TrainerProfile() {
     try {
       // Exclude email from update since it's read-only
       const { email, ...updateData } = trainer;
-      await updateTrainerProfile(user.id, updateData);
-      alert('Personal information updated successfully');
+      const updatedTrainer = await updateTrainerProfile(user.id, updateData);
+      alert(
+        updatedTrainer.profile_approval_status === 'APPROVED'
+          ? 'Personal information updated successfully.'
+          : 'Personal information saved. Your profile changes are pending admin approval before they appear on the website.'
+      );
       setIsEditingPersonal(false);
       setErrors({});
       await loadAllData();
@@ -144,13 +148,17 @@ export function TrainerProfile() {
 
     setSaving(true);
     try {
-      await updateTrainerProfile(user.id, {
+      const updatedTrainer = await updateTrainerProfile(user.id, {
         state: trainer.state,
         city: trainer.city,
         country: trainer.country,
         areas_of_expertise: trainer.areas_of_expertise
       });
-      alert('Other information updated successfully');
+      alert(
+        updatedTrainer.profile_approval_status === 'APPROVED'
+          ? 'Other information updated successfully.'
+          : 'Other information saved. Your profile changes are pending admin approval before they appear on the website.'
+      );
       setIsEditingOther(false);
       await loadAllData();
     } catch (error) {
@@ -197,7 +205,11 @@ export function TrainerProfile() {
       const updatedTrainer = await uploadTrainerProfileImage(user.id, file);
       setTrainer(updatedTrainer);
       setOriginalTrainer(updatedTrainer);
-      alert('Successfull upload');
+      alert(
+        updatedTrainer.profile_approval_status === 'APPROVED'
+          ? 'Profile picture uploaded successfully.'
+          : 'Profile picture uploaded. It will appear on the website after admin approval.'
+      );
     } catch (error) {
       console.error('Error uploading profile image:', error);
       alert(error instanceof Error ? error.message : 'Failed to upload profile picture');
@@ -248,6 +260,27 @@ export function TrainerProfile() {
   ];
 
   const profileIncomplete = !isProfileComplete(trainer);
+  const profileApprovalStatus = trainer.profile_approval_status || 'PENDING_APPROVAL';
+  const profileStatusContent = {
+    APPROVED: {
+      container: 'bg-emerald-50/80 border-emerald-100',
+      icon: 'bg-emerald-100 text-emerald-600',
+      eyebrow: 'Profile Live',
+      copy: 'Your trainer profile is approved and eligible to appear on the public website.',
+    },
+    DENIED: {
+      container: 'bg-red-50/80 border-red-100',
+      icon: 'bg-red-100 text-red-600',
+      eyebrow: 'Changes Requested',
+      copy: 'Your profile needs updates before it can be published again. Review the notes below, update your information, and resubmit.',
+    },
+    PENDING_APPROVAL: {
+      container: 'bg-amber-50/80 border-amber-100',
+      icon: 'bg-amber-100 text-amber-600',
+      eyebrow: 'Pending Admin Review',
+      copy: 'Your latest profile changes are waiting for admin approval. While this is pending, the updated profile content is not published on the website.',
+    },
+  }[profileApprovalStatus as 'APPROVED' | 'DENIED' | 'PENDING_APPROVAL'];
 
   return (
     <div className="space-y-10 max-w-[1400px] animate-fade-in mb-20">
@@ -266,6 +299,28 @@ export function TrainerProfile() {
             Edit Profile Credentials
           </Button>
         )}
+      </div>
+
+      <div className={`${profileStatusContent.container} rounded-2xl border p-6 shadow-modern-sm animate-scale-in`}>
+        <div className="flex items-start gap-5">
+          <div className={`w-10 h-10 ${profileStatusContent.icon} rounded-xl flex items-center justify-center flex-shrink-0`}>
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-corporate-900 uppercase tracking-[0.15em] mb-1">
+              {profileStatusContent.eyebrow}
+            </h3>
+            <p className="text-sm text-corporate-600 leading-relaxed font-medium">
+              {profileStatusContent.copy}
+            </p>
+            {trainer.profile_approval_notes ? (
+              <div className="mt-4 rounded-xl bg-white/80 border border-white px-4 py-3">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-corporate-500">Admin Notes</p>
+                <p className="mt-2 text-sm text-corporate-700 leading-relaxed">{trainer.profile_approval_notes}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       {profileIncomplete && (

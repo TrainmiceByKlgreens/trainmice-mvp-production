@@ -5,6 +5,7 @@ import { body, validationResult } from 'express-validator';
 import { createActivityLog } from '../utils/utils/activityLogger';
 import { generateTrainerId } from '../utils/utils/sequentialId';
 import { hashPassword } from '../utils/utils/password';
+import { sendNotification } from '../utils/utils/notificationHelper';
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ router.use(authorize('ADMIN'));
 // Get all trainers (admin view - includes all fields)
 router.get('/', async (req: AuthRequest, res) => {
   try {
-    const { search, category, state } = req.query;
+    const { search, category, state, profileStatus } = req.query;
 
     const where: any = {};
     
@@ -34,6 +35,10 @@ router.get('/', async (req: AuthRequest, res) => {
 
     if (state) {
       where.state = state as string;
+    }
+
+    if (profileStatus) {
+      where.profileApprovalStatus = profileStatus as string;
     }
 
     const trainers = await prisma.trainer.findMany({
@@ -178,6 +183,10 @@ router.post(
             city: city || null,
             country: country || null,
             areasOfExpertise: specialization ? [specialization] : undefined,
+            profileApprovalStatus: 'APPROVED',
+            profileApprovalUpdatedAt: new Date(),
+            profileApprovedAt: new Date(),
+            profileApprovedBy: req.user!.id,
           },
         });
 
@@ -208,6 +217,102 @@ router.post(
     } catch (error: any) {
       console.error('Create trainer error:', error);
       return res.status(500).json({ error: 'Failed to create trainer', details: error.message });
+    }
+  }
+);
+
+// Review trainer profile for website publishing
+router.put(
+  '/:id/profile-approval',
+  [
+    body('status').isIn(['PENDING_APPROVAL', 'APPROVED', 'DENIED']),
+    body('notes').optional({ nullable: true }).isString(),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const trainerId = req.params.id;
+      const { status, notes } = req.body as {
+        status: 'PENDING_APPROVAL' | 'APPROVED' | 'DENIED';
+        notes?: string | null;
+      };
+
+      const trainer = await prisma.trainer.findUnique({
+        where: { id: trainerId },
+        select: {
+          id: true,
+          fullName: true,
+          profileApprovalStatus: true,
+        },
+      });
+
+      if (!trainer) {
+        return res.status(404).json({ error: 'Trainer not found' });
+      }
+
+      const updatedTrainer = await prisma.trainer.update({
+        where: { id: trainerId },
+        data: {
+          profileApprovalStatus: status,
+          profileApprovalNotes: notes?.trim() ? notes.trim() : null,
+          profileApprovalUpdatedAt: new Date(),
+          profileApprovedAt: status === 'APPROVED' ? new Date() : null,
+          profileApprovedBy: status === 'APPROVED' ? req.user!.id : null,
+        },
+      });
+
+      const profileMessages = {
+        APPROVED: {
+          title: 'Trainer Profile Approved',
+          message: 'Your trainer profile is approved and can now appear on the website.',
+          type: 'SUCCESS' as const,
+          actionType: 'APPROVE' as const,
+        },
+        DENIED: {
+          title: 'Trainer Profile Changes Requested',
+          message: `Your trainer profile needs updates before it can be published.${notes?.trim() ? ` Notes: ${notes.trim()}` : ''}`,
+          type: 'WARNING' as const,
+          actionType: 'REJECT' as const,
+        },
+        PENDING_APPROVAL: {
+          title: 'Trainer Profile Review Reset',
+          message: 'Your trainer profile has been moved back to pending review.',
+          type: 'INFO' as const,
+          actionType: 'UPDATE' as const,
+        },
+      };
+
+      const notification = profileMessages[status];
+      await sendNotification({
+        userId: trainerId,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        relatedEntityType: 'trainer_profile',
+        relatedEntityId: trainerId,
+      }).catch((error) => {
+        console.error('Error sending trainer profile review notification:', error);
+      });
+
+      await createActivityLog({
+        userId: req.user!.id,
+        actionType: notification.actionType,
+        entityType: 'trainer_profile',
+        entityId: trainerId,
+        description: `${status === 'APPROVED' ? 'Approved' : status === 'DENIED' ? 'Requested changes for' : 'Reset review for'} trainer profile: ${trainer.fullName}`,
+      });
+
+      return res.json({
+        message: 'Trainer profile review updated successfully',
+        trainer: updatedTrainer,
+      });
+    } catch (error: any) {
+      console.error('Update trainer profile approval error:', error);
+      return res.status(500).json({ error: 'Failed to update trainer profile review', details: error.message });
     }
   }
 );

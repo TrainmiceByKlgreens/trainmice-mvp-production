@@ -48,6 +48,11 @@ export interface Trainer {
   country: string | null;
   areas_of_expertise: string[] | null;
   languages_spoken: string[] | null;
+  profile_approval_status?: 'PENDING_APPROVAL' | 'APPROVED' | 'DENIED';
+  profile_approval_notes?: string | null;
+  profile_approval_updated_at?: string | null;
+  profile_approved_at?: string | null;
+  profile_approved_by?: string | null;
   created_at: string;
 }
 

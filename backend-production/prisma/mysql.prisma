@@ -72,6 +72,11 @@ model Trainer {
   languagesSpoken             Json?                       @map("languages_spoken")
   qualification               Json?
   workHistory                 Json?
+  profileApprovalStatus       ProfileApprovalStatus       @default(PENDING_APPROVAL) @map("profile_approval_status")
+  profileApprovalNotes        String?                     @map("profile_approval_notes")
+  profileApprovalUpdatedAt    DateTime?                   @map("profile_approval_updated_at")
+  profileApprovedAt           DateTime?                   @map("profile_approved_at")
+  profileApprovedBy           String?                     @map("profile_approved_by")
   createdAt                   DateTime                    @default(now()) @map("created_at")
   bookingRequests             BookingRequest[]
   courseReviews               CourseReview[]
@@ -730,6 +735,12 @@ enum UserRole {
 
 enum CourseStatus {
   DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  DENIED
+}
+
+enum ProfileApprovalStatus {
   PENDING_APPROVAL
   APPROVED
   DENIED

@@ -12,8 +12,10 @@ import { TrainerCalendarView } from '../components/trainers/TrainerCalendarView'
 import { TrainerProfileView } from '../components/trainers/TrainerProfileView';
 import { apiClient } from '../lib/api-client';
 import { Trainer } from '../types';
-import { Plus, Edit, Trash2, Phone, MapPin, Filter, Calendar, BarChart3, X, CheckCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Phone, MapPin, Filter, Calendar, BarChart3, X, CheckCircle, ShieldAlert } from 'lucide-react';
 import { showToast } from '../components/common/Toast';
+
+type ProfileApprovalStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'DENIED';
 
 interface TrainerAnalytics {
   totalCourses: number;
@@ -33,6 +35,11 @@ type TrainerListItem = Trainer & {
   location?: string | null;
   city?: string | null;
   country?: string | null;
+  profile_approval_status?: ProfileApprovalStatus;
+  profile_approval_notes?: string | null;
+  profile_approval_updated_at?: string | null;
+  profile_approved_at?: string | null;
+  profile_approved_by?: string | null;
 };
 
 const mapTrainerListItem = (t: any): TrainerListItem => ({
@@ -56,7 +63,32 @@ const mapTrainerListItem = (t: any): TrainerListItem => ({
   custom_trainer_id: t.customTrainerId || null,
   city: t.city || null,
   country: t.country || null,
+  profile_approval_status: t.profileApprovalStatus || 'PENDING_APPROVAL',
+  profile_approval_notes: t.profileApprovalNotes || null,
+  profile_approval_updated_at: t.profileApprovalUpdatedAt || null,
+  profile_approved_at: t.profileApprovedAt || null,
+  profile_approved_by: t.profileApprovedBy || null,
 });
+
+const getProfileStatusMeta = (status?: string) => {
+  switch (status) {
+    case 'APPROVED':
+      return {
+        label: 'Approved',
+        variant: 'success' as const,
+      };
+    case 'DENIED':
+      return {
+        label: 'Changes Requested',
+        variant: 'danger' as const,
+      };
+    default:
+      return {
+        label: 'Pending Review',
+        variant: 'warning' as const,
+      };
+  }
+};
 
 export const EnhancedTrainersPage: React.FC = () => {
   const [trainers, setTrainers] = useState<TrainerListItem[]>([]);
@@ -81,8 +113,19 @@ export const EnhancedTrainersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedExpertise, setSelectedExpertise] = useState('all');
   const [selectedState, setSelectedState] = useState('all');
+  const [selectedProfileStatus, setSelectedProfileStatus] = useState<'all' | ProfileApprovalStatus>('all');
   const [expertiseList, setExpertiseList] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
+  const [showProfileReviewModal, setShowProfileReviewModal] = useState(false);
+  const [reviewingTrainer, setReviewingTrainer] = useState<TrainerListItem | null>(null);
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [profileReviewForm, setProfileReviewForm] = useState<{
+    status: ProfileApprovalStatus;
+    notes: string;
+  }>({
+    status: 'APPROVED',
+    notes: '',
+  });
 
   // Advanced search filters
   const [advancedFilters, setAdvancedFilters] = useState({
@@ -107,7 +150,7 @@ export const EnhancedTrainersPage: React.FC = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [trainers, searchTerm, selectedExpertise, selectedState]);
+  }, [trainers, searchTerm, selectedExpertise, selectedState, selectedProfileStatus]);
 
   useEffect(() => {
     if ((profileLoading || profileTrainer) && profileSectionRef.current) {
@@ -205,7 +248,56 @@ export const EnhancedTrainersPage: React.FC = () => {
       filtered = filtered.filter(trainer => (trainer as any).location === selectedState);
     }
 
+    if (selectedProfileStatus !== 'all') {
+      filtered = filtered.filter((trainer) => trainer.profile_approval_status === selectedProfileStatus);
+    }
+
     setFilteredTrainers(filtered);
+  };
+
+  const openProfileReviewModal = (
+    trainer: TrainerListItem,
+    status: ProfileApprovalStatus = trainer.profile_approval_status || 'PENDING_APPROVAL'
+  ) => {
+    setReviewingTrainer(trainer);
+    setProfileReviewForm({
+      status,
+      notes:
+        status === 'APPROVED'
+          ? ''
+          : trainer.profile_approval_status === status
+            ? trainer.profile_approval_notes || ''
+            : '',
+    });
+    setShowProfileReviewModal(true);
+  };
+
+  const handleProfileReviewSubmit = async () => {
+    if (!reviewingTrainer) return;
+
+    setReviewSaving(true);
+    try {
+      await apiClient.updateTrainerProfileApproval(reviewingTrainer.id, {
+        status: profileReviewForm.status,
+        notes: profileReviewForm.notes.trim() || undefined,
+      });
+
+      showToast('Trainer profile review updated successfully', 'success');
+      setShowProfileReviewModal(false);
+
+      const refreshedTrainers = await fetchTrainers();
+      if (profileTrainerSummary?.id === reviewingTrainer.id) {
+        const refreshedSummary =
+          refreshedTrainers.find((trainer) => trainer.id === reviewingTrainer.id) ||
+          reviewingTrainer;
+        await handleViewProfile(refreshedSummary);
+      }
+      setReviewingTrainer(null);
+    } catch (error: any) {
+      showToast(error.message || 'Failed to update trainer profile review', 'error');
+    } finally {
+      setReviewSaving(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -389,6 +481,16 @@ export const EnhancedTrainersPage: React.FC = () => {
               ...states.map(s => ({ value: s, label: s })),
             ]}
           />
+          <Select
+            value={selectedProfileStatus}
+            onChange={(e) => setSelectedProfileStatus(e.target.value as 'all' | ProfileApprovalStatus)}
+            options={[
+              { value: 'all', label: 'All Profile Statuses' },
+              { value: 'PENDING_APPROVAL', label: 'Pending Review' },
+              { value: 'APPROVED', label: 'Approved' },
+              { value: 'DENIED', label: 'Changes Requested' },
+            ]}
+          />
         </div>
       </Card>
 
@@ -403,6 +505,7 @@ export const EnhancedTrainersPage: React.FC = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Specialization</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profile Status</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">HRDC</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -410,12 +513,14 @@ export const EnhancedTrainersPage: React.FC = () => {
             <tbody className="divide-y divide-gray-200">
               {filteredTrainers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                     No trainers found
                   </td>
                 </tr>
               ) : (
-                filteredTrainers.map((trainer) => (
+                filteredTrainers.map((trainer) => {
+                  const profileStatusMeta = getProfileStatusMeta(trainer.profile_approval_status);
+                  return (
                   <tr
                     key={trainer.id}
                     className={`transition-colors ${
@@ -474,6 +579,18 @@ export const EnhancedTrainersPage: React.FC = () => {
                       ) : 'N/A'}
                     </td>
                     <td className="px-4 py-3">
+                      <div className="space-y-2">
+                        <Badge variant={profileStatusMeta.variant}>{profileStatusMeta.label}</Badge>
+                        <button
+                          type="button"
+                          onClick={() => openProfileReviewModal(trainer)}
+                          className="block text-xs font-medium text-teal-600 hover:text-teal-700 hover:underline"
+                        >
+                          Review profile
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
                       {(trainer as any).hrdcAccreditationId ? (
                         <div>
                           <Badge variant="success" className="mb-1">Certified</Badge>
@@ -494,6 +611,23 @@ export const EnhancedTrainersPage: React.FC = () => {
                           title="View Analytics"
                         >
                           <BarChart3 size={16} />
+                        </Button>
+                        <Button
+                          variant={trainer.profile_approval_status === 'APPROVED' ? 'outline' : 'success'}
+                          size="sm"
+                          onClick={() =>
+                            openProfileReviewModal(
+                              trainer,
+                              trainer.profile_approval_status === 'APPROVED' ? 'DENIED' : 'APPROVED'
+                            )
+                          }
+                          title={
+                            trainer.profile_approval_status === 'APPROVED'
+                              ? 'Request Profile Changes'
+                              : 'Approve Profile'
+                          }
+                        >
+                          <ShieldAlert size={16} />
                         </Button>
                         <Button
                           variant="secondary"
@@ -553,7 +687,8 @@ export const EnhancedTrainersPage: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -581,6 +716,7 @@ export const EnhancedTrainersPage: React.FC = () => {
               setSelectedTrainerForCalendar(profileTrainerSummary);
               setShowCalendarModal(true);
             }}
+            onReviewProfile={(status) => openProfileReviewModal(profileTrainerSummary, status)}
           />
         ) : null}
       </div>
@@ -675,6 +811,68 @@ export const EnhancedTrainersPage: React.FC = () => {
             <Button variant="primary" onClick={handleHRDCVerification}>
               <CheckCircle size={18} className="mr-2" />
               Verify
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showProfileReviewModal}
+        onClose={() => {
+          setShowProfileReviewModal(false);
+          setReviewingTrainer(null);
+        }}
+        title={reviewingTrainer ? `Review Profile - ${reviewingTrainer.full_name}` : 'Review Trainer Profile'}
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-teal-100 bg-teal-50/50 p-4 text-sm text-gray-700">
+            Approving the profile makes trainer profile content eligible to appear on the public website. Requesting changes keeps the latest edits off the website until the trainer updates and resubmits.
+          </div>
+
+          <Select
+            label="Review Decision"
+            value={profileReviewForm.status}
+            onChange={(e) =>
+              setProfileReviewForm((current) => ({
+                ...current,
+                status: e.target.value as ProfileApprovalStatus,
+              }))
+            }
+            options={[
+              { value: 'APPROVED', label: 'Approve for website' },
+              { value: 'DENIED', label: 'Request changes' },
+              { value: 'PENDING_APPROVAL', label: 'Keep pending review' },
+            ]}
+          />
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Review Notes</label>
+            <textarea
+              value={profileReviewForm.notes}
+              onChange={(e) =>
+                setProfileReviewForm((current) => ({
+                  ...current,
+                  notes: e.target.value,
+                }))
+              }
+              rows={5}
+              placeholder="Add optional notes for the trainer, especially when requesting changes."
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition-shadow focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowProfileReviewModal(false);
+                setReviewingTrainer(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleProfileReviewSubmit} disabled={reviewSaving}>
+              {reviewSaving ? 'Saving...' : 'Save Review'}
             </Button>
           </div>
         </div>
