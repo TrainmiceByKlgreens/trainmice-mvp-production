@@ -7,22 +7,82 @@ const router = express.Router();
 router.use(authenticate);
 router.use(authorize('ADMIN'));
 
+const addDays = (date: Date, days: number) => {
+  const value = new Date(date);
+  value.setDate(value.getDate() + days);
+  return value;
+};
+
 // Get comprehensive dashboard metrics
-router.get('/metrics', async (_req: AuthRequest, res: Response) => {
+router.get('/metrics', async (req: AuthRequest, res: Response) => {
   try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const nextSevenDays = addDays(today, 7);
+    const nextThirtyDays = addDays(today, 30);
+
+    const futureActiveEventWhere = {
+      status: 'ACTIVE' as const,
+      OR: [
+        { endDate: { gte: today } },
+        {
+          endDate: null,
+          eventDate: { gte: today },
+        },
+      ],
+    };
+
     const [
+      unreadNotifications,
       totalTrainers,
-      totalClients,
       activeCourses,
       pendingBookings,
+      pendingRequests,
+      activeEvents,
+      upcomingEventsCount,
+      pendingEventRegistrations,
+      pendingConfirmations,
+      totalClients,
       pendingHRDCVerifications,
       unreadMessages,
       upcomingCourses,
+      upcomingSessionsRaw,
+      expiringDocumentsRaw,
+      upcomingEventsRaw,
     ] = await Promise.all([
+      prisma.notification.count({
+        where: {
+          userId: req.user!.id,
+          isRead: false,
+        },
+      }),
       prisma.trainer.count(),
-      prisma.client.count(),
       prisma.course.count({ where: { status: 'APPROVED' } }),
       prisma.bookingRequest.count({ where: { status: 'PENDING' } }),
+      prisma.customCourseRequest.count({ where: { status: 'PENDING' } }),
+      prisma.event.count({ where: futureActiveEventWhere }),
+      prisma.event.count({ where: futureActiveEventWhere }),
+      prisma.eventRegistration.count({
+        where: {
+          status: {
+            in: ['REGISTERED', 'PENDING'],
+          },
+          event: futureActiveEventWhere,
+        },
+      }),
+      prisma.bookingRequest.count({
+        where: {
+          status: {
+            in: ['APPROVED', 'TENTATIVE'],
+          },
+          requestedDate: {
+            gte: today,
+            lte: nextSevenDays,
+          },
+        },
+      }),
+      prisma.client.count(),
       prisma.trainerDocument.count({
         where: {
           documentType: {
@@ -39,9 +99,118 @@ router.get('/metrics', async (_req: AuthRequest, res: Response) => {
           startDate: { gte: new Date() },
         },
       }),
+      prisma.bookingRequest.findMany({
+        where: {
+          status: {
+            in: ['APPROVED', 'CONFIRMED', 'TENTATIVE'],
+          },
+          requestedDate: {
+            gte: today,
+            lte: nextSevenDays,
+          },
+        },
+        include: {
+          course: {
+            select: {
+              title: true,
+            },
+          },
+          trainer: {
+            select: {
+              fullName: true,
+            },
+          },
+        },
+        orderBy: {
+          requestedDate: 'asc',
+        },
+        take: 6,
+      }),
+      prisma.trainerDocument.findMany({
+        where: {
+          expiresAt: {
+            gte: today,
+            lte: nextThirtyDays,
+          },
+        },
+        include: {
+          trainer: {
+            select: {
+              fullName: true,
+            },
+          },
+        },
+        orderBy: {
+          expiresAt: 'asc',
+        },
+        take: 5,
+      }),
+      prisma.event.findMany({
+        where: futureActiveEventWhere,
+        include: {
+          trainer: {
+            select: {
+              fullName: true,
+            },
+          },
+          course: {
+            select: {
+              title: true,
+            },
+          },
+          _count: {
+            select: {
+              registrations: true,
+            },
+          },
+        },
+        orderBy: {
+          eventDate: 'asc',
+        },
+        take: 6,
+      }),
     ]);
 
+    const upcomingSessions = upcomingSessionsRaw.map((session) => ({
+      id: session.id,
+      course_title: session.course?.title || 'Untitled Course',
+      trainer_name: session.trainer?.fullName || 'Trainer not assigned',
+      booking_date: session.requestedDate,
+      status: session.status,
+    }));
+
+    const expiringDocuments = expiringDocumentsRaw.map((document) => {
+      const expiresAt = document.expiresAt ? new Date(document.expiresAt) : null;
+      const daysUntilExpiry = expiresAt
+        ? Math.max(0, Math.ceil((expiresAt.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+        : null;
+
+      return {
+        id: document.id,
+        trainer_name: document.trainer?.fullName || 'Unknown trainer',
+        document_type: document.documentType,
+        expires_at: document.expiresAt,
+        days_until_expiry: daysUntilExpiry,
+      };
+    });
+
+    const upcomingEvents = upcomingEventsRaw.map((event) => ({
+      id: event.id,
+      title: event.title,
+      course_title: event.course?.title || event.title,
+      trainer_name: event.trainer?.fullName || 'Trainer not assigned',
+      event_date: event.eventDate,
+      end_date: event.endDate,
+      venue: event.venue,
+      city: event.city,
+      state: event.state,
+      status: event.status,
+      registrations_count: event._count.registrations,
+    }));
+
     res.json({
+      unreadNotifications,
+      pendingRequests,
       totalTrainers,
       totalClients,
       activeCourses,
@@ -49,6 +218,13 @@ router.get('/metrics', async (_req: AuthRequest, res: Response) => {
       pendingHRDCVerifications,
       unreadMessages,
       upcomingCourses,
+      activeEvents,
+      upcomingEventsCount,
+      pendingEventRegistrations,
+      pendingConfirmations,
+      upcomingSessions,
+      expiringDocuments,
+      upcomingEvents,
     });
   } catch (error: any) {
     console.error('Get dashboard metrics error:', error);

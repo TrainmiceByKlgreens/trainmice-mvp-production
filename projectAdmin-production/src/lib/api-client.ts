@@ -651,6 +651,8 @@ export class ApiClient {
 
   async getDashboardMetrics() {
     return this.get<{
+      unreadNotifications: number;
+      pendingRequests: number;
       totalTrainers: number;
       totalClients: number;
       activeCourses: number;
@@ -658,6 +660,37 @@ export class ApiClient {
       pendingHRDCVerifications: number;
       unreadMessages: number;
       upcomingCourses: number;
+      activeEvents: number;
+      upcomingEventsCount: number;
+      pendingEventRegistrations: number;
+      pendingConfirmations: number;
+      upcomingSessions: Array<{
+        id: string;
+        course_title: string;
+        trainer_name: string;
+        booking_date: string;
+        status: string;
+      }>;
+      expiringDocuments: Array<{
+        id: string;
+        trainer_name: string;
+        document_type: string;
+        expires_at: string | null;
+        days_until_expiry: number | null;
+      }>;
+      upcomingEvents: Array<{
+        id: string;
+        title: string;
+        course_title: string;
+        trainer_name: string;
+        event_date: string;
+        end_date: string | null;
+        venue: string | null;
+        city: string | null;
+        state: string | null;
+        status: string;
+        registrations_count: number;
+      }>;
     }>('/admin/dashboard/metrics');
   }
 
@@ -1124,4 +1157,3 @@ export class ApiClient {
 
 // Export singleton instance
 export const apiClient = new ApiClient();
-

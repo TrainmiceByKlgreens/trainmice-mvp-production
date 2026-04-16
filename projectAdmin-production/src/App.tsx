@@ -4,6 +4,7 @@ import { LoginPage } from './pages/LoginPage';
 import { AdminSignUpPage } from './pages/AdminSignUpPage';
 import { EnhancedDashboardPage } from './pages/EnhancedDashboardPage';
 import { MessagesPage } from './pages/MessagesPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { EnhancedTrainersPage } from './pages/EnhancedTrainersPage';
 import { EnhancedCoursesPage } from './pages/EnhancedCoursesPage';
 import { EventsPage } from './pages/EventsPage';
@@ -58,6 +59,8 @@ function App() {
         return <EnhancedDashboardPage onNavigate={setCurrentPage} />;
       case 'messages':
         return <MessagesPage />;
+      case 'notifications':
+        return <NotificationsPage />;
       case 'trainers':
         return <EnhancedTrainersPage />;
       case 'courses':
