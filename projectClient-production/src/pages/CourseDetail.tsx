@@ -84,6 +84,72 @@ export function CourseDetail() {
     return extracted;
   };
 
+  const extractObjectArray = (value: any): any[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch {
+        return [];
+      }
+    }
+    return typeof value === 'object' ? [value] : [];
+  };
+
+  const normalizeMultilineText = (value: any): string | null => {
+    if (!value) return null;
+    if (Array.isArray(value)) {
+      const items = value.map(String).map((item) => item.trim()).filter(Boolean);
+      return items.length > 0 ? items.join('\n') : null;
+    }
+
+    if (typeof value === 'string') {
+      const extracted = extractArray(value);
+      if (extracted.length > 1) {
+        return extracted.join('\n');
+      }
+      return value.trim() || null;
+    }
+
+    return String(value);
+  };
+
+  const buildLocationLabel = (...sources: any[]): string | null => {
+    for (const source of sources) {
+      if (!source) continue;
+
+      if (typeof source === 'string') {
+        const trimmed = source.trim();
+        if (trimmed) return trimmed;
+        continue;
+      }
+
+      if (typeof source === 'object') {
+        const venue = typeof source.venue === 'string' ? source.venue.trim() : '';
+        if (venue) return venue;
+
+        const locationParts = [
+          source.location,
+          source.city,
+          source.state,
+          source.country,
+        ]
+          .map((part: any) => (typeof part === 'string' ? part.trim() : ''))
+          .filter(Boolean);
+
+        if (locationParts.length > 0) {
+          return locationParts.join(', ');
+        }
+      }
+    }
+
+    return null;
+  };
+
   const formatTrainerQualification = (qualification: any): string => {
     const parts: string[] = [];
     const title = qualification.title || qualification.qualification_name || qualification.name;
@@ -143,9 +209,10 @@ export function CourseDetail() {
       trainer.professional_bio ||
       null;
 
-    const qualifications = (Array.isArray(trainer.qualifications) && trainer.qualifications.length > 0)
-      ? trainer.qualifications
-      : (Array.isArray(trainer.qualification) ? trainer.qualification : []);
+    const normalizedQualifications = extractObjectArray(trainer.qualifications);
+    const qualifications = normalizedQualifications.length > 0
+      ? normalizedQualifications
+      : extractObjectArray(trainer.qualification);
 
     const trainerEducation = qualifications
       .filter((q: any) => !isProfessionalQualification(q))
@@ -157,9 +224,10 @@ export function CourseDetail() {
       .map(formatTrainerQualification)
       .filter((item: string) => item && item.trim());
 
-    const workHistoryItems = (Array.isArray(trainer.workHistoryEntries) && trainer.workHistoryEntries.length > 0)
-      ? trainer.workHistoryEntries
-      : (Array.isArray(trainer.workHistory) ? trainer.workHistory : []);
+    const normalizedWorkHistoryEntries = extractObjectArray(trainer.workHistoryEntries);
+    const workHistoryItems = normalizedWorkHistoryEntries.length > 0
+      ? normalizedWorkHistoryEntries
+      : extractObjectArray(trainer.workHistory);
 
     const trainerWorkHistory = workHistoryItems
       .map((w: any) => {
@@ -220,11 +288,7 @@ export function CourseDetail() {
     startTime: item.startTime ?? item.start_time ?? '',
     endTime: item.endTime ?? item.end_time ?? '',
     moduleTitle: item.moduleTitle ?? item.module_title ?? '',
-    submoduleTitle: Array.isArray(item.submoduleTitle ?? item.submodule_title)
-      ? (item.submoduleTitle ?? item.submodule_title)
-      : typeof (item.submoduleTitle ?? item.submodule_title) === 'string'
-        ? [item.submoduleTitle ?? item.submodule_title]
-        : [],
+    submoduleTitle: extractArray(item.submoduleTitle ?? item.submodule_title),
   }));
   const brochureLearningOutcomes = extractArray(course?.learning_outcomes);
 
@@ -402,6 +466,19 @@ export function CourseDetail() {
 
       // Always resolve the full primary trainer profile for brochure content.
       const primaryCourseTrainer = course?.course_trainers?.find((ct: any) => ct.role === 'PRIMARY');
+      const firstUpcomingEvent = publicEvents[0] || null;
+      const primaryTrainerName =
+        primaryCourseTrainer?.trainer?.full_name ||
+        primaryCourseTrainer?.trainer?.fullName ||
+        activeTrainer?.full_name ||
+        activeTrainer?.fullName ||
+        null;
+      const primaryTrainerCustomId =
+        primaryCourseTrainer?.trainer?.custom_trainer_id ||
+        primaryCourseTrainer?.trainer?.customTrainerId ||
+        activeTrainer?.custom_trainer_id ||
+        activeTrainer?.customTrainerId ||
+        null;
       const brochureTrainerId =
         primaryCourseTrainer?.trainer?.id ||
         primaryCourseTrainer?.trainerId ||
@@ -418,6 +495,16 @@ export function CourseDetail() {
         }
       }
 
+      const normalizedBrochureTrainer = brochureTrainer
+        ? {
+            ...brochureTrainer,
+            fullName: brochureTrainer.fullName ?? primaryTrainerName,
+            full_name: brochureTrainer.full_name ?? primaryTrainerName,
+            customTrainerId: brochureTrainer.customTrainerId ?? brochureTrainer.custom_trainer_id ?? primaryTrainerCustomId,
+            custom_trainer_id: brochureTrainer.custom_trainer_id ?? brochureTrainer.customTrainerId ?? primaryTrainerCustomId,
+          }
+        : brochureTrainer;
+
       const {
         trainerName,
         trainerCustomId,
@@ -426,7 +513,7 @@ export function CourseDetail() {
         trainerWorkHistory,
         trainerQualifications,
         trainerLanguages,
-      } = buildTrainerBrochureProfile(brochureTrainer);
+      } = buildTrainerBrochureProfile(normalizedBrochureTrainer);
 
       // Delivery Languages
       let currentDeliveryLanguages: string[] = [];
@@ -434,28 +521,43 @@ export function CourseDetail() {
       if (Array.isArray(courseDeliveryLanguages)) {
         currentDeliveryLanguages = courseDeliveryLanguages;
       } else if (typeof courseDeliveryLanguages === 'string') {
-        currentDeliveryLanguages = [courseDeliveryLanguages];
+        currentDeliveryLanguages = extractCommaSeparatedArray(courseDeliveryLanguages);
       }
+
+      const brochureStartDate =
+        (course as any).start_date ||
+        (course as any).fixed_date ||
+        (course as any).event_date ||
+        firstUpcomingEvent?.startDate ||
+        firstUpcomingEvent?.start_date ||
+        firstUpcomingEvent?.eventDate ||
+        firstUpcomingEvent?.event_date ||
+        null;
+
+      const brochureEndDate =
+        (course as any).end_date ||
+        firstUpcomingEvent?.endDate ||
+        firstUpcomingEvent?.end_date ||
+        brochureStartDate;
+
+      const brochureVenue =
+        buildLocationLabel(
+          (course as any).venue,
+          { city: (course as any).city, state: (course as any).state, country: (course as any).country },
+          firstUpcomingEvent,
+        ) || null;
 
       await generateCourseBrochure({
         title: course.title,
         courseType,
-        startDate: (course as any).start_date || null,
-        endDate: (course as any).end_date || null,
-        venue: (course as any).venue || null,
+        startDate: brochureStartDate,
+        endDate: brochureEndDate,
+        venue: brochureVenue,
         description: course.description || null,
         learningObjectives: extractArray(course.learning_objectives),
         learningOutcomes: extractArray(course.learning_outcomes),
-        targetAudience: (() => {
-          const val = (course as any).target_audience || (course as any).targetAudience;
-          if (Array.isArray(val)) return val.join('\n');
-          return val || null;
-        })(),
-        methodology: (() => {
-          const val = (course as any).methodology;
-          if (Array.isArray(val)) return val.join('\n');
-          return val || null;
-        })(),
+        targetAudience: normalizeMultilineText((course as any).target_audience || (course as any).targetAudience),
+        methodology: normalizeMultilineText((course as any).methodology),
         prerequisites: prerequisiteItems,
         deliveryLanguages: currentDeliveryLanguages,
         hrdcClaimable: course.hrdc_claimable,
