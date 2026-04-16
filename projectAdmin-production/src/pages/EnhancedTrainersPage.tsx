@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
@@ -9,6 +9,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { TrainerForm } from '../components/trainers/TrainerForm';
 import { EnhancedTrainerForm } from '../components/trainers/EnhancedTrainerForm';
 import { TrainerCalendarView } from '../components/trainers/TrainerCalendarView';
+import { TrainerProfileView } from '../components/trainers/TrainerProfileView';
 import { apiClient } from '../lib/api-client';
 import { Trainer } from '../types';
 import { Plus, Edit, Trash2, Phone, MapPin, Filter, Calendar, BarChart3, X, CheckCircle } from 'lucide-react';
@@ -24,9 +25,42 @@ interface TrainerAnalytics {
   feedbackCount: number;
 }
 
+type TrainerListItem = Trainer & {
+  hrdcAccreditationId?: string | null;
+  hrdcAccreditationValidUntil?: string | Date | null;
+  areasOfExpertise?: string[];
+  custom_trainer_id?: string | null;
+  location?: string | null;
+  city?: string | null;
+  country?: string | null;
+};
+
+const mapTrainerListItem = (t: any): TrainerListItem => ({
+  id: t.id,
+  user_id: t.userId || null,
+  email: t.email || '',
+  full_name: t.fullName || '',
+  phone: t.phoneNumber || null,
+  specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0
+    ? t.areasOfExpertise[0]
+    : null,
+  bio: t.professionalBio || null,
+  hourly_rate: t.hourlyRate ? parseFloat(t.hourlyRate) : null,
+  hrdc_certified: !!t.hrdcAccreditationId,
+  created_at: t.createdAt || new Date().toISOString(),
+  updated_at: t.updatedAt || new Date().toISOString(),
+  location: t.state || null,
+  hrdcAccreditationId: t.hrdcAccreditationId || null,
+  hrdcAccreditationValidUntil: t.hrdcAccreditationValidUntil || null,
+  areasOfExpertise: Array.isArray(t.areasOfExpertise) ? t.areasOfExpertise : [],
+  custom_trainer_id: t.customTrainerId || null,
+  city: t.city || null,
+  country: t.country || null,
+});
+
 export const EnhancedTrainersPage: React.FC = () => {
-  const [trainers, setTrainers] = useState<Trainer[]>([]);
-  const [filteredTrainers, setFilteredTrainers] = useState<Trainer[]>([]);
+  const [trainers, setTrainers] = useState<TrainerListItem[]>([]);
+  const [filteredTrainers, setFilteredTrainers] = useState<TrainerListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -39,6 +73,10 @@ export const EnhancedTrainersPage: React.FC = () => {
   const [selectedTrainerForCalendar, setSelectedTrainerForCalendar] = useState<Trainer | null>(null);
   const [analytics, setAnalytics] = useState<TrainerAnalytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [profileTrainerSummary, setProfileTrainerSummary] = useState<TrainerListItem | null>(null);
+  const [profileTrainer, setProfileTrainer] = useState<any | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const profileSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedExpertise, setSelectedExpertise] = useState('all');
@@ -71,37 +109,25 @@ export const EnhancedTrainersPage: React.FC = () => {
     applyFilters();
   }, [trainers, searchTerm, selectedExpertise, selectedState]);
 
+  useEffect(() => {
+    if ((profileLoading || profileTrainer) && profileSectionRef.current) {
+      profileSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [profileLoading, profileTrainer]);
+
   const fetchTrainers = async () => {
     try {
       const response = await apiClient.getTrainers();
       const trainersData = response.trainers || [];
 
-      // Map backend camelCase to frontend snake_case
-      const mappedTrainers: Trainer[] = trainersData.map((t: any) => ({
-        id: t.id,
-        user_id: t.userId || null,
-        email: t.email || '',
-        full_name: t.fullName || '',
-        phone: t.phoneNumber || null,
-        specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0
-          ? t.areasOfExpertise[0]
-          : null,
-        bio: t.professionalBio || null,
-        hourly_rate: t.hourlyRate ? parseFloat(t.hourlyRate) : null,
-        hrdc_certified: !!t.hrdcAccreditationId,
-        created_at: t.createdAt || new Date().toISOString(),
-        updated_at: t.updatedAt || new Date().toISOString(),
-        location: t.state || null,
-        // Store HRDC data for use in modal
-        hrdcAccreditationId: t.hrdcAccreditationId || null,
-        hrdcAccreditationValidUntil: t.hrdcAccreditationValidUntil || null,
-        // Store full areasOfExpertise array for filtering
-        areasOfExpertise: Array.isArray(t.areasOfExpertise) ? t.areasOfExpertise : [],
-        // Store custom_trainer_id for display and search
-        custom_trainer_id: t.customTrainerId || null,
-      } as Trainer & { hrdcAccreditationId?: string | null; hrdcAccreditationValidUntil?: string | Date | null; areasOfExpertise?: string[]; custom_trainer_id?: string | null }));
+      const mappedTrainers = trainersData.map(mapTrainerListItem);
 
       setTrainers(mappedTrainers);
+
+      if (profileTrainerSummary) {
+        const updatedProfileSummary = mappedTrainers.find((trainer) => trainer.id === profileTrainerSummary.id) || null;
+        setProfileTrainerSummary(updatedProfileSummary);
+      }
 
       // Extract expertise from areasOfExpertise
       const allExpertise: string[] = [];
@@ -115,12 +141,36 @@ export const EnhancedTrainersPage: React.FC = () => {
 
       const uniqueStates = [...new Set(trainersData.map((t: any) => t.state).filter(Boolean))];
       setStates(uniqueStates);
+
+      return mappedTrainers;
     } catch (error: any) {
       console.error('Error fetching trainers:', error);
       showToast(error.message || 'Error fetching trainers', 'error');
+      return [];
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleViewProfile = async (trainer: TrainerListItem) => {
+    setProfileTrainerSummary(trainer);
+    setProfileLoading(true);
+
+    try {
+      const response = await apiClient.getTrainer(trainer.id);
+      setProfileTrainer(response.trainer || null);
+    } catch (error: any) {
+      setProfileTrainer(null);
+      showToast(error.message || 'Error loading trainer profile', 'error');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const clearProfileView = () => {
+    setProfileTrainerSummary(null);
+    setProfileTrainer(null);
+    setProfileLoading(false);
   };
 
   const applyFilters = () => {
@@ -163,6 +213,9 @@ export const EnhancedTrainersPage: React.FC = () => {
 
     try {
       await apiClient.deleteTrainer(id);
+      if (profileTrainerSummary?.id === id) {
+        clearProfileView();
+      }
       showToast('Trainer deleted successfully', 'success');
       fetchTrainers();
     } catch (error: any) {
@@ -183,6 +236,9 @@ export const EnhancedTrainersPage: React.FC = () => {
       setShowHRDCModal(false);
       setHrdcForm({ hrdcAccreditationId: '', hrdcAccreditationValidUntil: '', verified: false });
       fetchTrainers();
+      if (selectedTrainer && profileTrainerSummary?.id === selectedTrainer.id) {
+        handleViewProfile(selectedTrainer as TrainerListItem);
+      }
     } catch (error: any) {
       showToast(error.message || 'Error updating HRDC certification', 'error');
     }
@@ -215,28 +271,7 @@ export const EnhancedTrainersPage: React.FC = () => {
 
       const response = await apiClient.searchTrainersAdvanced(params);
       const trainersData = response.trainers || [];
-
-      const mappedTrainers: Trainer[] = trainersData.map((t: any) => ({
-        id: t.id,
-        user_id: t.userId || null,
-        email: t.email || '',
-        full_name: t.fullName || '',
-        phone: t.phoneNumber || null,
-        specialization: Array.isArray(t.areasOfExpertise) && t.areasOfExpertise.length > 0
-          ? t.areasOfExpertise[0]
-          : null,
-        bio: t.professionalBio || null,
-        hourly_rate: t.hourlyRate ? parseFloat(t.hourlyRate) : null,
-        hrdc_certified: !!t.hrdcAccreditationId,
-        created_at: t.createdAt || new Date().toISOString(),
-        updated_at: t.updatedAt || new Date().toISOString(),
-        location: t.state || null,
-        // Store HRDC data for use in modal
-        hrdcAccreditationId: t.hrdcAccreditationId || null,
-        hrdcAccreditationValidUntil: t.hrdcAccreditationValidUntil || null,
-        // Store custom_trainer_id for display and search
-        custom_trainer_id: t.customTrainerId || null,
-      } as Trainer & { hrdcAccreditationId?: string | null; hrdcAccreditationValidUntil?: string | Date | null; custom_trainer_id?: string | null }));
+      const mappedTrainers = trainersData.map(mapTrainerListItem);
 
       setFilteredTrainers(mappedTrainers);
       showToast(`Found ${mappedTrainers.length} trainer(s)`, 'success');
@@ -381,9 +416,25 @@ export const EnhancedTrainersPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredTrainers.map((trainer) => (
-                  <tr key={trainer.id} className="hover:bg-gray-50">
+                  <tr
+                    key={trainer.id}
+                    className={`transition-colors ${
+                      profileTrainerSummary?.id === trainer.id ? 'bg-teal-50/70' : 'hover:bg-gray-50'
+                    }`}
+                  >
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{trainer.full_name}</div>
+                      <button
+                        type="button"
+                        onClick={() => handleViewProfile(trainer)}
+                        className="group text-left"
+                      >
+                        <div className="font-medium text-gray-900 transition-colors group-hover:text-teal-700">
+                          {trainer.full_name}
+                        </div>
+                        <div className="mt-1 text-xs font-medium text-teal-600 transition-colors group-hover:text-teal-700">
+                          View full profile
+                        </div>
+                      </button>
                       {trainer.email ? (
                         <a
                           href={`mailto:${trainer.email}`}
@@ -509,6 +560,31 @@ export const EnhancedTrainersPage: React.FC = () => {
         </div>
       </Card>
 
+      <div ref={profileSectionRef}>
+        {profileLoading ? (
+          <Card className="border border-teal-100 shadow-md">
+            <div className="flex items-center justify-center gap-3 px-6 py-16">
+              <LoadingSpinner />
+              <span className="text-sm text-gray-600">Loading trainer profile...</span>
+            </div>
+          </Card>
+        ) : profileTrainer && profileTrainerSummary ? (
+          <TrainerProfileView
+            trainer={profileTrainer}
+            onBack={clearProfileView}
+            onEdit={() => {
+              setEditingTrainer(profileTrainerSummary);
+              setShowEditModal(true);
+            }}
+            onViewAnalytics={() => handleViewAnalytics(profileTrainerSummary)}
+            onOpenCalendar={() => {
+              setSelectedTrainerForCalendar(profileTrainerSummary);
+              setShowCalendarModal(true);
+            }}
+          />
+        ) : null}
+      </div>
+
       {/* Add Trainer Modal */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Trainer">
         <TrainerForm
@@ -545,10 +621,17 @@ export const EnhancedTrainersPage: React.FC = () => {
         {editingTrainer && (
           <EnhancedTrainerForm
             trainerId={editingTrainer.id}
-            onSuccess={() => {
+            onSuccess={async () => {
+              const trainerId = editingTrainer.id;
               setShowEditModal(false);
               setEditingTrainer(null);
-              fetchTrainers();
+              const refreshedTrainers = await fetchTrainers();
+              if (profileTrainerSummary?.id === trainerId) {
+                const refreshedSummary =
+                  refreshedTrainers.find((trainer) => trainer.id === trainerId) ||
+                  profileTrainerSummary;
+                await handleViewProfile(refreshedSummary as TrainerListItem);
+              }
             }}
             onCancel={() => {
               setShowEditModal(false);
