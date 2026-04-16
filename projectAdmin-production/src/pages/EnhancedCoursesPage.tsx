@@ -802,6 +802,67 @@ export const EnhancedCoursesPage: React.FC = () => {
                           return rawType === 'professional' || title.includes('cert') || title.includes('license');
                         };
 
+                        const extractObjectArray = (value: any): any[] => {
+                          if (!value) return [];
+                          if (Array.isArray(value)) return value;
+                          if (typeof value === 'string') {
+                            try {
+                              const parsed = JSON.parse(value);
+                              if (Array.isArray(parsed)) {
+                                return parsed;
+                              }
+                            } catch {
+                              return [];
+                            }
+                          }
+                          return typeof value === 'object' ? [value] : [];
+                        };
+
+                        const normalizeMultilineText = (value: any): string | null => {
+                          if (!value) return null;
+                          if (Array.isArray(value)) {
+                            const items = value.map(String).map((item) => item.trim()).filter(Boolean);
+                            return items.length > 0 ? items.join('\n') : null;
+                          }
+                          if (typeof value === 'string') {
+                            const trimmed = value.trim();
+                            return trimmed || null;
+                          }
+                          return String(value);
+                        };
+
+                        const buildLocationLabel = (...sources: any[]): string | null => {
+                          for (const source of sources) {
+                            if (!source) continue;
+
+                            if (typeof source === 'string') {
+                              const trimmed = source.trim();
+                              if (trimmed) return trimmed;
+                              continue;
+                            }
+
+                            if (typeof source === 'object') {
+                              const venue = typeof source.venue === 'string' ? source.venue.trim() : '';
+                              if (venue) return venue;
+
+                              const locationParts = [
+                                source.location,
+                                source.city,
+                                source.state,
+                                source.country,
+                              ]
+                                .map((part: any) => (typeof part === 'string' ? part.trim() : ''))
+                                .filter(Boolean);
+
+                              if (locationParts.length > 0) {
+                                return locationParts.join(', ');
+                              }
+                            }
+                          }
+
+                          return null;
+                        };
+
                         const buildTrainerBrochureProfile = (trainer: any) => {
                           if (!trainer) {
                             return {
@@ -830,9 +891,10 @@ export const EnhancedCoursesPage: React.FC = () => {
                             trainer.profileSummary ||
                             null;
 
-                          const qualifications = Array.isArray(trainer.qualifications) && trainer.qualifications.length > 0
-                            ? trainer.qualifications
-                            : (Array.isArray(trainer.qualification) ? trainer.qualification : []);
+                          const normalizedQualifications = extractObjectArray(trainer.qualifications);
+                          const qualifications = normalizedQualifications.length > 0
+                            ? normalizedQualifications
+                            : extractObjectArray(trainer.qualification);
 
                           const trainerEducation = qualifications
                             .filter((q: any) => !isProfessionalQualification(q))
@@ -844,9 +906,10 @@ export const EnhancedCoursesPage: React.FC = () => {
                             .map(formatTrainerQualification)
                             .filter((item: string) => item && item.trim());
 
-                          const workHistoryItems = Array.isArray(trainer.workHistoryEntries) && trainer.workHistoryEntries.length > 0
-                            ? trainer.workHistoryEntries
-                            : (Array.isArray(trainer.workHistory) ? trainer.workHistory : []);
+                          const normalizedWorkHistoryEntries = extractObjectArray(trainer.workHistoryEntries);
+                          const workHistoryItems = normalizedWorkHistoryEntries.length > 0
+                            ? normalizedWorkHistoryEntries
+                            : extractObjectArray(trainer.workHistory);
 
                           const trainerWorkHistory = workHistoryItems
                             .map((w: any) => {
@@ -943,26 +1006,39 @@ export const EnhancedCoursesPage: React.FC = () => {
                           }
                         }
 
+                        const brochureStartDate =
+                          fullCourse.startDate ||
+                          fullCourse.fixedDate ||
+                          course.start_date ||
+                          (course as any).fixed_date ||
+                          course.event_date ||
+                          null;
+
+                        const brochureEndDate =
+                          fullCourse.endDate ||
+                          course.end_date ||
+                          brochureStartDate;
+
+                        const brochureVenue =
+                          buildLocationLabel(
+                            fullCourse.venue,
+                            { city: fullCourse.city, state: fullCourse.state, country: fullCourse.country },
+                            course.venue,
+                            { city: (course as any).city, state: (course as any).state, country: (course as any).country },
+                          ) || null;
+
                         // Prepare editable brochure data (course + trainer profile)
                         const draftData: any = {
                           title: fullCourse.title || course.title,
                           courseType: getCourseType(),
-                          startDate: fullCourse.startDate || course.start_date,
-                          endDate: fullCourse.endDate || course.end_date,
-                          venue: fullCourse.venue || course.venue,
+                          startDate: brochureStartDate,
+                          endDate: brochureEndDate,
+                          venue: brochureVenue,
                           description: fullCourse.description || course.description,
                           learningObjectives: extractJsonField(fullCourse, 'learningObjectives', 'learning_objectives'),
                           learningOutcomes: extractJsonField(fullCourse, 'learningOutcomes', 'learning_outcomes'),
-                          targetAudience: (() => {
-                            const val = fullCourse.targetAudience ?? (course as any).target_audience;
-                            if (Array.isArray(val)) return val.join('\n');
-                            return val || null;
-                          })(),
-                          methodology: (() => {
-                            const val = fullCourse.methodology;
-                            if (Array.isArray(val)) return val.join('\n');
-                            return val || null;
-                          })(),
+                          targetAudience: normalizeMultilineText(fullCourse.targetAudience ?? (course as any).target_audience),
+                          methodology: normalizeMultilineText(fullCourse.methodology),
                           prerequisites: extractJsonField(fullCourse, 'prerequisite', 'prerequisite'),
                           deliveryLanguages: extractJsonField(fullCourse, 'deliveryLanguages', 'delivery_languages'),
                           hrdcClaimable: fullCourse.hrdcClaimable || course.hrdc_claimable,

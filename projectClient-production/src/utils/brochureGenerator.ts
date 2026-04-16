@@ -57,10 +57,40 @@ export const generateCourseBrochure = async (course: CourseData) => {
     return `${displayHours}:${String(minutes).padStart(2, '0')} ${suffix}`;
   };
 
+  const deriveOverallTimeRange = (schedule?: CourseScheduleItem[] | null) => {
+    if (!Array.isArray(schedule) || schedule.length === 0) return null;
+
+    const validRanges = schedule
+      .map((item) => ({
+        start: item.startTime,
+        end: item.endTime,
+      }))
+      .filter((item) => item.start && item.end);
+
+    if (validRanges.length === 0) return null;
+
+    const toSortableValue = (time: string) => {
+      const [hours = '0', minutes = '0'] = String(time).split(':');
+      return Number(hours) * 60 + Number(minutes);
+    };
+
+    const earliestStart = validRanges.reduce((earliest, current) =>
+      toSortableValue(current.start) < toSortableValue(earliest) ? current.start : earliest,
+    validRanges[0].start);
+
+    const latestEnd = validRanges.reduce((latest, current) =>
+      toSortableValue(current.end) > toSortableValue(latest) ? current.end : latest,
+    validRanges[0].end);
+
+    return `${formatScheduleTime(earliestStart)} - ${formatScheduleTime(latestEnd)}`;
+  };
+
   const shouldInsertLunchBreak = (
     currentItem: CourseScheduleItem,
     nextItem?: CourseScheduleItem
   ) => currentItem.endTime === '13:00' && nextItem?.startTime === '14:00';
+
+  const formatBulletText = (text: string) => `- ${text}`;
 
   // Cache for the second page background image
   let secondPageBgImage: string | null = null;
@@ -209,6 +239,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
       dateText = startDate.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
     }
   }
+  const overallTimeRange = deriveOverallTimeRange(course.schedule);
 
   // Course type mapping
   const courseTypeMap: { [key: string]: string } = {
@@ -262,6 +293,14 @@ export const generateCourseBrochure = async (course: CourseData) => {
   venueLines.forEach((line: string, index: number) => {
     doc.text(line, margin + 50, yPos + (index * 6));
   });
+  yPos += Math.max(venueLines.length * 6, 12);
+
+  if (overallTimeRange) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Time: ', margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(overallTimeRange, margin + 50, yPos);
+  }
 
   // Footer contact info
   doc.setFillColor(0, 51, 102, 0.9);
@@ -323,6 +362,18 @@ export const generateCourseBrochure = async (course: CourseData) => {
   currentY = await addText(course.venue || 'TBA', margin, currentY, contentWidth, 10);
   currentY += 8;
 
+  if (overallTimeRange) {
+    currentY = await checkPageBreak(currentY, 15);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TIME:', margin, currentY);
+    currentY += 7;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    currentY = await addText(overallTimeRange, margin, currentY, contentWidth, 10);
+    currentY += 8;
+  }
+
   // Certificate (only if HRDC claimable)
   if (course.hrdcClaimable) {
     currentY = await checkPageBreak(currentY, 15);
@@ -365,7 +416,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   if (course.learningObjectives && course.learningObjectives.length > 0) {
     for (const obj of course.learningObjectives) {
       currentY = await checkPageBreak(currentY, 15);
-      const bulletText = `• ${obj}`;
+      const bulletText = formatBulletText(obj);
       currentY = await addText(bulletText, margin + 2, currentY, contentWidth - 2, 10);
       currentY += 2;
     }
@@ -386,7 +437,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   if (course.learningOutcomes && course.learningOutcomes.length > 0) {
     for (const outcome of course.learningOutcomes) {
       currentY = await checkPageBreak(currentY, 15);
-      const bulletText = `• ${outcome}`;
+      const bulletText = formatBulletText(outcome);
       currentY = await addText(bulletText, margin + 2, currentY, contentWidth - 2, 10);
       currentY += 2;
     }
@@ -440,7 +491,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
     for (const prereq of course.prerequisites) {
       if (prereq && prereq.trim()) {
         currentY = await checkPageBreak(currentY, 12);
-        currentY = await addText(`• ${prereq.trim()}`, margin + 2, currentY, contentWidth - 2, 10);
+        currentY = await addText(formatBulletText(prereq.trim()), margin + 2, currentY, contentWidth - 2, 10);
         currentY += 2;
       }
     }
@@ -577,7 +628,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
               doc.setFontSize(9);
               for (const submodule of submodules) {
                 if (submodule && submodule.trim()) {
-                  currentY = await addText(`• ${submodule}`, margin + 10, currentY, contentWidth - 10, 9);
+                  currentY = await addText(formatBulletText(submodule), margin + 10, currentY, contentWidth - 10, 9);
                 }
               }
             }
@@ -670,7 +721,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   if (course.trainerEducation && course.trainerEducation.length > 0) {
     for (const edu of course.trainerEducation) {
       currentY = await checkPageBreak(currentY, 12);
-      currentY = await addText(`• ${edu}`, margin + 2, currentY, contentWidth - 2, 10);
+      currentY = await addText(formatBulletText(edu), margin + 2, currentY, contentWidth - 2, 10);
       currentY += 2;
     }
   } else {
@@ -688,7 +739,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   if (course.trainerWorkHistory && course.trainerWorkHistory.length > 0) {
     for (const work of course.trainerWorkHistory) {
       currentY = await checkPageBreak(currentY, 12);
-      currentY = await addText(`• ${work}`, margin + 2, currentY, contentWidth - 2, 10);
+      currentY = await addText(formatBulletText(work), margin + 2, currentY, contentWidth - 2, 10);
       currentY += 2;
     }
   } else {
@@ -706,7 +757,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   if (course.trainerQualifications && course.trainerQualifications.length > 0) {
     for (const qual of course.trainerQualifications) {
       currentY = await checkPageBreak(currentY, 12);
-      currentY = await addText(`• ${qual}`, margin + 2, currentY, contentWidth - 2, 10);
+      currentY = await addText(formatBulletText(qual), margin + 2, currentY, contentWidth - 2, 10);
       currentY += 2;
     }
   } else {
