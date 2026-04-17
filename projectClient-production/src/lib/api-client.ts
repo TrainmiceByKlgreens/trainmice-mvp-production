@@ -7,8 +7,10 @@
 // In production, VITE_API_URL must be set
 // In development, falls back to localhost
 const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
-  ? window.location.origin + '/api'  // Fallback to same origin in production
-  : 'http://localhost:3000/api');    // Development fallback
+  ? (window.location.hostname.endsWith('trainmice.com')
+      ? 'https://api.trainmice.com/api'
+      : window.location.origin + '/api')
+  : 'http://localhost:3000/api');
 
 export class ApiClient {
   private baseUrl: string;

@@ -256,6 +256,7 @@ export async function updateQualification(
 }
 
 export async function deleteQualification(id: string): Promise<void> {
+  void id;
   throw new Error('deleteQualification requires trainerId. Please use deleteQualificationWithTrainerId instead.');
 }
 
@@ -387,6 +388,7 @@ export async function updateWorkHistory(
 }
 
 export async function deleteWorkHistory(id: string): Promise<void> {
+  void id;
   throw new Error('deleteWorkHistory requires trainerId. Please use deleteWorkHistoryWithTrainerId instead.');
 }
 
@@ -510,6 +512,7 @@ export async function updateCourseConducted(
 }
 
 export async function deleteCourseConducted(id: string): Promise<void> {
+  void id;
   throw new Error('deleteCourseConducted requires trainerId. Please use deleteCourseConductedWithTrainerId instead.');
 }
 
@@ -680,6 +683,7 @@ export async function updatePastClient(
 }
 
 export async function deletePastClient(id: string): Promise<void> {
+  void id;
   throw new Error('deletePastClient requires trainerId. Please use deletePastClientWithTrainerId instead.');
 }
 

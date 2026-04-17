@@ -14,6 +14,7 @@ import { FeedbackQRModal } from '../components/events/FeedbackQRModal';
 import { AddParticipantsModal } from '../components/events/AddParticipantsModal';
 import { EventDetailsView } from '../components/events/EventDetailsView';
 import { Event } from '../types';
+import { generateCourseBrochure } from '../utils/brochureGenerator';
 
 
 
@@ -24,6 +25,7 @@ export const EventsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ACTIVE');
   const [requestTypeTab, setRequestTypeTab] = useState<'PUBLIC' | 'IN_HOUSE'>('PUBLIC');
+  const [adminTrainingTab, setAdminTrainingTab] = useState<'PUBLIC_PLANNING' | 'INHOUSE_PLANNING' | 'CONFIRMED'>('PUBLIC_PLANNING');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -66,7 +68,7 @@ export const EventsPage: React.FC = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [events, searchTerm, activeTab, requestTypeTab, selectedMonth]);
+  }, [events, searchTerm, activeTab, requestTypeTab, adminTrainingTab, selectedMonth]);
 
   const fetchEvents = async (silent = false) => {
     try {
@@ -209,6 +211,44 @@ export const EventsPage: React.FC = () => {
     }
   };
 
+  const isPublicTraining = (event: Event) =>
+    event.course?.courseType?.includes('PUBLIC') || event.courseType?.includes('PUBLIC');
+
+  const isInhouseTraining = (event: Event) =>
+    event.course?.courseType?.includes('IN_HOUSE') || event.courseType?.includes('IN_HOUSE');
+
+  const isConfirmedTraining = (event: Event) =>
+    (event.status === 'ACTIVE' || event.status === 'COMPLETED') && (event.totalParticipants || 0) > 0;
+
+  const handleDownloadEventBrochure = async (event: Event) => {
+    try {
+      await generateCourseBrochure({
+        title: event.title || event.course?.title || 'Training Event',
+        courseType:
+          (Array.isArray(event.courseType) ? event.courseType[0] : event.courseType) ||
+          event.course?.courseType?.[0] ||
+          'IN_HOUSE',
+        startDate: event.startDate || event.eventDate,
+        endDate: event.endDate || event.startDate || event.eventDate,
+        venue: event.venue || [event.city, event.state].filter(Boolean).join(', ') || 'TBA',
+        description: event.description || null,
+        learningObjectives: Array.isArray(event.learningObjectives) ? event.learningObjectives : [],
+        learningOutcomes: Array.isArray(event.learningOutcomes) ? event.learningOutcomes : [],
+        targetAudience: event.targetAudience || null,
+        methodology: event.methodology || null,
+        prerequisites: event.prerequisite ? [event.prerequisite] : [],
+        hrdcClaimable: !!event.hrdcClaimable,
+        trainerName: event.trainer?.fullName || null,
+        trainerLanguages: [],
+        schedule: [],
+      });
+      showToast('Event brochure downloaded successfully', 'success');
+    } catch (error: any) {
+      console.error('Error downloading event brochure:', error);
+      showToast(error.message || 'Failed to download event brochure', 'error');
+    }
+  };
+
 
 
   const applyFilters = () => {
@@ -220,14 +260,24 @@ export const EventsPage: React.FC = () => {
         event.trainer?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    filtered = filtered.filter(event => event.status === activeTab);
-    // Filter by Request Type (In-House vs Public)
     filtered = filtered.filter(event => {
-      const isPublic = event.course?.courseType?.includes('PUBLIC') || event.courseType?.includes('PUBLIC');
-      const isHouse = event.course?.courseType?.includes('IN_HOUSE') || event.courseType?.includes('IN_HOUSE');
-      if (requestTypeTab === 'PUBLIC') return isPublic;
-      return isHouse;
+      if (adminTrainingTab === 'PUBLIC_PLANNING') {
+        return event.status === 'ACTIVE' && isPublicTraining(event);
+      }
+      if (adminTrainingTab === 'INHOUSE_PLANNING') {
+        return event.status === 'ACTIVE' && isInhouseTraining(event);
+      }
+      return isConfirmedTraining(event);
     });
+
+    // Optional secondary filters when using planning tabs
+    if (adminTrainingTab !== 'CONFIRMED') {
+      filtered = filtered.filter(event => event.status === activeTab);
+      filtered = filtered.filter(event => {
+        if (requestTypeTab === 'PUBLIC') return isPublicTraining(event);
+        return isInhouseTraining(event);
+      });
+    }
     if (selectedMonth !== 'all') {
       filtered = filtered.filter(event => {
         if (!event.eventDate) return false;
@@ -310,6 +360,7 @@ export const EventsPage: React.FC = () => {
           }}
           onCancelRegistration={handleCancelRegistration}
           onMarkRegistrationAsRead={handleMarkAsRead}
+          onDownloadBrochure={handleDownloadEventBrochure}
           isUpdating={Object.values(updatingStatus).some(Boolean) || actionLoading}
         />
       ) : (
@@ -362,49 +413,89 @@ export const EventsPage: React.FC = () => {
 
           <div className="flex border-b border-gray-200">
             {[
-              { id: 'PUBLIC', label: 'Public Programs' },
-              { id: 'IN_HOUSE', label: 'In-House Programs' },
+              { id: 'PUBLIC_PLANNING', label: 'Public Training Planning' },
+              { id: 'INHOUSE_PLANNING', label: 'Inhouse Training Planning' },
+              { id: 'CONFIRMED', label: 'Confirmed Trainings' },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setRequestTypeTab(tab.id as any)}
-                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors relative ${requestTypeTab === tab.id
-                  ? 'border-teal-600 text-teal-600'
+                onClick={() => {
+                  const nextTab = tab.id as 'PUBLIC_PLANNING' | 'INHOUSE_PLANNING' | 'CONFIRMED';
+                  setAdminTrainingTab(nextTab);
+                  if (nextTab === 'PUBLIC_PLANNING') {
+                    setRequestTypeTab('PUBLIC');
+                    setActiveTab('ACTIVE');
+                  } else if (nextTab === 'INHOUSE_PLANNING') {
+                    setRequestTypeTab('IN_HOUSE');
+                    setActiveTab('ACTIVE');
+                  } else {
+                    setActiveTab('COMPLETED');
+                  }
+                }}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors relative ${adminTrainingTab === tab.id
+                  ? 'border-amber-500 text-amber-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
                 {tab.label}
+                <span className="ml-2 bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full text-[10px]">
+                  {events.filter((event) => {
+                    if (tab.id === 'PUBLIC_PLANNING') return event.status === 'ACTIVE' && isPublicTraining(event);
+                    if (tab.id === 'INHOUSE_PLANNING') return event.status === 'ACTIVE' && isInhouseTraining(event);
+                    return isConfirmedTraining(event);
+                  }).length}
+                </span>
               </button>
             ))}
           </div>
 
-          <div className="space-y-4">
-            <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl w-fit">
+          {adminTrainingTab !== 'CONFIRMED' && (
+            <div className="flex border-b border-gray-200">
               {[
-                { id: 'ACTIVE', label: 'Active' },
-                { id: 'COMPLETED', label: 'Completed' },
-                { id: 'CANCELLED', label: 'Cancelled' },
+                { id: 'PUBLIC', label: 'Public Programs' },
+                { id: 'IN_HOUSE', label: 'In-House Programs' },
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`py-2 px-4 text-xs font-semibold rounded-lg transition-all ${activeTab === tab.id
-                    ? 'bg-white text-teal-700 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  onClick={() => setRequestTypeTab(tab.id as any)}
+                  className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors relative ${requestTypeTab === tab.id
+                    ? 'border-teal-600 text-teal-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                 >
                   {tab.label}
-                  <span className="ml-2 bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full text-[10px]">
-                    {events.filter(e => {
-                      const isPublic = e.course?.courseType?.includes('PUBLIC') || e.courseType?.includes('PUBLIC');
-                      const isHouse = e.course?.courseType?.includes('IN_HOUSE') || e.courseType?.includes('IN_HOUSE');
-                      const typeMatches = requestTypeTab === 'PUBLIC' ? isPublic : isHouse;
-                      return e.status === tab.id && typeMatches;
-                    }).length}
-                  </span>
                 </button>
               ))}
             </div>
+          )}
+
+          <div className="space-y-4">
+            {adminTrainingTab !== 'CONFIRMED' && (
+              <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl w-fit">
+                {[
+                  { id: 'ACTIVE', label: 'Active' },
+                  { id: 'COMPLETED', label: 'Completed' },
+                  { id: 'CANCELLED', label: 'Cancelled' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`py-2 px-4 text-xs font-semibold rounded-lg transition-all ${activeTab === tab.id
+                      ? 'bg-white text-teal-700 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                      }`}
+                  >
+                    {tab.label}
+                    <span className="ml-2 bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full text-[10px]">
+                      {events.filter(e => {
+                        const typeMatches = requestTypeTab === 'PUBLIC' ? isPublicTraining(e) : isInhouseTraining(e);
+                        return e.status === tab.id && typeMatches;
+                      }).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             <Card>
               <div className="p-4 flex flex-wrap items-center gap-4">
@@ -429,7 +520,11 @@ export const EventsPage: React.FC = () => {
             {filteredEvents.length === 0 ? (
               <div className="col-span-full bg-white rounded-2xl border-2 border-dashed border-gray-100 py-20 text-center">
                 <Users size={48} className="mx-auto mb-4 text-gray-200" />
-                <p className="text-gray-400 font-medium">No {activeTab.toLowerCase()} {requestTypeTab.toLowerCase().replace('_', ' ')} found</p>
+                <p className="text-gray-400 font-medium">
+                  {adminTrainingTab === 'PUBLIC_PLANNING' && 'No public training planning events found'}
+                  {adminTrainingTab === 'INHOUSE_PLANNING' && 'No in-house training planning events found'}
+                  {adminTrainingTab === 'CONFIRMED' && 'No confirmed trainings found'}
+                </p>
               </div>
             ) : (
               filteredEvents.map((event) => (

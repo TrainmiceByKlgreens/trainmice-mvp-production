@@ -1,10 +1,9 @@
-import React from 'react';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
 import { Select } from '../common/Select';
 import { formatDate } from '../../utils/helpers';
-import { Calendar, MapPin, Users, MessageSquare, UserPlus, Trash2, ArrowLeft, Mail, Phone, User, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, MapPin, Users, MessageSquare, UserPlus, Trash2, ArrowLeft, Mail, Phone, User, CheckCircle, XCircle, Download } from 'lucide-react';
 import { Event } from '../../types';
 
 interface EventDetailsViewProps {
@@ -17,10 +16,11 @@ interface EventDetailsViewProps {
     onApproveRegistration: (registration: any) => void;
     onCancelRegistration: (registrationId: string) => Promise<void>;
     onMarkRegistrationAsRead: (registrationId: string) => Promise<void>;
+    onDownloadBrochure: (event: Event) => Promise<void>;
     isUpdating: boolean;
 }
 
-export const EventDetailsView: React.FC<EventDetailsViewProps> = ({
+export function EventDetailsView({
     event,
     onBack,
     onStatusChange,
@@ -30,8 +30,9 @@ export const EventDetailsView: React.FC<EventDetailsViewProps> = ({
     onApproveRegistration,
     onCancelRegistration,
     onMarkRegistrationAsRead,
+    onDownloadBrochure,
     isUpdating
-}) => {
+}: EventDetailsViewProps) {
     const getStatusVariant = (status: string) => {
         switch (status?.toUpperCase()) {
             case 'ACTIVE': return 'success';
@@ -163,6 +164,14 @@ export const EventDetailsView: React.FC<EventDetailsViewProps> = ({
                                         <MessageSquare size={18} className="mr-2" />
                                         Feedback Form
                                     </Button>
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => onDownloadBrochure(event)}
+                                        className="w-full"
+                                    >
+                                        <Download size={18} className="mr-2" />
+                                        Download Brochure
+                                    </Button>
                                 </div>
                             </div>
                         </div>
@@ -289,4 +298,4 @@ export const EventDetailsView: React.FC<EventDetailsViewProps> = ({
             </div>
         </div>
     );
-};
+}

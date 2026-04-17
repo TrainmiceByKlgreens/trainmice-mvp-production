@@ -49,6 +49,12 @@ const STATUS_CONFIG = {
     textColor: 'text-teal-700',
     borderColor: 'border-teal-300'
   },
+  paperwork_in_progress: {
+    label: 'Paperwork In Progress',
+    bgColor: 'bg-blue-100',
+    textColor: 'text-blue-700',
+    borderColor: 'border-blue-300'
+  },
   denied: {
     label: 'Denied',
     bgColor: 'bg-red-100',
