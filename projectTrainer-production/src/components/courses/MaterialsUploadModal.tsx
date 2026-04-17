@@ -93,7 +93,7 @@ export function MaterialsUploadModal({
   };
 
   const getFileIcon = (fileName: string) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
+    void fileName;
     return <FileText className="w-5 h-5 text-blue-600" />;
   };
 

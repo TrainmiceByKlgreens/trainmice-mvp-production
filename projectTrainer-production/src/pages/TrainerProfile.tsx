@@ -71,13 +71,32 @@ export function TrainerProfile() {
 
     setLoading(true);
     try {
-      const [trainerData, quals, work, clients, langs] = await Promise.all([
+      const [trainerResult, qualsResult, workResult, clientsResult, langsResult] = await Promise.allSettled([
         fetchTrainerProfile(user.id),
         fetchQualifications(user.id),
         fetchWorkHistory(user.id),
         fetchPastClients(user.id),
         fetchTrainerLanguages(user.id)
       ]);
+
+      if (trainerResult.status !== 'fulfilled') {
+        throw trainerResult.reason;
+      }
+
+      const trainerData = trainerResult.value;
+      const quals = qualsResult.status === 'fulfilled' ? qualsResult.value : [];
+      const work = workResult.status === 'fulfilled' ? workResult.value : [];
+      const clients = clientsResult.status === 'fulfilled' ? clientsResult.value : [];
+      const langs = langsResult.status === 'fulfilled' ? langsResult.value : [];
+
+      if (qualsResult.status === 'rejected' || workResult.status === 'rejected' || clientsResult.status === 'rejected' || langsResult.status === 'rejected') {
+        console.warn('Some trainer profile sections failed to load', {
+          qualifications: qualsResult.status,
+          workHistory: workResult.status,
+          pastClients: clientsResult.status,
+          languages: langsResult.status,
+        });
+      }
 
       // Set email from user if trainer doesn't have it
       if (trainerData && user?.email && !trainerData.email) {
@@ -92,7 +111,7 @@ export function TrainerProfile() {
       setLanguages(langs);
     } catch (error) {
       console.error('Error loading profile data:', error);
-      alert('Failed to load profile data');
+      alert(error instanceof Error ? error.message : 'Failed to load profile data');
     } finally {
       setLoading(false);
     }
