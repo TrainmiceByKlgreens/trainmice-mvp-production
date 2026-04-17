@@ -1,4 +1,4 @@
-import { X, Calendar, Clock, MapPin, BookOpen, User } from 'lucide-react';
+import { X, Calendar, Clock, MapPin, BookOpen } from 'lucide-react';
 import { BookingWithCourse } from '../../types/database';
 import { StatusBadge } from './StatusBadge';
 
