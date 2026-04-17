@@ -25,6 +25,7 @@ interface DashboardMetrics {
   active_courses: number;
   active_events: number;
   upcoming_events: number;
+  upcoming_trainings: number;
   event_registrations_pending: number;
   expiring_documents: number;
   pending_confirmations: number;
@@ -34,8 +35,12 @@ interface UpcomingSession {
   id: string;
   course_title: string;
   trainer_name: string;
+  client_name: string | null;
   booking_date: string;
+  requested_time: string | null;
+  location: string | null;
   status: string;
+  request_type: string | null;
 }
 
 interface ExpiringDocument {
@@ -46,18 +51,21 @@ interface ExpiringDocument {
   days_until_expiry: number | null;
 }
 
-interface UpcomingEvent {
+interface UpcomingTraining {
   id: string;
+  entity_id: string;
+  source: 'EVENT' | 'BOOKING';
+  training_type: 'PUBLIC' | 'IN_HOUSE';
   title: string;
   course_title: string;
   trainer_name: string;
-  event_date: string;
+  client_name: string | null;
+  start_date: string;
   end_date: string | null;
-  venue: string | null;
-  city: string | null;
-  state: string | null;
+  requested_time: string | null;
+  location: string | null;
   status: string;
-  registrations_count: number;
+  registrations_count: number | null;
 }
 
 interface DashboardPageProps {
@@ -72,6 +80,7 @@ const metricDefaults: DashboardMetrics = {
   active_courses: 0,
   active_events: 0,
   upcoming_events: 0,
+  upcoming_trainings: 0,
   event_registrations_pending: 0,
   expiring_documents: 0,
   pending_confirmations: 0,
@@ -90,8 +99,13 @@ const formatDashboardDate = (value?: string | null) => {
   });
 };
 
-const getEventLocation = (event: UpcomingEvent) =>
-  [event.venue, event.city, event.state].filter(Boolean).join(', ') || 'Venue to be confirmed';
+const getTrainingLocation = (training: UpcomingTraining) => training.location || 'Venue to be confirmed';
+
+const getTrainingTypeLabel = (trainingType: UpcomingTraining['training_type']) =>
+  trainingType === 'IN_HOUSE' ? 'In-House Training' : 'Public Training';
+
+const getTrainingTypeVariant = (trainingType: UpcomingTraining['training_type']) =>
+  trainingType === 'IN_HOUSE' ? 'warning' : 'info';
 
 const getStatusVariant = (status?: string) => {
   switch ((status || '').toUpperCase()) {
@@ -117,7 +131,7 @@ export const EnhancedDashboardPage: React.FC<DashboardPageProps> = ({ onNavigate
   const [metrics, setMetrics] = useState<DashboardMetrics>(metricDefaults);
   const [upcomingSessions, setUpcomingSessions] = useState<UpcomingSession[]>([]);
   const [expiringDocs, setExpiringDocs] = useState<ExpiringDocument[]>([]);
-  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [upcomingTrainings, setUpcomingTrainings] = useState<UpcomingTraining[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -157,6 +171,7 @@ export const EnhancedDashboardPage: React.FC<DashboardPageProps> = ({ onNavigate
         active_courses: data.activeCourses || 0,
         active_events: data.activeEvents || 0,
         upcoming_events: data.upcomingEventsCount || data.upcomingEvents?.length || 0,
+        upcoming_trainings: data.upcomingTrainingsCount || data.upcomingTrainings?.length || 0,
         event_registrations_pending: data.pendingEventRegistrations || 0,
         expiring_documents: data.expiringDocuments?.length || 0,
         pending_confirmations: data.pendingConfirmations || 0,
@@ -164,7 +179,7 @@ export const EnhancedDashboardPage: React.FC<DashboardPageProps> = ({ onNavigate
 
       setUpcomingSessions(data.upcomingSessions || []);
       setExpiringDocs(data.expiringDocuments || []);
-      setUpcomingEvents(data.upcomingEvents || []);
+      setUpcomingTrainings(data.upcomingTrainings || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -211,7 +226,7 @@ export const EnhancedDashboardPage: React.FC<DashboardPageProps> = ({ onNavigate
     {
       title: 'Active Events',
       value: metrics.active_events,
-      helper: `${metrics.upcoming_events} scheduled ahead`,
+      helper: `${metrics.upcoming_trainings} public + in-house trainings ahead`,
       icon: Calendar,
       page: 'events',
       tone: 'from-green-500/15 to-green-50',
@@ -255,8 +270,8 @@ export const EnhancedDashboardPage: React.FC<DashboardPageProps> = ({ onNavigate
                 <p className="mt-2 text-2xl font-bold text-gray-900">{metrics.active_courses}</p>
               </div>
               <div className="rounded-2xl border border-white/80 bg-white/90 px-4 py-3 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Upcoming Events</p>
-                <p className="mt-2 text-2xl font-bold text-gray-900">{metrics.upcoming_events}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Upcoming Trainings</p>
+                <p className="mt-2 text-2xl font-bold text-gray-900">{metrics.upcoming_trainings}</p>
               </div>
             </div>
           </div>
@@ -311,61 +326,79 @@ export const EnhancedDashboardPage: React.FC<DashboardPageProps> = ({ onNavigate
         <Card className="overflow-hidden border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 px-6 py-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Upcoming Events</h2>
-              <p className="text-sm text-gray-500">A dashboard view of the events admins are actively managing</p>
+              <h2 className="text-xl font-semibold text-gray-900">Upcoming Trainings</h2>
+              <p className="text-sm text-gray-500">Public events and in-house programs that are already on the calendar</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => onNavigate && onNavigate('events')}>
-              Manage Events
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => onNavigate && onNavigate('events')}>
+                Events
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => onNavigate && onNavigate('bookings')}>
+                Bookings
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-4 p-6">
-            {upcomingEvents.length === 0 ? (
+            {upcomingTrainings.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-5 py-10 text-center text-sm text-gray-500">
-                No upcoming events are scheduled right now.
+                No upcoming public or in-house trainings are scheduled right now.
               </div>
             ) : (
-              upcomingEvents.map((event) => (
+              upcomingTrainings.map((training) => (
                 <button
-                  key={event.id}
+                  key={training.id}
                   type="button"
-                  onClick={() => onNavigate && onNavigate('events')}
+                  onClick={() =>
+                    onNavigate && onNavigate(training.source === 'EVENT' ? 'events' : 'bookings')
+                  }
                   className="w-full rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={getStatusVariant(event.status)}>{event.status}</Badge>
-                        <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                          Event
-                        </span>
+                        <Badge variant={getStatusVariant(training.status)}>{training.status}</Badge>
+                        <Badge variant={getTrainingTypeVariant(training.training_type)}>
+                          {getTrainingTypeLabel(training.training_type)}
+                        </Badge>
                       </div>
                       <h3 className="mt-3 text-lg font-semibold text-gray-900">
-                        {event.title || event.course_title}
+                        {training.title || training.course_title}
                       </h3>
                       <p className="mt-1 text-sm text-gray-600">
-                        {event.course_title}
-                        {event.trainer_name ? ` • ${event.trainer_name}` : ''}
+                        {training.course_title}
+                        {training.trainer_name ? ` | ${training.trainer_name}` : ''}
+                        {training.client_name ? ` | ${training.client_name}` : ''}
                       </p>
 
                       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-500">
                         <div className="flex items-center gap-2">
                           <Calendar size={15} className="text-teal-600" />
-                          <span>{formatDashboardDate(event.event_date)}</span>
+                          <span>{formatDashboardDate(training.start_date)}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <MapPin size={15} className="text-teal-600" />
-                          <span>{getEventLocation(event)}</span>
+                          <span>{getTrainingLocation(training)}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Users size={15} className="text-teal-600" />
-                          <span>{event.registrations_count} registration{event.registrations_count !== 1 ? 's' : ''}</span>
-                        </div>
+                        {training.source === 'EVENT' ? (
+                          <div className="flex items-center gap-2">
+                            <Users size={15} className="text-teal-600" />
+                            <span>
+                              {training.registrations_count || 0} registration
+                              {(training.registrations_count || 0) !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Clock3 size={15} className="text-teal-600" />
+                            <span>{training.requested_time || 'Time to be confirmed'}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 text-sm font-medium text-teal-700">
-                      <span>Open Events</span>
+                      <span>{training.source === 'EVENT' ? 'Open Events' : 'Open Bookings'}</span>
                       <ArrowRight size={16} />
                     </div>
                   </div>
@@ -450,8 +483,8 @@ export const EnhancedDashboardPage: React.FC<DashboardPageProps> = ({ onNavigate
                   <Clock3 size={18} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Upcoming Sessions</h2>
-                  <p className="text-sm text-gray-500">Training sessions arriving within the next 7 days</p>
+                  <h2 className="text-lg font-semibold text-gray-900">Upcoming In-House Sessions</h2>
+                  <p className="text-sm text-gray-500">The next 7 days of in-house training that still need admin visibility</p>
                 </div>
               </div>
             </div>
@@ -459,7 +492,7 @@ export const EnhancedDashboardPage: React.FC<DashboardPageProps> = ({ onNavigate
             <div className="space-y-3 p-6">
               {upcomingSessions.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
-                  No upcoming training sessions in the next 7 days.
+                  No upcoming in-house training sessions in the next 7 days.
                 </div>
               ) : (
                 upcomingSessions.map((session) => (
@@ -467,11 +500,18 @@ export const EnhancedDashboardPage: React.FC<DashboardPageProps> = ({ onNavigate
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium text-gray-900">{session.course_title}</p>
-                        <p className="mt-1 text-sm text-gray-500">{session.trainer_name}</p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {session.trainer_name}
+                          {session.client_name ? ` | ${session.client_name}` : ''}
+                        </p>
                       </div>
                       <Badge variant={getStatusVariant(session.status)}>{session.status}</Badge>
                     </div>
-                    <p className="mt-3 text-sm text-gray-600">{formatDashboardDate(session.booking_date)}</p>
+                    <div className="mt-3 space-y-1 text-sm text-gray-600">
+                      <p>{formatDashboardDate(session.booking_date)}</p>
+                      <p>{session.requested_time || 'Time to be confirmed'}</p>
+                      {session.location ? <p>{session.location}</p> : null}
+                    </div>
                   </div>
                 ))
               )}

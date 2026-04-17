@@ -39,7 +39,15 @@ interface CourseData {
   trainerLanguages?: Array<string> | null;
 }
 
-export const generateCourseBrochure = async (course: CourseData) => {
+interface GenerateCourseBrochureOptions {
+  mode?: 'download' | 'preview';
+  fileName?: string;
+}
+
+export const generateCourseBrochure = async (
+  course: CourseData,
+  options: GenerateCourseBrochureOptions = {},
+) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -249,21 +257,20 @@ export const generateCourseBrochure = async (course: CourseData) => {
     'VIRTUAL': 'Virtual',
   };
 
-  // EDITED: Repositioned for yellow line area
-  // Title positioned within the yellow line area - centered on the diagonal
+  // Align the client brochure cover with the newer trainer/admin brochure layout.
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(26);
   doc.setFont('helvetica', 'bold');
   const titleMaxWidth = contentWidth - 20;
   const titleLines = doc.splitTextToSize(course.title, titleMaxWidth);
-  const titleStartY = 180; // Lowered further from 105
+  const titleY = 180;
 
   titleLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 10, titleStartY + (index * 9)); // Shifted further left to margin + 10
+    doc.text(line, margin + 10, titleY + (index * 9));
   });
 
-  // Course details below title - smaller font, within yellow line
-  let yPos = titleStartY + (titleLines.length * 9) + 15;
+  // Keep the course meta within the yellow detail band used by the updated brochure.
+  let yPos = titleY + (titleLines.length * 9) + 15;
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
 
@@ -758,6 +765,12 @@ export const generateCourseBrochure = async (course: CourseData) => {
   }
 
   // Save the PDF
-  const fileName = `${course.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_brochure.pdf`;
+  const fileName = options.fileName || `${course.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_brochure.pdf`;
+
+  if (options.mode === 'preview') {
+    const blob = doc.output('blob');
+    return URL.createObjectURL(blob);
+  }
+
   doc.save(fileName);
 };

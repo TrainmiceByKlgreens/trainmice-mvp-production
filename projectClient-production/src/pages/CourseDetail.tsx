@@ -52,6 +52,8 @@ export function CourseDetail() {
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
   const [publicEvents, setPublicEvents] = useState<any[]>([]);
   const [isDownloadingBrochure, setIsDownloadingBrochure] = useState(false);
+  const [isPreparingBrochurePreview, setIsPreparingBrochurePreview] = useState(false);
+  const [generatedBrochureUrl, setGeneratedBrochureUrl] = useState<string | null>(null);
   const [isTrainersDrawerOpen, setIsTrainersDrawerOpen] = useState(false);
 
   const extractArray = (value: any): string[] => {
@@ -417,6 +419,14 @@ export function CourseDetail() {
     fetchEvents();
   }, [course?.id]);
 
+  useEffect(() => {
+    return () => {
+      if (generatedBrochureUrl) {
+        URL.revokeObjectURL(generatedBrochureUrl);
+      }
+    };
+  }, [generatedBrochureUrl]);
+
   const renderStars = (rating: number | null) => {
     if (!rating) return null;
     const stars = [];
@@ -480,126 +490,157 @@ export function CourseDetail() {
     setIsInHouseModalOpen(true);
   };
 
+  const buildBrochureData = async () => {
+    const courseTypeRaw = (course as any).course_type;
+    const courseType = Array.isArray(courseTypeRaw) && courseTypeRaw.length > 0
+      ? String(courseTypeRaw[0])
+      : courseTypeRaw ? String(courseTypeRaw) : 'IN_HOUSE';
+
+    const primaryCourseTrainer = course?.course_trainers?.find((ct: any) => ct.role === 'PRIMARY');
+    const firstUpcomingEvent = publicEvents[0] || null;
+    const primaryTrainerName =
+      primaryCourseTrainer?.trainer?.full_name ||
+      primaryCourseTrainer?.trainer?.fullName ||
+      activeTrainer?.full_name ||
+      activeTrainer?.fullName ||
+      null;
+    const primaryTrainerCustomId =
+      primaryCourseTrainer?.trainer?.custom_trainer_id ||
+      primaryCourseTrainer?.trainer?.customTrainerId ||
+      activeTrainer?.custom_trainer_id ||
+      activeTrainer?.customTrainerId ||
+      null;
+    const brochureTrainerId =
+      primaryCourseTrainer?.trainer?.id ||
+      primaryCourseTrainer?.trainerId ||
+      activeTrainer?.id ||
+      course?.trainer_id ||
+      null;
+
+    let brochureTrainer = activeTrainer;
+    if (brochureTrainerId) {
+      try {
+        brochureTrainer = await apiClient.getTrainer(brochureTrainerId);
+      } catch (trainerError) {
+        console.warn('[CourseDetail] Could not load full trainer profile for brochure:', trainerError);
+      }
+    }
+
+    const normalizedBrochureTrainer = brochureTrainer
+      ? {
+          ...brochureTrainer,
+          fullName: brochureTrainer.fullName ?? primaryTrainerName,
+          full_name: brochureTrainer.full_name ?? primaryTrainerName,
+          customTrainerId: brochureTrainer.customTrainerId ?? brochureTrainer.custom_trainer_id ?? primaryTrainerCustomId,
+          custom_trainer_id: brochureTrainer.custom_trainer_id ?? brochureTrainer.customTrainerId ?? primaryTrainerCustomId,
+        }
+      : brochureTrainer;
+
+    const {
+      trainerName,
+      trainerCustomId,
+      trainerProfessionalBio,
+      trainerEducation,
+      trainerWorkHistory,
+      trainerQualifications,
+      trainerLanguages,
+    } = buildTrainerBrochureProfile(normalizedBrochureTrainer);
+
+    let currentDeliveryLanguages: string[] = [];
+    const courseDeliveryLanguages = (course as any).delivery_languages || (course as any).deliveryLanguages;
+    if (Array.isArray(courseDeliveryLanguages)) {
+      currentDeliveryLanguages = courseDeliveryLanguages;
+    } else if (typeof courseDeliveryLanguages === 'string') {
+      currentDeliveryLanguages = extractCommaSeparatedArray(courseDeliveryLanguages);
+    }
+
+    const brochureStartDate =
+      (course as any).start_date ||
+      (course as any).fixed_date ||
+      (course as any).event_date ||
+      firstUpcomingEvent?.startDate ||
+      firstUpcomingEvent?.start_date ||
+      firstUpcomingEvent?.eventDate ||
+      firstUpcomingEvent?.event_date ||
+      null;
+
+    const brochureEndDate =
+      (course as any).end_date ||
+      firstUpcomingEvent?.endDate ||
+      firstUpcomingEvent?.end_date ||
+      brochureStartDate;
+
+    const brochureVenue =
+      buildLocationLabel(
+        (course as any).venue,
+        { city: (course as any).city, state: (course as any).state, country: (course as any).country },
+        firstUpcomingEvent,
+      ) || null;
+
+    return {
+      title: course.title,
+      courseType,
+      startDate: brochureStartDate,
+      endDate: brochureEndDate,
+      venue: brochureVenue,
+      description: course.description || null,
+      learningObjectives: extractArray(course.learning_objectives),
+      learningOutcomes: extractArray(course.learning_outcomes),
+      targetAudience: normalizeMultilineText((course as any).target_audience || (course as any).targetAudience),
+      methodology: normalizeMultilineText((course as any).methodology),
+      prerequisites: prerequisiteItems,
+      deliveryLanguages: currentDeliveryLanguages,
+      hrdcClaimable: course.hrdc_claimable,
+      schedule: brochureSchedule,
+      trainerName,
+      trainerCustomId,
+      trainerProfessionalBio,
+      trainerEducation,
+      trainerWorkHistory,
+      trainerQualifications,
+      trainerLanguages,
+    };
+  };
+
+  const handlePreviewBrochure = async () => {
+    if (isPreparingBrochurePreview) return;
+    setIsPreparingBrochurePreview(true);
+    try {
+      const brochureData = await buildBrochureData();
+      const previewUrl = await generateCourseBrochure(brochureData, { mode: 'preview' });
+
+      if (typeof previewUrl === 'string') {
+        if (generatedBrochureUrl) {
+          URL.revokeObjectURL(generatedBrochureUrl);
+        }
+        setGeneratedBrochureUrl(previewUrl);
+        setIsBrochureModalOpen(true);
+      }
+    } catch (err) {
+      console.error('[CourseDetail] Error preparing brochure preview:', err);
+    } finally {
+      setIsPreparingBrochurePreview(false);
+    }
+  };
+
   const handleDownloadBrochure = async () => {
     if (isDownloadingBrochure) return;
     setIsDownloadingBrochure(true);
     try {
-      // Extract course type as a single string
-      const courseTypeRaw = (course as any).course_type;
-      const courseType = Array.isArray(courseTypeRaw) && courseTypeRaw.length > 0
-        ? String(courseTypeRaw[0])
-        : courseTypeRaw ? String(courseTypeRaw) : 'IN_HOUSE';
-
-      // Always resolve the full primary trainer profile for brochure content.
-      const primaryCourseTrainer = course?.course_trainers?.find((ct: any) => ct.role === 'PRIMARY');
-      const firstUpcomingEvent = publicEvents[0] || null;
-      const primaryTrainerName =
-        primaryCourseTrainer?.trainer?.full_name ||
-        primaryCourseTrainer?.trainer?.fullName ||
-        activeTrainer?.full_name ||
-        activeTrainer?.fullName ||
-        null;
-      const primaryTrainerCustomId =
-        primaryCourseTrainer?.trainer?.custom_trainer_id ||
-        primaryCourseTrainer?.trainer?.customTrainerId ||
-        activeTrainer?.custom_trainer_id ||
-        activeTrainer?.customTrainerId ||
-        null;
-      const brochureTrainerId =
-        primaryCourseTrainer?.trainer?.id ||
-        primaryCourseTrainer?.trainerId ||
-        activeTrainer?.id ||
-        course?.trainer_id ||
-        null;
-
-      let brochureTrainer = activeTrainer;
-      if (brochureTrainerId) {
-        try {
-          brochureTrainer = await apiClient.getTrainer(brochureTrainerId);
-        } catch (trainerError) {
-          console.warn('[CourseDetail] Could not load full trainer profile for brochure:', trainerError);
-        }
-      }
-
-      const normalizedBrochureTrainer = brochureTrainer
-        ? {
-            ...brochureTrainer,
-            fullName: brochureTrainer.fullName ?? primaryTrainerName,
-            full_name: brochureTrainer.full_name ?? primaryTrainerName,
-            customTrainerId: brochureTrainer.customTrainerId ?? brochureTrainer.custom_trainer_id ?? primaryTrainerCustomId,
-            custom_trainer_id: brochureTrainer.custom_trainer_id ?? brochureTrainer.customTrainerId ?? primaryTrainerCustomId,
-          }
-        : brochureTrainer;
-
-      const {
-        trainerName,
-        trainerCustomId,
-        trainerProfessionalBio,
-        trainerEducation,
-        trainerWorkHistory,
-        trainerQualifications,
-        trainerLanguages,
-      } = buildTrainerBrochureProfile(normalizedBrochureTrainer);
-
-      // Delivery Languages
-      let currentDeliveryLanguages: string[] = [];
-      const courseDeliveryLanguages = (course as any).delivery_languages || (course as any).deliveryLanguages;
-      if (Array.isArray(courseDeliveryLanguages)) {
-        currentDeliveryLanguages = courseDeliveryLanguages;
-      } else if (typeof courseDeliveryLanguages === 'string') {
-        currentDeliveryLanguages = extractCommaSeparatedArray(courseDeliveryLanguages);
-      }
-
-      const brochureStartDate =
-        (course as any).start_date ||
-        (course as any).fixed_date ||
-        (course as any).event_date ||
-        firstUpcomingEvent?.startDate ||
-        firstUpcomingEvent?.start_date ||
-        firstUpcomingEvent?.eventDate ||
-        firstUpcomingEvent?.event_date ||
-        null;
-
-      const brochureEndDate =
-        (course as any).end_date ||
-        firstUpcomingEvent?.endDate ||
-        firstUpcomingEvent?.end_date ||
-        brochureStartDate;
-
-      const brochureVenue =
-        buildLocationLabel(
-          (course as any).venue,
-          { city: (course as any).city, state: (course as any).state, country: (course as any).country },
-          firstUpcomingEvent,
-        ) || null;
-
-      await generateCourseBrochure({
-        title: course.title,
-        courseType,
-        startDate: brochureStartDate,
-        endDate: brochureEndDate,
-        venue: brochureVenue,
-        description: course.description || null,
-        learningObjectives: extractArray(course.learning_objectives),
-        learningOutcomes: extractArray(course.learning_outcomes),
-        targetAudience: normalizeMultilineText((course as any).target_audience || (course as any).targetAudience),
-        methodology: normalizeMultilineText((course as any).methodology),
-        prerequisites: prerequisiteItems,
-        deliveryLanguages: currentDeliveryLanguages,
-        hrdcClaimable: course.hrdc_claimable,
-        schedule: brochureSchedule,
-        trainerName,
-        trainerCustomId,
-        trainerProfessionalBio,
-        trainerEducation,
-        trainerWorkHistory,
-        trainerQualifications,
-        trainerLanguages,
-      });
+      const brochureData = await buildBrochureData();
+      await generateCourseBrochure(brochureData);
     } catch (err) {
       console.error('[CourseDetail] Error generating brochure:', err);
     } finally {
       setIsDownloadingBrochure(false);
+    }
+  };
+
+  const handleCloseBrochureModal = () => {
+    setIsBrochureModalOpen(false);
+    if (generatedBrochureUrl) {
+      URL.revokeObjectURL(generatedBrochureUrl);
+      setGeneratedBrochureUrl(null);
     }
   };
 
@@ -839,15 +880,14 @@ export function CourseDetail() {
                   </div>
 
                   <div className="pt-4 space-y-3">
-                    {course.brochure_url && (
-                      <button
-                        onClick={() => setIsBrochureModalOpen(true)}
-                        className="w-full py-3 px-4 bg-white text-gray-900 border border-gray-200 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm flex items-center justify-center gap-2 text-sm"
-                      >
-                        <FileText className="w-4 h-4" />
-                        Preview Uploaded Brochure
-                      </button>
-                    )}
+                    <button
+                      onClick={handlePreviewBrochure}
+                      disabled={isPreparingBrochurePreview}
+                      className="w-full py-3 px-4 bg-white text-gray-900 border border-gray-200 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm flex items-center justify-center gap-2 text-sm disabled:opacity-60"
+                    >
+                      <FileText className="w-4 h-4" />
+                      {isPreparingBrochurePreview ? 'Preparing Preview...' : 'Preview Brochure'}
+                    </button>
 
                     <button
                       onClick={handleDownloadBrochure}
@@ -855,11 +895,7 @@ export function CourseDetail() {
                       className="w-full py-3 px-4 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 text-sm"
                     >
                       <FileText className="w-4 h-4 border-white" />
-                      {isDownloadingBrochure
-                        ? 'Generating...'
-                        : course.brochure_url
-                          ? 'Download Generated Brochure'
-                          : 'Download Brochure'}
+                      {isDownloadingBrochure ? 'Generating...' : 'Download Brochure'}
                     </button>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1075,13 +1111,14 @@ export function CourseDetail() {
         }}
       />
 
-      {course.brochure_url && (
+      {isBrochureModalOpen && generatedBrochureUrl && (
         <BrochureModal
           isOpen={isBrochureModalOpen}
-          onClose={() => setIsBrochureModalOpen(false)}
-          brochureUrl={course.brochure_url}
+          onClose={handleCloseBrochureModal}
+          brochureUrl={generatedBrochureUrl}
           courseTitle={course.title}
           learningOutcomes={brochureLearningOutcomes}
+          uploadedBrochureUrl={course.brochure_url}
         />
       )}
     </div>

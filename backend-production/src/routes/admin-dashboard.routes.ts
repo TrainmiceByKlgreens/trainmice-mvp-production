@@ -13,6 +13,52 @@ const addDays = (date: Date, days: number) => {
   return value;
 };
 
+const normalizeCourseTypes = (value: unknown): string[] => {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).toUpperCase()).filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item) => String(item).toUpperCase()).filter(Boolean);
+        }
+      } catch {
+        // Fall back to treating the raw string as a single course type.
+      }
+    }
+
+    return [trimmed.toUpperCase()];
+  }
+
+  return [];
+};
+
+const resolveTrainingType = (primary: unknown, fallback?: unknown) => {
+  const courseTypes = [
+    ...normalizeCourseTypes(primary),
+    ...normalizeCourseTypes(fallback),
+  ];
+
+  if (courseTypes.includes('IN_HOUSE')) return 'IN_HOUSE';
+  if (courseTypes.includes('PUBLIC')) return 'PUBLIC';
+
+  return 'PUBLIC';
+};
+
+const buildLocationLabel = (...parts: Array<string | null | undefined>) =>
+  parts
+    .map((part) => (typeof part === 'string' ? part.trim() : ''))
+    .filter(Boolean)
+    .join(', ') || null;
+
 // Get comprehensive dashboard metrics
 router.get('/metrics', async (req: AuthRequest, res: Response) => {
   try {
@@ -47,6 +93,8 @@ router.get('/metrics', async (req: AuthRequest, res: Response) => {
       pendingHRDCVerifications,
       unreadMessages,
       upcomingCourses,
+      upcomingInHouseTrainingsCount,
+      upcomingInHouseTrainingsRaw,
       upcomingSessionsRaw,
       expiringDocumentsRaw,
       upcomingEventsRaw,
@@ -99,8 +147,56 @@ router.get('/metrics', async (req: AuthRequest, res: Response) => {
           startDate: { gte: new Date() },
         },
       }),
+      prisma.bookingRequest.count({
+        where: {
+          requestType: 'INHOUSE',
+          status: {
+            in: ['APPROVED', 'CONFIRMED', 'TENTATIVE'],
+          },
+          requestedDate: {
+            gte: today,
+          },
+        },
+      }),
       prisma.bookingRequest.findMany({
         where: {
+          requestType: 'INHOUSE',
+          status: {
+            in: ['APPROVED', 'CONFIRMED', 'TENTATIVE'],
+          },
+          requestedDate: {
+            gte: today,
+          },
+        },
+        include: {
+          course: {
+            select: {
+              title: true,
+              venue: true,
+              city: true,
+              state: true,
+            },
+          },
+          trainer: {
+            select: {
+              fullName: true,
+            },
+          },
+          client: {
+            select: {
+              companyName: true,
+              userName: true,
+            },
+          },
+        },
+        orderBy: {
+          requestedDate: 'asc',
+        },
+        take: 6,
+      }),
+      prisma.bookingRequest.findMany({
+        where: {
+          requestType: 'INHOUSE',
           status: {
             in: ['APPROVED', 'CONFIRMED', 'TENTATIVE'],
           },
@@ -113,11 +209,20 @@ router.get('/metrics', async (req: AuthRequest, res: Response) => {
           course: {
             select: {
               title: true,
+              venue: true,
+              city: true,
+              state: true,
             },
           },
           trainer: {
             select: {
               fullName: true,
+            },
+          },
+          client: {
+            select: {
+              companyName: true,
+              userName: true,
             },
           },
         },
@@ -156,6 +261,7 @@ router.get('/metrics', async (req: AuthRequest, res: Response) => {
           course: {
             select: {
               title: true,
+              courseType: true,
             },
           },
           _count: {
@@ -175,8 +281,19 @@ router.get('/metrics', async (req: AuthRequest, res: Response) => {
       id: session.id,
       course_title: session.course?.title || 'Untitled Course',
       trainer_name: session.trainer?.fullName || 'Trainer not assigned',
+      client_name: session.client?.companyName || session.clientName || session.client?.userName || null,
       booking_date: session.requestedDate,
+      requested_time: session.requestedTime,
+      location: buildLocationLabel(
+        session.location,
+        session.city,
+        session.state,
+        session.course?.venue,
+        session.course?.city,
+        session.course?.state,
+      ),
       status: session.status,
+      request_type: session.requestType,
     }));
 
     const expiringDocuments = expiringDocumentsRaw.map((document) => {
@@ -208,6 +325,51 @@ router.get('/metrics', async (req: AuthRequest, res: Response) => {
       registrations_count: event._count.registrations,
     }));
 
+    const upcomingTrainings = [
+      ...upcomingEventsRaw.map((event) => ({
+        id: `event-${event.id}`,
+        entity_id: event.id,
+        source: 'EVENT' as const,
+        training_type: resolveTrainingType(event.courseType, event.course?.courseType),
+        title: event.title,
+        course_title: event.course?.title || event.title,
+        trainer_name: event.trainer?.fullName || 'Trainer not assigned',
+        client_name: null,
+        start_date: event.eventDate,
+        end_date: event.endDate,
+        requested_time: null,
+        location: buildLocationLabel(event.venue, event.city, event.state),
+        status: event.status,
+        registrations_count: event._count.registrations,
+      })),
+      ...upcomingInHouseTrainingsRaw.map((session) => ({
+        id: `booking-${session.id}`,
+        entity_id: session.id,
+        source: 'BOOKING' as const,
+        training_type: 'IN_HOUSE' as const,
+        title: session.course?.title || 'Untitled Course',
+        course_title: session.course?.title || 'Untitled Course',
+        trainer_name: session.trainer?.fullName || 'Trainer not assigned',
+        client_name: session.client?.companyName || session.clientName || session.client?.userName || null,
+        start_date: session.requestedDate,
+        end_date: session.endDate,
+        requested_time: session.requestedTime,
+        location: buildLocationLabel(
+          session.location,
+          session.city,
+          session.state,
+          session.course?.venue,
+          session.course?.city,
+          session.course?.state,
+        ),
+        status: session.status,
+        registrations_count: null,
+      })),
+    ]
+      .filter((item) => item.start_date)
+      .sort((a, b) => new Date(a.start_date!).getTime() - new Date(b.start_date!).getTime())
+      .slice(0, 8);
+
     res.json({
       unreadNotifications,
       pendingRequests,
@@ -220,11 +382,13 @@ router.get('/metrics', async (req: AuthRequest, res: Response) => {
       upcomingCourses,
       activeEvents,
       upcomingEventsCount,
+      upcomingTrainingsCount: upcomingEventsCount + upcomingInHouseTrainingsCount,
       pendingEventRegistrations,
       pendingConfirmations,
       upcomingSessions,
       expiringDocuments,
       upcomingEvents,
+      upcomingTrainings,
     });
   } catch (error: any) {
     console.error('Get dashboard metrics error:', error);

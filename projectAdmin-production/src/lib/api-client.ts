@@ -662,14 +662,19 @@ export class ApiClient {
       upcomingCourses: number;
       activeEvents: number;
       upcomingEventsCount: number;
+      upcomingTrainingsCount: number;
       pendingEventRegistrations: number;
       pendingConfirmations: number;
       upcomingSessions: Array<{
         id: string;
         course_title: string;
         trainer_name: string;
+        client_name: string | null;
         booking_date: string;
+        requested_time: string | null;
+        location: string | null;
         status: string;
+        request_type: string | null;
       }>;
       expiringDocuments: Array<{
         id: string;
@@ -690,6 +695,22 @@ export class ApiClient {
         state: string | null;
         status: string;
         registrations_count: number;
+      }>;
+      upcomingTrainings: Array<{
+        id: string;
+        entity_id: string;
+        source: 'EVENT' | 'BOOKING';
+        training_type: 'PUBLIC' | 'IN_HOUSE';
+        title: string;
+        course_title: string;
+        trainer_name: string;
+        client_name: string | null;
+        start_date: string;
+        end_date: string | null;
+        requested_time: string | null;
+        location: string | null;
+        status: string;
+        registrations_count: number | null;
       }>;
     }>('/admin/dashboard/metrics');
   }

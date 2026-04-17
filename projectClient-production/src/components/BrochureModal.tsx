@@ -6,9 +6,17 @@ interface BrochureModalProps {
   brochureUrl: string;
   courseTitle: string;
   learningOutcomes?: string[] | string | null;
+  uploadedBrochureUrl?: string | null;
 }
 
-export function BrochureModal({ isOpen, onClose, brochureUrl, courseTitle, learningOutcomes }: BrochureModalProps) {
+export function BrochureModal({
+  isOpen,
+  onClose,
+  brochureUrl,
+  courseTitle,
+  learningOutcomes,
+  uploadedBrochureUrl,
+}: BrochureModalProps) {
   if (!isOpen) return null;
 
   const normalizedLearningOutcomes = (() => {
@@ -100,6 +108,16 @@ export function BrochureModal({ isOpen, onClose, brochureUrl, courseTitle, learn
             >
               Open in New Tab
             </a>
+            {uploadedBrochureUrl && uploadedBrochureUrl !== brochureUrl && (
+              <a
+                href={uploadedBrochureUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-white text-gray-700 font-medium rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+              >
+                Open Uploaded PDF
+              </a>
+            )}
             <button
               onClick={onClose}
               className="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
