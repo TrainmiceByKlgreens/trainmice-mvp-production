@@ -220,27 +220,324 @@ export const EventsPage: React.FC = () => {
   const isConfirmedTraining = (event: Event) =>
     (event.status === 'ACTIVE' || event.status === 'COMPLETED') && (event.totalParticipants || 0) > 0;
 
+  const extractArray = (value: any): string[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.map(String).map((item) => item.trim()).filter(Boolean);
+        }
+      } catch {
+        // Fall back to line parsing below.
+      }
+
+      return value
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+
+    return [];
+  };
+
+  const extractCommaSeparatedArray = (value: any): string[] => {
+    const extracted = extractArray(value);
+    if (extracted.length > 1) return extracted;
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+    return extracted;
+  };
+
+  const extractObjectArray = (value: any): any[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return typeof value === 'object' ? [value] : [];
+  };
+
+  const normalizeMultilineText = (value: any): string | null => {
+    if (!value) return null;
+    if (Array.isArray(value)) {
+      const items = value.map(String).map((item) => item.trim()).filter(Boolean);
+      return items.length > 0 ? items.join('\n') : null;
+    }
+
+    if (typeof value === 'string') {
+      const extracted = extractArray(value);
+      if (extracted.length > 1) {
+        return extracted.join('\n');
+      }
+      return value.trim() || null;
+    }
+
+    return String(value);
+  };
+
+  const buildLocationLabel = (...sources: any[]): string | null => {
+    for (const source of sources) {
+      if (!source) continue;
+
+      if (typeof source === 'string') {
+        const trimmed = source.trim();
+        if (trimmed) return trimmed;
+        continue;
+      }
+
+      if (typeof source === 'object') {
+        const venue = typeof source.venue === 'string' ? source.venue.trim() : '';
+        if (venue) return venue;
+
+        const locationParts = [
+          source.location,
+          source.city,
+          source.state,
+          source.country,
+        ]
+          .map((part: any) => (typeof part === 'string' ? part.trim() : ''))
+          .filter(Boolean);
+
+        if (locationParts.length > 0) {
+          return locationParts.join(', ');
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const formatTrainerQualification = (qualification: any): string => {
+    const parts: string[] = [];
+    const title = qualification.title || qualification.qualification_name || qualification.name;
+    const institution = qualification.institution || qualification.institute_name || qualification.organization;
+    const year =
+      qualification.yearObtained ||
+      qualification.year_obtained ||
+      qualification.year_awarded ||
+      qualification.year;
+
+    if (title) parts.push(title);
+    if (institution) parts.push(institution);
+    if (year) parts.push(String(year));
+
+    return parts.join(' - ');
+  };
+
+  const isProfessionalQualification = (qualification: any): boolean => {
+    const rawType = String(
+      qualification.qualificationType ||
+      qualification.qualification_type ||
+      qualification.type ||
+      ''
+    ).toLowerCase();
+    const title = String(
+      qualification.title || qualification.qualification_name || qualification.name || ''
+    ).toLowerCase();
+
+    return rawType === 'professional' || title.includes('cert') || title.includes('license');
+  };
+
+  const buildTrainerBrochureProfile = (trainer: any) => {
+    if (!trainer) {
+      return {
+        trainerName: null,
+        trainerCustomId: null,
+        trainerProfessionalBio: null,
+        trainerEducation: [] as string[],
+        trainerWorkHistory: [] as string[],
+        trainerQualifications: [] as string[],
+        trainerLanguages: [] as string[],
+      };
+    }
+
+    const trainerName =
+      trainer.full_name ||
+      trainer.fullName ||
+      trainer.custom_trainer_id ||
+      trainer.customTrainerId ||
+      null;
+
+    const trainerCustomId = trainer.custom_trainer_id || trainer.customTrainerId || null;
+    const trainerProfessionalBio =
+      trainer.professionalBio ||
+      trainer.bio ||
+      trainer.profileSummary ||
+      trainer.professional_bio ||
+      null;
+
+    const normalizedQualifications = extractObjectArray(trainer.qualifications);
+    const qualifications = normalizedQualifications.length > 0
+      ? normalizedQualifications
+      : extractObjectArray(trainer.qualification);
+
+    const trainerEducation = qualifications
+      .filter((q: any) => !isProfessionalQualification(q))
+      .map(formatTrainerQualification)
+      .filter((item: string) => item && item.trim());
+
+    const trainerQualifications = qualifications
+      .filter((q: any) => isProfessionalQualification(q))
+      .map(formatTrainerQualification)
+      .filter((item: string) => item && item.trim());
+
+    const normalizedWorkHistoryEntries = extractObjectArray(trainer.workHistoryEntries);
+    const workHistoryItems = normalizedWorkHistoryEntries.length > 0
+      ? normalizedWorkHistoryEntries
+      : extractObjectArray(trainer.workHistory);
+
+    const trainerWorkHistory = workHistoryItems
+      .map((w: any) => {
+        const parts: string[] = [];
+        const position = w.position || w.job_title || w.role;
+        const company = w.company || w.company_name || w.organization;
+
+        if (position) parts.push(position);
+        if (company) parts.push(company);
+
+        const startRaw = w.startDate || w.start_date || w.year_from;
+        if (startRaw) {
+          const start = String(startRaw).substring(0, 4);
+          const endValue = w.endDate || w.end_date || w.year_to;
+          const end = endValue ? String(endValue).substring(0, 4) : 'Present';
+          parts.push(`${start} - ${end}`);
+        }
+
+        return parts.join(' | ');
+      })
+      .filter((item: string) => item && item.trim());
+
+    const rawTrainerLanguages =
+      trainer.trainerLanguages ||
+      trainer.languagesSpoken ||
+      trainer.languages_spoken ||
+      trainer.languages ||
+      null;
+
+    let trainerLanguages: string[] = [];
+    if (Array.isArray(rawTrainerLanguages)) {
+      trainerLanguages = rawTrainerLanguages
+        .map((language: any) => {
+          if (typeof language === 'string') {
+            return language;
+          }
+
+          const name = language.language || language.name || '';
+          const proficiency = language.proficiency ? ` (${language.proficiency})` : '';
+          return `${name}${proficiency}`.trim();
+        })
+        .filter((language: string) => Boolean(language && language.trim()));
+    } else if (typeof rawTrainerLanguages === 'string') {
+      trainerLanguages = extractCommaSeparatedArray(rawTrainerLanguages);
+    }
+
+    return {
+      trainerName,
+      trainerCustomId,
+      trainerProfessionalBio,
+      trainerEducation,
+      trainerWorkHistory,
+      trainerQualifications,
+      trainerLanguages,
+    };
+  };
+
   const handleDownloadEventBrochure = async (event: Event) => {
     try {
+      const fullCourse = event.courseId
+        ? (await apiClient.getCourse(event.courseId)).course
+        : null;
+
+      const primaryTrainerId =
+        event.trainer?.id ||
+        event.trainerId ||
+        fullCourse?.trainerId ||
+        fullCourse?.trainer?.id ||
+        fullCourse?.courseTrainers?.find((courseTrainer: any) => courseTrainer.role === 'PRIMARY')?.trainerId ||
+        null;
+
+      let trainerName = event.trainer?.fullName || null;
+      let trainerLanguages: string[] = [];
+      let trainerCustomId: string | null = null;
+      let trainerProfessionalBio: string | null = null;
+      let trainerEducation: string[] = [];
+      let trainerWorkHistory: string[] = [];
+      let trainerQualifications: string[] = [];
+
+      if (primaryTrainerId) {
+        try {
+          const trainerResponse = await apiClient.getTrainer(primaryTrainerId);
+          const trainer = trainerResponse.trainer;
+          ({
+            trainerName,
+            trainerCustomId,
+            trainerProfessionalBio,
+            trainerEducation,
+            trainerWorkHistory,
+            trainerQualifications,
+            trainerLanguages,
+          } = buildTrainerBrochureProfile(trainer));
+        } catch (trainerError) {
+          console.warn('Could not load trainer details for event brochure:', trainerError);
+        }
+      }
+
+      const courseType =
+        (Array.isArray(event.courseType) ? event.courseType[0] : event.courseType) ||
+        (Array.isArray(fullCourse?.courseType) ? fullCourse.courseType[0] : fullCourse?.courseType) ||
+        'IN_HOUSE';
+
+      const schedule = Array.isArray(fullCourse?.courseSchedule)
+        ? fullCourse.courseSchedule.map((item: any) => ({
+            dayNumber: item.dayNumber ?? item.day_number ?? 1,
+            startTime: item.startTime ?? item.start_time ?? '',
+            endTime: item.endTime ?? item.end_time ?? '',
+            moduleTitle: item.moduleTitle ?? item.module_title ?? '',
+            submoduleTitle: extractArray(item.submoduleTitle ?? item.submodule_title),
+          }))
+        : [];
+
+      const venue =
+        buildLocationLabel(
+          event.venue,
+          { city: event.city, state: event.state },
+          fullCourse?.venue,
+          fullCourse ? { city: fullCourse.city, state: fullCourse.state, country: fullCourse.country } : null,
+        ) || 'TBA';
+
       await generateCourseBrochure({
-        title: event.title || event.course?.title || 'Training Event',
-        courseType:
-          (Array.isArray(event.courseType) ? event.courseType[0] : event.courseType) ||
-          event.course?.courseType?.[0] ||
-          'IN_HOUSE',
+        title: event.title || fullCourse?.title || event.course?.title || 'Training Event',
+        courseType,
         startDate: event.startDate || event.eventDate,
         endDate: event.endDate || event.startDate || event.eventDate,
-        venue: event.venue || [event.city, event.state].filter(Boolean).join(', ') || 'TBA',
-        description: event.description || null,
-        learningObjectives: Array.isArray(event.learningObjectives) ? event.learningObjectives : [],
-        learningOutcomes: Array.isArray(event.learningOutcomes) ? event.learningOutcomes : [],
-        targetAudience: event.targetAudience || null,
-        methodology: event.methodology || null,
-        prerequisites: event.prerequisite ? [event.prerequisite] : [],
-        hrdcClaimable: !!event.hrdcClaimable,
-        trainerName: event.trainer?.fullName || null,
-        trainerLanguages: [],
-        schedule: [],
+        venue,
+        description: event.description || fullCourse?.description || null,
+        learningObjectives: extractArray(event.learningObjectives ?? fullCourse?.learningObjectives),
+        learningOutcomes: extractArray(event.learningOutcomes ?? fullCourse?.learningOutcomes),
+        targetAudience: normalizeMultilineText(event.targetAudience ?? fullCourse?.targetAudience),
+        methodology: normalizeMultilineText(event.methodology ?? fullCourse?.methodology),
+        prerequisites: extractArray(event.prerequisite ?? fullCourse?.prerequisite),
+        deliveryLanguages: extractCommaSeparatedArray(fullCourse?.deliveryLanguages),
+        hrdcClaimable: Boolean(event.hrdcClaimable ?? fullCourse?.hrdcClaimable),
+        trainerName,
+        trainerCustomId,
+        trainerProfessionalBio,
+        trainerEducation,
+        trainerWorkHistory,
+        trainerQualifications,
+        trainerLanguages,
+        schedule,
       });
       showToast('Event brochure downloaded successfully', 'success');
     } catch (error: any) {

@@ -28,12 +28,6 @@ export function NotificationsView() {
         }
     }, [user?.id, filter]);
 
-    useEffect(() => {
-        if (user?.id) {
-            markAllAsRead();
-        }
-    }, [user?.id]);
-
     const markAllAsRead = async () => {
         try {
             await apiClient.markAllNotificationsAsRead();
@@ -132,6 +126,16 @@ export function NotificationsView() {
                         {btn.label}
                     </button>
                 ))}
+                <div className="ml-auto pb-4">
+                    <Button
+                        onClick={markAllAsRead}
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-lg text-[9px] font-black uppercase tracking-widest border-accent-200 text-accent-700 hover:bg-accent-50"
+                    >
+                        Mark All as Read
+                    </Button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-corporate-50/20">

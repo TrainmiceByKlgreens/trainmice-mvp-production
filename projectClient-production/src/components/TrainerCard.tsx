@@ -62,8 +62,16 @@ export function TrainerCard({
       )}
 
       <div className="flex items-start gap-4 mb-4">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
-          {trainerInitial}
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 overflow-hidden">
+          {trainer.profile_pic ? (
+            <img
+              src={trainer.profile_pic}
+              alt={trainerName}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            trainerInitial
+          )}
         </div>
         <div className="flex-1">
           <Link to={`/trainers/${trainer.id}`}>

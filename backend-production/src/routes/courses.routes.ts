@@ -9,7 +9,6 @@ import { broadcastUpdate } from '../lib/socket';
 
 const router = express.Router();
 
-const shouldRedactTrainerImages = (req: AuthRequest) => !req.user || req.user.role === 'CLIENT';
 const shouldHideUnapprovedTrainerProfiles = (req: AuthRequest) => !req.user || req.user.role === 'CLIENT';
 
 const stripTrainerApprovalState = (trainer: any) => {
@@ -35,38 +34,6 @@ const hideUnapprovedCourseTrainers = (course: any) => ({
           trainer: stripTrainerApprovalState(courseTrainer.trainer),
         }))
     : course.courseTrainers,
-});
-
-const redactCourseTrainerImages = (course: any) => ({
-  ...course,
-  trainer: course.trainer
-    ? {
-        ...course.trainer,
-        profilePic: null,
-      }
-    : course.trainer,
-  courseTrainers: Array.isArray(course.courseTrainers)
-    ? course.courseTrainers.map((courseTrainer: any) => ({
-        ...courseTrainer,
-        trainer: courseTrainer.trainer
-          ? {
-              ...courseTrainer.trainer,
-              profilePic: null,
-            }
-          : courseTrainer.trainer,
-      }))
-    : course.courseTrainers,
-  courseNotes: Array.isArray(course.courseNotes)
-    ? course.courseNotes.map((note: any) => ({
-        ...note,
-        trainer: note.trainer
-          ? {
-              ...note.trainer,
-              profilePic: null,
-            }
-          : note.trainer,
-      }))
-    : course.courseNotes,
 });
 
 // Get all courses (public) - only show APPROVED courses to clients
@@ -209,9 +176,6 @@ router.get('/', authenticateOptional, async (req: AuthRequest, res) => {
     if (shouldHideUnapprovedTrainerProfiles(req)) {
       responseCourses = responseCourses.map(hideUnapprovedCourseTrainers);
     }
-    if (shouldRedactTrainerImages(req)) {
-      responseCourses = responseCourses.map(redactCourseTrainerImages);
-    }
 
     return res.json({ courses: responseCourses });
   } catch (error: any) {
@@ -325,9 +289,6 @@ router.get('/:id', authenticateOptional, async (req: AuthRequest, res) => {
     let responseCourse = courseWithRating;
     if (shouldHideUnapprovedTrainerProfiles(req)) {
       responseCourse = hideUnapprovedCourseTrainers(responseCourse);
-    }
-    if (shouldRedactTrainerImages(req)) {
-      responseCourse = redactCourseTrainerImages(responseCourse);
     }
 
     return res.json({ course: responseCourse });

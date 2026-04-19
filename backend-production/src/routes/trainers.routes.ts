@@ -168,7 +168,6 @@ router.get('/', authenticateOptional, async (req: AuthRequest, res) => {
 
       return {
         ...publicTrainerFields,
-        profilePic: null,
         avgRating: ratingsMap.get(trainer.id) ?? null,
         courseCount: trainer.courses.length,
       };
@@ -233,7 +232,6 @@ router.get('/:id', authenticateOptional, async (req: AuthRequest, res) => {
     if (!isOwnProfile) {
       const publicTrainer: any = {
         ...trainer,
-        profilePic: null,
         fullName: null, // Hide name
         phoneNumber: null, // Hide phone
         email: null, // Hide email

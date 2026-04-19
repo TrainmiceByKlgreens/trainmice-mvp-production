@@ -1,6 +1,7 @@
 /**
  * Brochure Generator for Courses
  * Generates a multi-page PDF brochure for courses
+ * EDITED: Title and course info repositioned within yellow line area
  */
 
 import jsPDF from 'jspdf';
@@ -248,69 +249,59 @@ export const generateCourseBrochure = async (course: CourseData) => {
     'VIRTUAL': 'Virtual',
   };
 
-  // Course title - lowered position
+  // EDITED: Repositioned for yellow line area
+  // Title positioned within the yellow line area - centered on the diagonal
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(28);
+  doc.setFontSize(26);
   doc.setFont('helvetica', 'bold');
-  const titleMaxWidth = contentWidth;
+  const titleMaxWidth = contentWidth - 20;
   const titleLines = doc.splitTextToSize(course.title, titleMaxWidth);
-  const titleY = 80; // Lowered from 50 to 80
-  
-  // Center or left-align title
+  const titleStartY = 180; // Lowered further from 105
+
   titleLines.forEach((line: string, index: number) => {
-    doc.text(line, margin, titleY + (index * 10));
+    doc.text(line, margin + 10, titleStartY + (index * 9)); // Shifted further left to margin + 10
   });
 
-  // Course details below title
-  let yPos = titleY + (titleLines.length * 10) + 25;
-  doc.setFontSize(13);
+  // Course details below title - smaller font, within yellow line
+  let yPos = titleStartY + (titleLines.length * 9) + 15;
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
 
   // Training Mode
   doc.setFont('helvetica', 'bold');
-  doc.text('Training Mode: ', margin, yPos);
+  doc.text('Training Mode:', margin + 10, yPos);
   doc.setFont('helvetica', 'normal');
   const modeText = courseTypeMap[course.courseType || 'IN_HOUSE'] || course.courseType || 'In-House';
-  doc.text(modeText, margin + 50, yPos);
-  yPos += 12;
+  doc.text(modeText, margin + 60, yPos);
+  yPos += 9;
 
-  // Date - on front page
+  // Date
   doc.setFont('helvetica', 'bold');
-  doc.text('Date: ', margin, yPos);
+  doc.text('Date:', margin + 10, yPos);
   doc.setFont('helvetica', 'normal');
-  const dateLines = doc.splitTextToSize(dateText, contentWidth - 50);
+  const dateLines = doc.splitTextToSize(dateText, contentWidth - 90);
   dateLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 50, yPos + (index * 6));
+    doc.text(line, margin + 60, yPos + (index * 5));
   });
-  yPos += Math.max(dateLines.length * 6, 12);
+  yPos += Math.max(dateLines.length * 5, 9);
 
-  // Venue - on front page
+  // Venue
   doc.setFont('helvetica', 'bold');
-  doc.text('Venue: ', margin, yPos);
+  doc.text('Venue:', margin + 10, yPos);
   doc.setFont('helvetica', 'normal');
   const venueText = course.venue || 'TBA';
-  const venueLines = doc.splitTextToSize(venueText, contentWidth - 50);
+  const venueLines = doc.splitTextToSize(venueText, contentWidth - 90);
   venueLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 50, yPos + (index * 6));
+    doc.text(line, margin + 60, yPos + (index * 5));
   });
-  yPos += Math.max(venueLines.length * 6, 12);
+  yPos += Math.max(venueLines.length * 5, 9);
 
   if (overallTimeRange) {
     doc.setFont('helvetica', 'bold');
-    doc.text('Time: ', margin, yPos);
+    doc.text('Time:', margin + 10, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(overallTimeRange, margin + 50, yPos);
+    doc.text(overallTimeRange, margin + 60, yPos);
   }
-
-  // Footer contact info
-  doc.setFillColor(0, 51, 102, 0.9);
-  doc.rect(0, pageHeight - 20, pageWidth, 20, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Phone: +6019 9331 008', margin, pageHeight - 12);
-  doc.text('Email: enquiry@trainmice.com', pageWidth / 2 - 30, pageHeight - 12);
-  doc.text('Website: www.trainmice.com', pageWidth - 70, pageHeight - 12);
 
   // ============================================================================
   // PAGE 2: COURSE DETAILS WITH BACKGROUND IMAGE
@@ -583,11 +574,9 @@ export const generateCourseBrochure = async (course: CourseData) => {
       });
 
       // Display each session
-      for (let sessionIndex = 0; sessionIndex < daySessions.length; sessionIndex++) {
-        const session = daySessions[sessionIndex];
+      for (const session of daySessions) {
         const firstItem = session.items[0];
         if (!firstItem) continue;
-        const nextSession = daySessions[sessionIndex + 1]?.items[0];
 
         // Check if we need space for this session
         currentY = await checkPageBreak(currentY, 25);
@@ -595,7 +584,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
         // Session time header
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${formatScheduleTime(firstItem.startTime)} - ${formatScheduleTime(firstItem.endTime)}`, margin, currentY);
+        doc.text(`${firstItem.startTime} - ${firstItem.endTime}`, margin, currentY);
         currentY += 6;
 
         // Display all modules for this session
@@ -638,18 +627,6 @@ export const generateCourseBrochure = async (course: CourseData) => {
         }
 
         currentY += 8; // Space between sessions
-
-        if (shouldInsertLunchBreak(firstItem, nextSession)) {
-          currentY = await checkPageBreak(currentY, 16);
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(10);
-          doc.text('Lunch Break', margin + 5, currentY);
-          currentY += 5;
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9);
-          currentY = await addText('1:00 PM - 2:00 PM (mandatory non-editable break)', margin + 10, currentY, contentWidth - 10, 9);
-          currentY += 6;
-        }
       }
 
       currentY += 5; // Space between days

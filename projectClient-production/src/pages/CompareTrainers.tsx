@@ -116,8 +116,16 @@ export function CompareTrainers() {
                 className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden"
               >
                 <div className="bg-gradient-to-br from-blue-400 to-blue-600 p-6 text-center">
-                  <div className="w-24 h-24 mx-auto rounded-full bg-white flex items-center justify-center text-blue-600 text-3xl font-bold mb-3">
-                    {trainerInitial}
+                  <div className="w-24 h-24 mx-auto rounded-full bg-white flex items-center justify-center text-blue-600 text-3xl font-bold mb-3 overflow-hidden">
+                    {trainer.profile_pic ? (
+                      <img
+                        src={trainer.profile_pic}
+                        alt={trainerName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      trainerInitial
+                    )}
                   </div>
                   <h3 className="text-xl font-bold text-white">{trainerName}</h3>
                   {trainer.job_title && (

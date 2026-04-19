@@ -294,6 +294,32 @@ export function CourseDetail() {
 
   const prerequisiteItems = extractArray(course?.prerequisite);
 
+  const renderTrainerAvatar = (trainer: any, sizeClass: string, textClass: string, fallbackClass: string) => {
+    const trainerLabel =
+      trainer?.custom_trainer_id ||
+      trainer?.customTrainerId ||
+      trainer?.full_name ||
+      trainer?.fullName ||
+      'Trainer';
+    const trainerImage = trainer?.profile_pic || trainer?.profilePic || null;
+
+    return (
+      <div className={`${sizeClass} rounded-full overflow-hidden border ${fallbackClass} flex items-center justify-center`}>
+        {trainerImage ? (
+          <img
+            src={trainerImage}
+            alt={trainerLabel}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className={textClass}>
+            {String(trainerLabel).charAt(0).toUpperCase()}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   useEffect(() => {
     auth.getSession().then(({ user }) => {
       setIsAuthenticated(!!user);
@@ -869,9 +895,12 @@ export function CourseDetail() {
                     course.course_trainers.map((ct: any, idx: number) => (
                       <div key={idx} className="bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-xl border border-yellow-600/10 p-4 hover:shadow-lg transition-all">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-700 font-bold overflow-hidden border border-yellow-200">
-                            T
-                          </div>
+                          {renderTrainerAvatar(
+                            ct.trainer,
+                            'w-12 h-12',
+                            'text-yellow-700 font-bold',
+                            'bg-yellow-100 border-yellow-200'
+                          )}
                           <div className="min-w-0">
                             <h4 className="text-sm font-bold text-gray-900 truncate">
                               {ct.trainer?.custom_trainer_id || 'N/A'}
@@ -933,9 +962,12 @@ export function CourseDetail() {
               {course.course_trainers && course.course_trainers.length > 0 ? (
                 course.course_trainers.map((ct: any, idx: number) => (
                   <div key={idx} className="bg-yellow-400 rounded-3xl p-5 flex items-center gap-5 border border-yellow-500 shadow-md">
-                    <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-yellow-700 text-2xl font-bold overflow-hidden shadow-inner border-2 border-white">
-                      T
-                    </div>
+                    {renderTrainerAvatar(
+                      ct.trainer,
+                      'w-20 h-20 shadow-inner border-2 border-white bg-white',
+                      'text-yellow-700 text-2xl font-bold',
+                      'bg-white border-white'
+                    )}
                     <div className="flex-1 min-w-0">
                       <h4 className="text-lg font-bold text-gray-900 truncate">
                         {ct.trainer?.custom_trainer_id || 'N/A'}

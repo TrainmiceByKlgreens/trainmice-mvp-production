@@ -88,7 +88,8 @@ function mapToBackendCourse(trainerId: string, courseData: CourseFormData) {
     fixedDate: null,
     startDate: null,
     endDate: courseData.end_date ? new Date(courseData.end_date) : null,
-    status: courseData.status === 'published' ? 'ACTIVE' : 'DRAFT',
+    // Trainer "publish" submits the course for admin approval.
+    status: courseData.status === 'published' ? 'PENDING_APPROVAL' : 'DRAFT',
     modules: [],
     trainerAvailabilityId: courseData.selectedAvailabilityId || null,
     deliveryLanguages: courseData.delivery_languages || [],
@@ -177,7 +178,8 @@ export async function updateCourse(courseId: string, courseData: Partial<CourseF
     if (courseData.prerequisite !== undefined) updatePayload.prerequisite = parseTextToArray(courseData.prerequisite);
     if (courseData.image_url !== undefined) updatePayload.imageUrl = courseData.image_url;
     if (courseData.status !== undefined) {
-      updatePayload.status = courseData.status === 'published' ? 'ACTIVE' : 'DRAFT';
+      // Trainer "publish" submits the course for admin approval.
+      updatePayload.status = courseData.status === 'published' ? 'PENDING_APPROVAL' : 'DRAFT';
     }
 
     // Handle end_date (trainers cannot set fixedDate - events created only by admin)
@@ -310,7 +312,9 @@ export async function fetchCourseById(courseId: string) {
       course_mode: Array.isArray(raw.courseMode) ? raw.courseMode : (raw.courseMode ? [raw.courseMode] : null),
       duration_hours: raw.durationHours,
       duration_unit: raw.durationUnit ?? raw.duration_unit ?? 'hours',
-      event_date: raw.fixedDate ? new Date(raw.fixedDate).toISOString().split('T')[0] : null,
+      event_date: raw.fixedDate
+        ? new Date(raw.fixedDate).toISOString().split('T')[0]
+        : (raw.startDate ? new Date(raw.startDate).toISOString().split('T')[0] : null),
       image_url: raw.imageUrl ?? null,
       category: raw.category ?? null,
       price: raw.price ?? null,
@@ -318,7 +322,7 @@ export async function fetchCourseById(courseId: string) {
       isRead: raw.isRead ?? true,
       hrdc_claimable: raw.hrdcClaimable ?? null,
       modules: raw.modules ?? [],
-      status: raw.status === 'ACTIVE' ? 'published' : 'draft',
+      status: raw.status === 'APPROVED' ? 'published' : 'draft',
       course_sequence: null,
       created_at: raw.createdAt,
       delivery_languages: raw.deliveryLanguages ?? [],

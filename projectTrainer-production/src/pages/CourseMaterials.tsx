@@ -75,6 +75,14 @@ export function CourseMaterials() {
     ? course.course_type
     : (course.course_type ? [course.course_type] : []);
 
+  const formatCourseType = (type: string) => {
+    const normalizedType = String(type).toUpperCase();
+    if (normalizedType === 'IN_HOUSE') return 'In-House';
+    if (normalizedType === 'PUBLIC') return 'Public';
+    if (normalizedType === 'VIRTUAL' || normalizedType === 'ONLINE') return 'Virtual';
+    return type;
+  };
+
   return (
     <div className="space-y-10 max-w-6xl mx-auto animate-fade-in mb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -109,12 +117,12 @@ export function CourseMaterials() {
             <div className="flex flex-wrap gap-2">
               {courseTypes.length > 0 ? (
                 courseTypes.map((type: string, index: number) => (
-                  <span key={index} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg border ${type === 'In-House' ? 'bg-blue-50 border-blue-100 text-blue-600' :
-                    type === 'Public' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
-                      type === 'Virtual' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' :
+                  <span key={index} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg border ${String(type).toUpperCase() === 'IN_HOUSE' ? 'bg-blue-50 border-blue-100 text-blue-600' :
+                    String(type).toUpperCase() === 'PUBLIC' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
+                      ['VIRTUAL', 'ONLINE'].includes(String(type).toUpperCase()) ? 'bg-indigo-50 border-indigo-100 text-indigo-600' :
                         'bg-corporate-50 border-corporate-100 text-corporate-500'
                     }`}>
-                    {type}
+                    {formatCourseType(type)}
                   </span>
                 ))
               ) : (

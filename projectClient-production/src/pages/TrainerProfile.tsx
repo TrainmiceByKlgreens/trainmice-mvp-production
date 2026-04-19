@@ -86,6 +86,7 @@ export function TrainerProfile() {
       ? (trainer as any).areas_of_expertise
       : [];
   const trainerInitial = trainer.custom_trainer_id?.charAt(0)?.toUpperCase() || 'T';
+  const trainerDisplayName = `Trainer ${trainer.custom_trainer_id || trainer.id?.substring(0, 8) || 'Profile'}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -109,13 +110,21 @@ export function TrainerProfile() {
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8 border-b border-gray-50 pb-8">
                 <div className="w-36 h-36 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 p-1 flex-shrink-0 shadow-lg">
                   <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-yellow-600 text-5xl font-bold overflow-hidden">
-                    {trainerInitial}
+                    {trainer.profile_pic ? (
+                      <img
+                        src={trainer.profile_pic}
+                        alt={trainerDisplayName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      trainerInitial
+                    )}
                   </div>
                 </div>
                 <div className="flex-1 text-center sm:text-left">
                   <span className="text-[10px] font-bold text-teal-600 uppercase tracking-[0.2em] mb-2 block">Certified Trainer</span>
                   <h1 className="text-4xl font-bold text-gray-900 mb-3">
-                    Trainer {trainer.custom_trainer_id || trainer.id?.substring(0, 8) || 'Profile'}
+                    {trainerDisplayName}
                   </h1>
                   {trainer.rating != null && (
                     <div className="flex items-center justify-center sm:justify-start gap-3">
