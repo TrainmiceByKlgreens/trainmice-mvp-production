@@ -106,7 +106,7 @@ export function Step1BasicInfo({ formData, onChange, errors = {} }: Step1Props) 
                                 {formData.image_url ? (
                                     <>
                                         <img
-                                            src={formData.image_url.startsWith('http') || formData.image_url.startsWith('data:') ? formData.image_url : `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${formData.image_url}`}
+                                            src={apiClient.resolveImageUrl(formData.image_url)}
                                             alt="Course Preview"
                                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                         />

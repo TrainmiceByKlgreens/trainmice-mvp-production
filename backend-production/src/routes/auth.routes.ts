@@ -713,6 +713,49 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// Delete current authenticated account
+router.delete('/account', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const existingUser = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (existingUser.role === 'TRAINER') {
+        await tx.trainer.deleteMany({
+          where: { id: existingUser.id },
+        });
+      } else if (existingUser.role === 'CLIENT') {
+        await tx.client.deleteMany({
+          where: { id: existingUser.id },
+        });
+      } else if (existingUser.role === 'ADMIN') {
+        await tx.admin.deleteMany({
+          where: { id: existingUser.id },
+        });
+      }
+
+      await tx.user.delete({
+        where: { id: existingUser.id },
+      });
+    });
+
+    return res.json({ message: 'Account deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete account error:', error);
+    return res.status(500).json({ error: 'Failed to delete account', details: error.message });
+  }
+});
+
 // Get current client profile (authenticated client only)
 router.get(
   '/client/profile',
@@ -797,4 +840,3 @@ router.put(
 );
 
 export default router;
-

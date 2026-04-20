@@ -21,6 +21,32 @@ export function CourseListTable({ courses, onEdit, onDelete, onRefresh, onViewDe
   const [selectedCourseForSchedule, setSelectedCourseForSchedule] = useState<Course | null>(null);
   const [courseMaterials, setCourseMaterials] = useState<CourseMaterial[]>([]);
 
+  const getStatusMeta = (status: Course['status']) => {
+    switch (status) {
+      case 'published':
+      case 'APPROVED':
+        return {
+          label: 'Live',
+          className: 'bg-black border-black text-accent-gold',
+        };
+      case 'PENDING_APPROVAL':
+        return {
+          label: 'Pending Review',
+          className: 'bg-amber-50 border-amber-200 text-amber-700',
+        };
+      case 'DENIED':
+        return {
+          label: 'Needs Changes',
+          className: 'bg-red-50 border-red-200 text-red-700',
+        };
+      default:
+        return {
+          label: 'Draft',
+          className: 'bg-white border-corporate-100 text-corporate-400',
+        };
+    }
+  };
+
   const getMyTrainerRecord = (course: Course) => (
     course.course_trainers?.find(ct => ct.trainerId === currentUserId) || null
   );
@@ -141,6 +167,8 @@ export function CourseListTable({ courses, onEdit, onDelete, onRefresh, onViewDe
               <tbody className="divide-y divide-corporate-50">
                 {courses.map((course) => {
                   const readOnlyAssignment = isReadOnlyAssignment(course);
+                  const statusMeta = getStatusMeta(course.status);
+                  const hasUnreadReviewChange = course.isRead === false && ['published', 'APPROVED', 'DENIED', 'PENDING_APPROVAL'].includes(course.status);
 
                   return (
                     <tr
@@ -152,7 +180,7 @@ export function CourseListTable({ courses, onEdit, onDelete, onRefresh, onViewDe
                         <div className="flex flex-col relative">
                           <div className="flex items-center gap-2">
                             <p className="font-black text-corporate-950 group-hover/row:text-black transition-colors tracking-tight uppercase text-sm leading-relaxed">{course.title}</p>
-                            {course.isRead === false && (course.status === 'APPROVED' || course.status === 'DENIED') && (
+                            {hasUnreadReviewChange && (
                               <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse flex-shrink-0 border-2 border-white shadow-sm" title="Status updated" />
                             )}
                           </div>
@@ -181,11 +209,8 @@ export function CourseListTable({ courses, onEdit, onDelete, onRefresh, onViewDe
                         </div>
                       </td>
                       <td className="py-6 px-6">
-                        <span className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border-2 shadow-sm ${course.status === 'published'
-                          ? 'bg-black border-black text-accent-gold'
-                          : 'bg-white border-corporate-100 text-corporate-400'
-                          }`}>
-                          {course.status === 'published' ? 'Live' : 'Draft'}
+                        <span className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border-2 shadow-sm ${statusMeta.className}`}>
+                          {statusMeta.label}
                         </span>
                       </td>
                       <td className="py-6 px-8">

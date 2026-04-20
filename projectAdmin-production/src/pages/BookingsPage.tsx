@@ -1040,7 +1040,7 @@ export const BookingsPage: React.FC = () => {
                       onClick={async () => {
                         setDetailActionLoading(true);
                         try {
-                          await apiClient.updateBookingDetails(b.id, { ...b, isHidden: !b.isHidden } as any);
+                          await apiClient.toggleBookingVisibility(b.id);
                           showToast(b.isHidden ? 'Booking unhidden successfully' : 'Booking hidden from default view', 'success');
                           setShowDetailModal(false);
                           fetchBookings();

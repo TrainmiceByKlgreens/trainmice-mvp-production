@@ -8,6 +8,44 @@ import {
   TrainerLanguage
 } from '../types/database';
 
+function mapTrainerResponse(trainer: any): Trainer {
+  const resolvedEmail = trainer.email || trainer.user?.email || null;
+  const resolvedFullName = trainer.fullName || trainer.full_name || trainer.user?.fullName || null;
+  const resolvedProfilePic = apiClient.resolveImageUrl(trainer.profilePic || trainer.profile_pic || null);
+
+  return {
+    id: trainer.id,
+    trainer_id: 0,
+    custom_trainer_id: trainer.customTrainerId || trainer.custom_trainer_id || '',
+    profile_pic: resolvedProfilePic,
+    ic_number: trainer.icNumber || trainer.ic_number || null,
+    full_name: resolvedFullName,
+    race: trainer.race || null,
+    phone_number: trainer.phoneNumber || trainer.phone_number || null,
+    email: resolvedEmail,
+    hrdc_accreditation_id: trainer.hrdcAccreditationId || trainer.hrdc_accreditation_id || null,
+    hrdc_accreditation_valid_until: trainer.hrdc_accreditation_valid_until
+      ? (typeof trainer.hrdc_accreditation_valid_until === 'string'
+        ? trainer.hrdc_accreditation_valid_until.split('T')[0]
+        : new Date(trainer.hrdc_accreditation_valid_until).toISOString().split('T')[0])
+      : trainer.hrdcAccreditationValidUntil
+        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0]
+        : null,
+    professional_bio: trainer.professionalBio || trainer.professional_bio || null,
+    state: trainer.state || null,
+    city: trainer.city || null,
+    country: trainer.country || null,
+    areas_of_expertise: trainer.areasOfExpertise || trainer.areas_of_expertise || null,
+    languages_spoken: trainer.languagesSpoken || trainer.languages_spoken || null,
+    profile_approval_status: trainer.profileApprovalStatus || trainer.profile_approval_status || 'PENDING_APPROVAL',
+    profile_approval_notes: trainer.profileApprovalNotes || trainer.profile_approval_notes || null,
+    profile_approval_updated_at: trainer.profileApprovalUpdatedAt || trainer.profile_approval_updated_at || null,
+    profile_approved_at: trainer.profileApprovedAt || trainer.profile_approved_at || null,
+    profile_approved_by: trainer.profileApprovedBy || trainer.profile_approved_by || null,
+    created_at: trainer.createdAt || trainer.created_at || new Date().toISOString(),
+  } as Trainer;
+}
+
 // ================================================================
 // TRAINER PROFILE CRUD OPERATIONS
 // ================================================================
@@ -16,39 +54,7 @@ export async function fetchTrainerProfile(trainerId: string): Promise<Trainer | 
   try {
     const trainer = await apiClient.getTrainer(trainerId);
     if (!trainer) return null;
-
-    // Map backend camelCase to frontend snake_case
-    return {
-      id: trainer.id,
-      trainer_id: 0, // Not used in new system
-      custom_trainer_id: trainer.customTrainerId || trainer.custom_trainer_id || '',
-      profile_pic: trainer.profilePic || trainer.profile_pic || null,
-      ic_number: trainer.icNumber || trainer.ic_number || null,
-      full_name: trainer.fullName || trainer.full_name || null,
-      race: trainer.race || null,
-      phone_number: trainer.phoneNumber || trainer.phone_number || null,
-      email: trainer.email || null,
-      hrdc_accreditation_id: trainer.hrdcAccreditationId || trainer.hrdc_accreditation_id || null,
-      hrdc_accreditation_valid_until: trainer.hrdc_accreditation_valid_until
-        ? (typeof trainer.hrdc_accreditation_valid_until === 'string'
-          ? trainer.hrdc_accreditation_valid_until.split('T')[0]
-          : new Date(trainer.hrdc_accreditation_valid_until).toISOString().split('T')[0])
-        : trainer.hrdcAccreditationValidUntil
-          ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0]
-          : null,
-      professional_bio: trainer.professionalBio || trainer.professional_bio || null,
-      state: trainer.state || null,
-      city: trainer.city || null,
-      country: trainer.country || null,
-      areas_of_expertise: trainer.areasOfExpertise || trainer.areas_of_expertise || null,
-      languages_spoken: trainer.languagesSpoken || trainer.languages_spoken || null,
-      profile_approval_status: trainer.profileApprovalStatus || trainer.profile_approval_status || 'PENDING_APPROVAL',
-      profile_approval_notes: trainer.profileApprovalNotes || trainer.profile_approval_notes || null,
-      profile_approval_updated_at: trainer.profileApprovalUpdatedAt || trainer.profile_approval_updated_at || null,
-      profile_approved_at: trainer.profileApprovedAt || trainer.profile_approved_at || null,
-      profile_approved_by: trainer.profileApprovedBy || trainer.profile_approved_by || null,
-      created_at: trainer.createdAt || trainer.created_at || new Date().toISOString(),
-    } as Trainer;
+    return mapTrainerResponse(trainer);
   } catch (error: any) {
     console.error('Error fetching trainer profile:', error);
     throw new Error(`Failed to fetch trainer profile: ${error.message}`);
@@ -82,35 +88,7 @@ export async function updateTrainerProfile(
     if (profileData.languages_spoken !== undefined) updateData.languagesSpoken = profileData.languages_spoken;
 
     const trainer = await apiClient.updateTrainer(trainerId, updateData);
-
-    // Map back to frontend format
-    return {
-      id: trainer.id,
-      trainer_id: 0,
-      custom_trainer_id: trainer.customTrainerId || trainer.custom_trainer_id || '',
-      profile_pic: trainer.profilePic || trainer.profile_pic || null,
-      ic_number: trainer.icNumber || trainer.ic_number || null,
-      full_name: trainer.fullName || trainer.full_name || null,
-      race: trainer.race || null,
-      phone_number: trainer.phoneNumber || trainer.phone_number || null,
-      email: trainer.email || null,
-      hrdc_accreditation_id: trainer.hrdcAccreditationId || trainer.hrdc_accreditation_id || null,
-      hrdc_accreditation_valid_until: trainer.hrdcAccreditationValidUntil
-        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0]
-        : trainer.hrdc_accreditation_valid_until || null,
-      professional_bio: trainer.professionalBio || trainer.professional_bio || null,
-      state: trainer.state || null,
-      city: trainer.city || null,
-      country: trainer.country || null,
-      areas_of_expertise: trainer.areasOfExpertise || trainer.areas_of_expertise || null,
-      languages_spoken: trainer.languagesSpoken || trainer.languages_spoken || null,
-      profile_approval_status: trainer.profileApprovalStatus || trainer.profile_approval_status || 'PENDING_APPROVAL',
-      profile_approval_notes: trainer.profileApprovalNotes || trainer.profile_approval_notes || null,
-      profile_approval_updated_at: trainer.profileApprovalUpdatedAt || trainer.profile_approval_updated_at || null,
-      profile_approved_at: trainer.profileApprovedAt || trainer.profile_approved_at || null,
-      profile_approved_by: trainer.profileApprovedBy || trainer.profile_approved_by || null,
-      created_at: trainer.createdAt || trainer.created_at || new Date().toISOString(),
-    } as Trainer;
+    return mapTrainerResponse(trainer);
   } catch (error: any) {
     console.error('Error updating trainer profile:', error);
     throw new Error(`Failed to update trainer profile: ${error.message}`);
@@ -123,34 +101,7 @@ export async function uploadTrainerProfileImage(
 ): Promise<Trainer> {
   try {
     const trainer = await apiClient.uploadTrainerProfileImage(trainerId, file);
-
-    return {
-      id: trainer.id,
-      trainer_id: 0,
-      custom_trainer_id: trainer.customTrainerId || trainer.custom_trainer_id || '',
-      profile_pic: trainer.profilePic || trainer.profile_pic || null,
-      ic_number: trainer.icNumber || trainer.ic_number || null,
-      full_name: trainer.fullName || trainer.full_name || null,
-      race: trainer.race || null,
-      phone_number: trainer.phoneNumber || trainer.phone_number || null,
-      email: trainer.email || null,
-      hrdc_accreditation_id: trainer.hrdcAccreditationId || trainer.hrdc_accreditation_id || null,
-      hrdc_accreditation_valid_until: trainer.hrdcAccreditationValidUntil
-        ? new Date(trainer.hrdcAccreditationValidUntil).toISOString().split('T')[0]
-        : trainer.hrdc_accreditation_valid_until || null,
-      professional_bio: trainer.professionalBio || trainer.professional_bio || null,
-      state: trainer.state || null,
-      city: trainer.city || null,
-      country: trainer.country || null,
-      areas_of_expertise: trainer.areasOfExpertise || trainer.areas_of_expertise || null,
-      languages_spoken: trainer.languagesSpoken || trainer.languages_spoken || null,
-      profile_approval_status: trainer.profileApprovalStatus || trainer.profile_approval_status || 'PENDING_APPROVAL',
-      profile_approval_notes: trainer.profileApprovalNotes || trainer.profile_approval_notes || null,
-      profile_approval_updated_at: trainer.profileApprovalUpdatedAt || trainer.profile_approval_updated_at || null,
-      profile_approved_at: trainer.profileApprovedAt || trainer.profile_approved_at || null,
-      profile_approved_by: trainer.profileApprovedBy || trainer.profile_approved_by || null,
-      created_at: trainer.createdAt || trainer.created_at || new Date().toISOString(),
-    } as Trainer;
+    return mapTrainerResponse(trainer);
   } catch (error: any) {
     console.error('Error uploading trainer profile image:', error);
     throw new Error(`Failed to upload trainer profile image: ${error.message}`);

@@ -20,19 +20,52 @@ import { NotificationBell } from './components/common/NotificationBell';
 import { ToastContainer } from './components/common/Toast';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 
+const PAGE_PATHS: Record<string, string> = {
+  dashboard: '/dashboard',
+  messages: '/messages',
+  notifications: '/notifications',
+  trainers: '/trainers',
+  courses: '/courses',
+  events: '/events',
+  'custom-requests': '/custom-requests',
+  bookings: '/bookings',
+  'feedback-analytics': '/feedback-analytics',
+  'admin-logs': '/admin-logs',
+  'trainer-logs': '/trainer-logs',
+  settings: '/settings',
+  'category-images': '/category-images',
+};
+
+const resolvePageFromPath = (pathname: string) =>
+  Object.entries(PAGE_PATHS).find(([, path]) => path === pathname)?.[0] || 'dashboard';
+
 function App() {
   const { user, loading, signOut } = useAuth();
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState(() => resolvePageFromPath(window.location.pathname));
   const [route, setRoute] = useState(window.location.pathname);
 
   useEffect(() => {
     const handlePopState = () => {
-      setRoute(window.location.pathname);
+      const pathname = window.location.pathname;
+      setRoute(pathname);
+      setCurrentPage(resolvePageFromPath(pathname));
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    const targetPath = PAGE_PATHS[currentPage] || PAGE_PATHS.dashboard;
+    if (window.location.pathname !== targetPath) {
+      window.history.replaceState({}, '', targetPath);
+      setRoute(targetPath);
+    }
+  }, [currentPage, user]);
 
   if (loading) {
     return (
@@ -51,6 +84,15 @@ function App() {
 
   const handleLogout = async () => {
     await signOut();
+  };
+
+  const handleNavigate = (page: string) => {
+    const targetPath = PAGE_PATHS[page] || PAGE_PATHS.dashboard;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+      setRoute(targetPath);
+    }
+    setCurrentPage(page);
   };
 
   const renderPage = () => {
@@ -90,7 +132,7 @@ function App() {
     <div className="min-h-screen bg-gray-100">
       <Sidebar
         currentPage={currentPage}
-        onNavigate={setCurrentPage}
+        onNavigate={handleNavigate}
         onLogout={handleLogout}
       />
       <div className="ml-64">

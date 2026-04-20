@@ -43,6 +43,20 @@ const parseTextToArray = (text: string | string[] | null | undefined): string[] 
   return text.split('\n').map(s => s.trim()).filter(Boolean);
 };
 
+const normalizeTrainerCourseStatus = (status: string | null | undefined): Course['status'] => {
+  switch (status) {
+    case 'APPROVED':
+    case 'ACTIVE':
+      return 'published';
+    case 'PENDING_APPROVAL':
+      return 'PENDING_APPROVAL';
+    case 'DENIED':
+      return 'DENIED';
+    default:
+      return 'draft';
+  }
+};
+
 // Map frontend CourseFormData → backend Course payload
 function mapToBackendCourse(trainerId: string, courseData: CourseFormData) {
   let storedDurationHours: number;
@@ -228,7 +242,7 @@ export async function fetchTrainerCourses(trainerId: string) {
     const result = await apiClient.get<{ courses: any[] }>(`/courses?trainerId=${encodeURIComponent(trainerId)}`);
     return (result.courses || []).map((raw) => {
       const durationUnit = raw.durationUnit ?? raw.duration_unit ?? 'hours';
-      let durationHours = raw.durationHours;
+      const durationHours = raw.durationHours ?? raw.duration_hours;
 
       // If unit is days, the stored value is already in days (not hours)
       // So we use it directly without conversion
@@ -238,7 +252,7 @@ export async function fetchTrainerCourses(trainerId: string) {
 
       return {
         id: raw.id,
-        trainer_id: raw.trainerId,
+        trainer_id: raw.trainerId || raw.trainer_id,
         title: raw.title,
         description: raw.description ?? null,
         learning_objectives: raw.learningObjectives ?? [],
@@ -256,27 +270,27 @@ export async function fetchTrainerCourses(trainerId: string) {
         duration_unit: durationUnit,
         event_date: raw.fixedDate ? new Date(raw.fixedDate).toISOString().split('T')[0] : (raw.startDate ? new Date(raw.startDate).toISOString().split('T')[0] : null),
         end_date: raw.endDate ? new Date(raw.endDate).toISOString().split('T')[0] : null,
-        image_url: raw.imageUrl ?? null,
+        image_url: apiClient.resolveImageUrl(raw.imageUrl ?? raw.image_url ?? null),
         category: raw.category ?? null,
         price: raw.price ?? null,
         venue: raw.venue ?? null,
         isRead: raw.isRead ?? true,
         hrdc_claimable: raw.hrdcClaimable ?? null,
         modules: raw.modules ?? [],
-        status: raw.status === 'APPROVED' ? 'published' : 'draft',
+        status: normalizeTrainerCourseStatus(raw.status),
         course_sequence: null,
-        created_at: raw.createdAt,
+        created_at: raw.createdAt || raw.created_at,
         delivery_languages: raw.deliveryLanguages ?? [],
-        course_trainers: (raw.courseTrainers || []).map((ct: any) => ({
+        course_trainers: (raw.courseTrainers || raw.course_trainers || []).map((ct: any) => ({
           id: ct.id,
-          courseId: ct.courseId,
-          trainerId: ct.trainerId,
+          courseId: ct.courseId || ct.course_id,
+          trainerId: ct.trainerId || ct.trainer_id,
           role: ct.role,
-          assignedAt: ct.assignedAt,
+          assignedAt: ct.assignedAt || ct.assigned_at,
           trainer: ct.trainer ? {
             id: ct.trainer.id,
-            fullName: ct.trainer.fullName,
-            profilePic: ct.trainer.profilePic,
+            fullName: ct.trainer.fullName || ct.trainer.full_name,
+            profilePic: apiClient.resolveImageUrl(ct.trainer.profilePic || ct.trainer.profile_pic || null),
           } : undefined
         })),
         courseNotes: raw.courseNotes || [],
@@ -296,7 +310,7 @@ export async function fetchCourseById(courseId: string) {
     if (!raw) return null;
     return {
       id: raw.id,
-      trainer_id: raw.trainerId,
+      trainer_id: raw.trainerId || raw.trainer_id,
       title: raw.title,
       description: raw.description ?? null,
       learning_objectives: raw.learningObjectives ?? [],
@@ -310,33 +324,33 @@ export async function fetchCourseById(courseId: string) {
       assessment: raw.assessment ?? false,
       course_type: Array.isArray(raw.courseType) ? raw.courseType : (raw.courseType ? [raw.courseType] : null),
       course_mode: Array.isArray(raw.courseMode) ? raw.courseMode : (raw.courseMode ? [raw.courseMode] : null),
-      duration_hours: raw.durationHours,
+      duration_hours: raw.durationHours ?? raw.duration_hours,
       duration_unit: raw.durationUnit ?? raw.duration_unit ?? 'hours',
       event_date: raw.fixedDate
         ? new Date(raw.fixedDate).toISOString().split('T')[0]
         : (raw.startDate ? new Date(raw.startDate).toISOString().split('T')[0] : null),
-      image_url: raw.imageUrl ?? null,
+      image_url: apiClient.resolveImageUrl(raw.imageUrl ?? raw.image_url ?? null),
       category: raw.category ?? null,
       price: raw.price ?? null,
       venue: raw.venue ?? null,
       isRead: raw.isRead ?? true,
       hrdc_claimable: raw.hrdcClaimable ?? null,
       modules: raw.modules ?? [],
-      status: raw.status === 'APPROVED' ? 'published' : 'draft',
+      status: normalizeTrainerCourseStatus(raw.status),
       course_sequence: null,
-      created_at: raw.createdAt,
+      created_at: raw.createdAt || raw.created_at,
       delivery_languages: raw.deliveryLanguages ?? [],
-      course_trainers: (raw.courseTrainers || []).map((ct: any) => ({
+      course_trainers: (raw.courseTrainers || raw.course_trainers || []).map((ct: any) => ({
         id: ct.id,
-        courseId: ct.courseId,
-        trainerId: ct.trainerId,
+        courseId: ct.courseId || ct.course_id,
+        trainerId: ct.trainerId || ct.trainer_id,
         role: ct.role,
-        assignedAt: ct.assignedAt,
+        assignedAt: ct.assignedAt || ct.assigned_at,
         trainer: ct.trainer ? {
           id: ct.trainer.id,
-          fullName: ct.trainer.fullName,
-          profilePic: ct.trainer.profilePic,
-          professionalBio: ct.trainer.professionalBio,
+          fullName: ct.trainer.fullName || ct.trainer.full_name,
+          profilePic: apiClient.resolveImageUrl(ct.trainer.profilePic || ct.trainer.profile_pic || null),
+          professionalBio: ct.trainer.professionalBio || ct.trainer.professional_bio,
         } : undefined
       })),
       courseNotes: raw.courseNotes || [],
@@ -454,15 +468,11 @@ export async function uploadCourseMaterial(
     formData.append('file', file);
 
     const result = await apiClient.post<{ material: any }>(`/courses/${courseId}/materials`, formData);
-    const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
-      ? window.location.origin + '/api'
-      : 'http://localhost:3000/api');
-    const baseUrl = API_BASE_URL.replace('/api', ''); // Remove /api to get base server URL
 
     return {
       id: result.material.id,
       course_id: result.material.courseId,
-      file_url: result.material.fileUrl?.startsWith('http') || result.material.fileUrl?.startsWith('data:') ? result.material.fileUrl : `${baseUrl}${result.material.fileUrl}`,
+      file_url: apiClient.resolveImageUrl(result.material.fileUrl || result.material.file_url || null),
       file_name: result.material.fileName,
       uploaded_at: result.material.uploadedAt,
     };
@@ -476,16 +486,10 @@ export async function fetchCourseMaterials(courseId: string) {
   try {
     const result = await apiClient.get<{ course: any }>(`/courses/${courseId}`);
     const mats = result.course?.courseMaterials || [];
-    const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
-      ? window.location.origin + '/api'
-      : 'http://localhost:3000/api');
-    const baseUrl = API_BASE_URL.replace('/api', ''); // Remove /api to get base server URL
-
-
     return mats.map((m: any) => ({
       id: m.id,
       course_id: m.courseId,
-      file_url: m.fileUrl?.startsWith('http') || m.fileUrl?.startsWith('data:') ? m.fileUrl : `${baseUrl}${m.fileUrl}`,
+      file_url: apiClient.resolveImageUrl(m.fileUrl || m.file_url || null),
       file_name: m.fileName,
       uploaded_at: m.uploadedAt,
     }));

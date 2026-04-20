@@ -1,10 +1,17 @@
 /**
  * Brochure Generator for Courses
  * Generates a multi-page PDF brochure for courses
- * EDITED: Title and course info repositioned within yellow line area
  */
 
 import jsPDF from 'jspdf';
+
+interface CourseScheduleItem {
+  dayNumber: number;
+  startTime: string;
+  endTime: string;
+  moduleTitle: string;
+  submoduleTitle?: string[] | null;
+}
 
 interface CourseData {
   title: string;
@@ -20,13 +27,7 @@ interface CourseData {
   prerequisites?: string[] | null;
   deliveryLanguages?: string[] | null;
   hrdcClaimable?: boolean;
-  schedule?: Array<{
-    dayNumber: number;
-    startTime: string;
-    endTime: string;
-    moduleTitle: string; // Now a string (one module per row)
-    submoduleTitle?: string[] | null; // JSON array of submodules
-  }>;
+  schedule?: CourseScheduleItem[];
   // Trainer details (brochure-only, does NOT change database)
   trainerName?: string | null;
   trainerCustomId?: string | null;
@@ -37,7 +38,15 @@ interface CourseData {
   trainerLanguages?: Array<string> | null;
 }
 
-export const generateCourseBrochure = async (course: CourseData) => {
+interface GenerateCourseBrochureOptions {
+  mode?: 'download' | 'preview';
+  fileName?: string;
+}
+
+export const generateCourseBrochure = async (
+  course: CourseData,
+  options: GenerateCourseBrochureOptions = {},
+) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -56,7 +65,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
     return `${displayHours}:${String(minutes).padStart(2, '0')} ${suffix}`;
   };
 
-  const deriveOverallTimeRange = (schedule?: CourseData['schedule']) => {
+  const deriveOverallTimeRange = (schedule?: CourseScheduleItem[] | null) => {
     if (!Array.isArray(schedule) || schedule.length === 0) return null;
 
     const validRanges = schedule
@@ -84,6 +93,11 @@ export const generateCourseBrochure = async (course: CourseData) => {
     return `${formatScheduleTime(earliestStart)} - ${formatScheduleTime(latestEnd)}`;
   };
 
+  const shouldInsertLunchBreak = (
+    currentItem: CourseScheduleItem,
+    nextItem?: CourseScheduleItem
+  ) => currentItem.endTime === '13:00' && nextItem?.startTime === '14:00';
+
   const formatBulletText = (text: string) => `- ${text}`;
 
   // Cache for the second page background image
@@ -99,7 +113,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-
+      
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
@@ -120,13 +134,13 @@ export const generateCourseBrochure = async (course: CourseData) => {
           resolve(null);
         }
       };
-
+      
       img.onerror = () => {
         console.error('Error loading second page background image');
         secondPageBgLoaded = true; // Mark as loaded to prevent retries
         resolve(null);
       };
-
+      
       img.src = '/Brochure2ndpage.jpeg';
     });
   };
@@ -166,26 +180,26 @@ export const generateCourseBrochure = async (course: CourseData) => {
     doc.setFont('helvetica', fontStyle);
     const lines = doc.splitTextToSize(text, maxWidth);
     const lineSpacing = fontSize * 0.35 * lineHeight;
-
+    
     let currentY = y;
     for (let i = 0; i < lines.length; i++) {
       currentY = await checkPageBreak(currentY, lineSpacing);
       doc.text(lines[i], x, currentY);
       currentY += lineSpacing;
     }
-
+    
     return currentY;
   };
 
   // ============================================================================
   // PAGE 1: COVER PAGE WITH BACKGROUND IMAGE
   // ============================================================================
-
+  
   // Load and add background image
   try {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-
+    
     await new Promise((resolve) => {
       img.onload = () => {
         try {
@@ -242,21 +256,20 @@ export const generateCourseBrochure = async (course: CourseData) => {
     'VIRTUAL': 'Virtual',
   };
 
-  // EDITED: Repositioned for yellow line area
-  // Title positioned within the yellow line area - centered on the diagonal
+  // Align the client brochure cover with the newer trainer/admin brochure layout.
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(26);
   doc.setFont('helvetica', 'bold');
   const titleMaxWidth = contentWidth - 20;
   const titleLines = doc.splitTextToSize(course.title, titleMaxWidth);
-  const titleStartY = 180; // Lowered further from 105
+  const titleY = 180;
 
   titleLines.forEach((line: string, index: number) => {
-    doc.text(line, margin + 10, titleStartY + (index * 9)); // Shifted further left to margin + 10
+    doc.text(line, margin + 10, titleY + (index * 9));
   });
 
-  // Course details below title - smaller font, within yellow line
-  let yPos = titleStartY + (titleLines.length * 9) + 15;
+  // Keep the course meta within the yellow detail band used by the updated brochure.
+  let yPos = titleY + (titleLines.length * 9) + 15;
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
 
@@ -296,8 +309,6 @@ export const generateCourseBrochure = async (course: CourseData) => {
     doc.text(overallTimeRange, margin + 60, yPos);
   }
 
-
-
   // ============================================================================
   // PAGE 2: COURSE DETAILS WITH BACKGROUND IMAGE
   // ============================================================================
@@ -315,7 +326,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
 
   // Course details without table
   doc.setTextColor(0, 0, 0);
-
+  
   // Topic
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
@@ -523,7 +534,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
   if (course.schedule && course.schedule.length > 0) {
     // Group schedule by day, then by session (startTime, endTime)
     // New structure: one module per row, multiple modules can share same session
-    const scheduleByDayAndSession: { [key: string]: typeof course.schedule } = {};
+    const scheduleByDayAndSession: Record<string, CourseScheduleItem[]> = {};
     course.schedule.forEach(item => {
       const key = `${item.dayNumber}-${item.startTime}-${item.endTime}`;
       if (!scheduleByDayAndSession[key]) {
@@ -533,7 +544,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
     });
 
     // Group by day first
-    const scheduleByDay: { [day: number]: { sessionKey: string; items: typeof course.schedule }[] } = {};
+    const scheduleByDay: Record<number, { sessionKey: string; items: CourseScheduleItem[] }[]> = {};
     Object.keys(scheduleByDayAndSession).forEach(sessionKey => {
       const items = scheduleByDayAndSession[sessionKey];
       if (items.length > 0) {
@@ -549,7 +560,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
     const sortedDays = Object.keys(scheduleByDay).sort((a, b) => parseInt(a) - parseInt(b));
     for (const day of sortedDays) {
       const daySessions = scheduleByDay[parseInt(day)];
-
+      
       // Day header
       currentY = await checkPageBreak(currentY, 30);
       doc.setFillColor(0, 51, 102);
@@ -569,9 +580,11 @@ export const generateCourseBrochure = async (course: CourseData) => {
       });
 
       // Display each session
-      for (const session of daySessions) {
+      for (let sessionIndex = 0; sessionIndex < daySessions.length; sessionIndex++) {
+        const session = daySessions[sessionIndex];
         const firstItem = session.items[0];
         if (!firstItem) continue;
+        const nextSession = daySessions[sessionIndex + 1]?.items[0];
 
         // Check if we need space for this session
         currentY = await checkPageBreak(currentY, 25);
@@ -579,7 +592,7 @@ export const generateCourseBrochure = async (course: CourseData) => {
         // Session time header
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${firstItem.startTime} - ${firstItem.endTime}`, margin, currentY);
+        doc.text(`${formatScheduleTime(firstItem.startTime)} - ${formatScheduleTime(firstItem.endTime)}`, margin, currentY);
         currentY += 6;
 
         // Display all modules for this session
@@ -587,11 +600,11 @@ export const generateCourseBrochure = async (course: CourseData) => {
           // Module title (now a string, not array)
           const moduleTitle =
             typeof item.moduleTitle === 'string'
-              ? item.moduleTitle
+            ? item.moduleTitle 
               : Array.isArray(item.moduleTitle)
                 ? (item.moduleTitle as any[]).join(', ')
                 : '';
-
+          
           if (moduleTitle) {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
@@ -622,6 +635,18 @@ export const generateCourseBrochure = async (course: CourseData) => {
         }
 
         currentY += 8; // Space between sessions
+
+        if (shouldInsertLunchBreak(firstItem, nextSession)) {
+          currentY = await checkPageBreak(currentY, 16);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.text('Lunch Break', margin + 5, currentY);
+          currentY += 5;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          currentY = await addText('1:00 PM - 2:00 PM (mandatory non-editable break)', margin + 10, currentY, contentWidth - 10, 9);
+          currentY += 6;
+        }
       }
 
       currentY += 5; // Space between days
@@ -753,6 +778,12 @@ export const generateCourseBrochure = async (course: CourseData) => {
   }
 
   // Save the PDF
-  const fileName = `${course.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_brochure.pdf`;
+  const fileName = options.fileName || `${course.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_brochure.pdf`;
+
+  if (options.mode === 'preview') {
+    const blob = doc.output('blob');
+    return URL.createObjectURL(blob);
+  }
+
   doc.save(fileName);
 };

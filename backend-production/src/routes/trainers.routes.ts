@@ -188,6 +188,12 @@ router.get('/:id', authenticateOptional, async (req: AuthRequest, res) => {
     const trainer = await prisma.trainer.findUnique({
       where: { id: req.params.id },
       include: {
+        user: {
+          select: {
+            email: true,
+            fullName: true,
+          },
+        },
         courses: {
           where: { status: 'APPROVED' },
           select: {
@@ -232,6 +238,7 @@ router.get('/:id', authenticateOptional, async (req: AuthRequest, res) => {
     if (!isOwnProfile) {
       const publicTrainer: any = {
         ...trainer,
+        user: undefined,
         fullName: null, // Hide name
         phoneNumber: null, // Hide phone
         email: null, // Hide email
@@ -650,6 +657,14 @@ router.put(
       const trainer = await prisma.trainer.update({
         where: { id: trainerId },
         data: updateData,
+        include: {
+          user: {
+            select: {
+              email: true,
+              fullName: true,
+            },
+          },
+        },
       });
 
       if (req.user!.role === 'TRAINER' && existingTrainer.profileApprovalStatus !== 'PENDING_APPROVAL') {
@@ -721,6 +736,14 @@ router.post(
       const trainer = await prisma.trainer.update({
         where: { id: trainerId },
         data: updateData,
+        include: {
+          user: {
+            select: {
+              email: true,
+              fullName: true,
+            },
+          },
+        },
       });
 
       if (req.user!.role === 'TRAINER' && existingTrainer.profileApprovalStatus !== 'PENDING_APPROVAL') {

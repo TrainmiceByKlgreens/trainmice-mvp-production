@@ -71,7 +71,7 @@ router.get('/trainer/:trainerId', authenticate, async (req: AuthRequest, res) =>
 });
 
 // Create a new trainer booking
-router.post('/', authenticate, authorize('TRAINER'), async (req: AuthRequest, res) => {
+router.post('/', authenticate, authorize('TRAINER', 'ADMIN'), async (req: AuthRequest, res) => {
   try {
     const { trainerId, bookingDate, status, notes } = req.body;
 

@@ -366,6 +366,7 @@ export class ApiClient {
     return {
       ...raw,
       // Legacy / Supabase-style fields expected by existing frontend
+      trainerId: raw.trainerId ?? raw.trainer_id ?? null,
       trainer_id: raw.trainerId ?? raw.trainer_id ?? null,
       course_type: Array.isArray(raw.courseType) ? raw.courseType : (raw.courseType ? [raw.courseType] : null),
       course_mode: Array.isArray(raw.courseMode) ? raw.courseMode : (raw.courseMode ? [raw.courseMode] : null),

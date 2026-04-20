@@ -40,9 +40,46 @@ export class ApiClient {
 
   private mapCourse(course: any): any {
     if (!course) return course;
+
+    const resolvedImageUrl = this.resolveImageUrl(course.imageUrl ?? course.image_url ?? null);
+    const resolvedBrochureUrl = this.resolveImageUrl(course.brochureUrl ?? course.brochure_url ?? null);
+
     return {
       ...course,
-      imageUrl: this.resolveImageUrl(course.imageUrl),
+      imageUrl: resolvedImageUrl,
+      image_url: resolvedImageUrl,
+      brochureUrl: resolvedBrochureUrl,
+      brochure_url: resolvedBrochureUrl,
+      trainerId: course.trainerId ?? course.trainer_id ?? null,
+      trainer_id: course.trainerId ?? course.trainer_id ?? null,
+      durationHours: course.durationHours ?? course.duration_hours ?? null,
+      duration_hours: course.durationHours ?? course.duration_hours ?? null,
+      durationUnit: course.durationUnit ?? course.duration_unit ?? null,
+      duration_unit: course.durationUnit ?? course.duration_unit ?? null,
+      startDate: course.startDate ?? course.start_date ?? null,
+      start_date: course.startDate ?? course.start_date ?? null,
+      endDate: course.endDate ?? course.end_date ?? null,
+      end_date: course.endDate ?? course.end_date ?? null,
+      createdAt: course.createdAt ?? course.created_at ?? null,
+      created_at: course.createdAt ?? course.created_at ?? null,
+      updatedAt: course.updatedAt ?? course.updated_at ?? null,
+      updated_at: course.updatedAt ?? course.updated_at ?? null,
+      createdByAdmin: course.createdByAdmin ?? course.created_by_admin ?? false,
+      created_by_admin: course.createdByAdmin ?? course.created_by_admin ?? false,
+      hrdcClaimable: course.hrdcClaimable ?? course.hrdc_claimable ?? false,
+      hrdc_claimable: course.hrdcClaimable ?? course.hrdc_claimable ?? false,
+      courseType: Array.isArray(course.courseType)
+        ? course.courseType
+        : (course.courseType ? [course.courseType] : (Array.isArray(course.course_type) ? course.course_type : (course.course_type ? [course.course_type] : []))),
+      course_type: Array.isArray(course.course_type)
+        ? course.course_type
+        : (course.course_type ? [course.course_type] : (Array.isArray(course.courseType) ? course.courseType : (course.courseType ? [course.courseType] : []))),
+      courseMode: Array.isArray(course.courseMode)
+        ? course.courseMode
+        : (course.courseMode ? [course.courseMode] : (Array.isArray(course.course_mode) ? course.course_mode : (course.course_mode ? [course.course_mode] : []))),
+      course_mode: Array.isArray(course.course_mode)
+        ? course.course_mode
+        : (course.course_mode ? [course.course_mode] : (Array.isArray(course.courseMode) ? course.courseMode : (course.courseMode ? [course.courseMode] : []))),
     };
   }
 
@@ -439,6 +476,10 @@ export class ApiClient {
 
   async updateBookingDetails(id: string, data: { courseMode?: string; trainerId?: string; location?: string; city?: string; state?: string; status?: string }) {
     return this.put<{ message: string; booking: any }>(`/admin/bookings/${id}`, data);
+  }
+
+  async toggleBookingVisibility(id: string) {
+    return this.patch<{ message: string; booking: any }>(`/admin/bookings/${id}/toggle-hide`);
   }
 
   // ============================================================================
@@ -848,17 +889,17 @@ export class ApiClient {
   }
 
   async createTrainerBooking(data: any) {
-    const response = await this.post<{ booking: any }>('/admin/trainer-bookings', data);
+    const response = await this.post<{ booking: any }>('/trainer-bookings', data);
     return response.booking;
   }
 
   async updateTrainerBooking(id: string, data: any) {
-    const response = await this.put<{ booking: any }>(`/admin/trainer-bookings/${id}`, data);
+    const response = await this.put<{ booking: any }>(`/trainer-bookings/${id}`, data);
     return response.booking;
   }
 
   async deleteTrainerBooking(id: string) {
-    await this.delete(`/admin/trainer-bookings/${id}`);
+    await this.delete(`/trainer-bookings/${id}`);
   }
 
   async getTrainerAvailabilityConflicts(trainerId: string, params: { startDate: string; endDate: string }) {

@@ -15,13 +15,13 @@ export class ApiClient {
   private token: string | null = null;
 
   constructor() {
-    this.baseUrl = API_BASE_URL;
+    this.baseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
     this.token = localStorage.getItem('token');
   }
 
   public resolveImageUrl(url: string | null): string | null {
     if (!url) return null;
-    if (url.startsWith('http') || url.startsWith('data:')) return url;
+    if (url.startsWith('http') || url.startsWith('data:') || url.startsWith('blob:')) return url;
 
     // Static base is API base minus /api (handles optional trailing slash)
     const staticBase = this.baseUrl.replace(/\/api\/?$/, '');
@@ -33,17 +33,23 @@ export class ApiClient {
 
   private mapCourse(course: any): any {
     if (!course) return course;
+    const resolvedImageUrl = this.resolveImageUrl(course.imageUrl || course.image_url || null);
     return {
       ...course,
-      imageUrl: this.resolveImageUrl(course.imageUrl),
+      imageUrl: resolvedImageUrl,
+      image_url: resolvedImageUrl,
+      trainerId: course.trainerId || course.trainer_id || null,
+      trainer_id: course.trainer_id || course.trainerId || null,
     };
   }
 
   private mapTrainer(trainer: any): any {
     if (!trainer) return trainer;
+    const resolvedProfilePic = this.resolveImageUrl(trainer.profilePic || trainer.profile_pic || null);
     return {
       ...trainer,
-      profilePic: this.resolveImageUrl(trainer.profilePic),
+      profilePic: resolvedProfilePic,
+      profile_pic: resolvedProfilePic,
     };
   }
 
@@ -226,6 +232,10 @@ export class ApiClient {
       this.setToken(null);
       return null;
     }
+  }
+
+  async deleteCurrentAccount() {
+    return this.delete<{ message: string }>('/auth/account');
   }
 
   /**
@@ -555,7 +565,7 @@ export class ApiClient {
     return {
       images: (response.images || []).map((img) => ({
         ...img,
-        imageUrl: this.resolveImageUrl(img.imageUrl),
+        imageUrl: this.resolveImageUrl(img.imageUrl || img.image_url || null),
       }))
     };
   }

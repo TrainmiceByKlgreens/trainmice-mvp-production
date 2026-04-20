@@ -69,7 +69,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, onLog
       'booking_requests', 
       'custom_course_requests',
       'course_notes',
-      'event_registrations'
+      'event_registrations',
+      'event_enquiries'
     ].includes(payload.table)) {
       fetchCounts();
     }
