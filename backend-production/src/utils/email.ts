@@ -237,6 +237,18 @@ interface SendAdminWelcomeEmailParams {
   loginUrl: string;
 }
 
+interface SendBookingReplyEmailParams {
+  email: string;
+  subject: string;
+  message: string;
+  adminName?: string | null;
+  attachment?: {
+    filename: string;
+    content: Buffer | string;
+    contentType?: string;
+  } | null;
+}
+
 export async function sendAdminWelcomeEmail({
   email,
   fullName,
@@ -342,6 +354,76 @@ TrainMICE Team
     console.log('✅ Admin welcome email sent successfully:', data?.id);
   } catch (error: any) {
     console.error('Error sending admin welcome email (non-blocking):', error.message || error);
+  }
+}
+
+export async function sendBookingReplyEmail({
+  email,
+  subject,
+  message,
+  adminName,
+  attachment,
+}: SendBookingReplyEmailParams): Promise<void> {
+  if (!resend) {
+    console.warn(`Email sending disabled: RESEND_API_KEY not configured`);
+    console.warn(`Booking reply email would have been sent to ${email}`);
+    return;
+  }
+
+  const safeMessage = message
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br />');
+
+  const senderName = adminName?.trim() || 'TrainMICE Admin Team';
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${subject}</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 640px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); padding: 24px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="color: #fff; margin: 0;">TrainMICE</h1>
+        </div>
+        <div style="background: #ffffff; padding: 28px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+          <h2 style="margin-top: 0; color: #111827;">${subject}</h2>
+          <div style="font-size: 15px; color: #374151;">${safeMessage}</div>
+          <p style="margin-top: 28px; color: #6b7280;">
+            Best regards,<br />
+            ${senderName}
+          </p>
+          ${attachment ? `<p style="margin-top: 24px; font-size: 12px; color: #6b7280;">Attachment included: ${attachment.filename}</p>` : ''}
+        </div>
+      </body>
+    </html>
+  `;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `TrainMICE <${config.email.fromEmail}>`,
+      to: [email],
+      subject,
+      html: htmlContent,
+      text: message,
+      attachments: attachment ? [{
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: attachment.contentType,
+      }] : undefined,
+    });
+
+    if (error) {
+      console.error('Resend API error:', error);
+      throw new Error(error.message || 'Failed to send booking reply email');
+    }
+  } catch (error: any) {
+    console.error('Error sending booking reply email:', error.message || error);
+    throw error;
   }
 }
 

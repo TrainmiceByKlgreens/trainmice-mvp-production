@@ -10,7 +10,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiClient } from '../lib/api-client';
 import { useRealtime } from '../hooks/useRealtime';
 import { formatDate } from '../utils/helpers';
-import { CheckCircle, XCircle, Calendar, AlertTriangle, RefreshCw, Mail, Clock, MapPin, User } from 'lucide-react';
+import { CheckCircle, XCircle, Calendar, AlertTriangle, RefreshCw, Mail, Clock, MapPin, User, Paperclip } from 'lucide-react';
 import { showToast } from '../components/common/Toast';
 import { EventCreationForm } from '../components/courses/EventCreationForm';
 import { Course } from '../types';
@@ -96,6 +96,8 @@ export const BookingsPage: React.FC = () => {
   const [editedData, setEditedData] = useState({
     courseMode: '',
     trainerId: '',
+    requestedDate: '',
+    endDate: '',
     location: '',
     city: '',
     state: '',
@@ -103,6 +105,12 @@ export const BookingsPage: React.FC = () => {
   });
   const [showHidden, setShowHidden] = useState(false);
   const [deletingBooking, setDeletingBooking] = useState(false);
+  const [showReplyModal, setShowReplyModal] = useState(false);
+  const [replySubject, setReplySubject] = useState('');
+  const [replyMessage, setReplyMessage] = useState('');
+  const [replyAttachment, setReplyAttachment] = useState<File | null>(null);
+  const [sendingReply, setSendingReply] = useState(false);
+  const [markReplyAsQuoted, setMarkReplyAsQuoted] = useState(false);
 
   useEffect(() => {
     fetchBookings();
@@ -361,6 +369,8 @@ export const BookingsPage: React.FC = () => {
     setEditedData({
       courseMode: booking.courseMode || '',
       trainerId: booking.trainerId || '',
+      requestedDate: booking.requestedDate ? booking.requestedDate.slice(0, 10) : '',
+      endDate: booking.endDate ? booking.endDate.slice(0, 10) : '',
       location: booking.location || '',
       city: booking.city || '',
       state: booking.state || '',
@@ -410,6 +420,47 @@ export const BookingsPage: React.FC = () => {
       showToast(e.message || 'Error updating status', 'error');
     } finally {
       setDetailActionLoading(false);
+    }
+  };
+
+  const openReplyModal = (booking: BookingRequest) => {
+    const courseTitle = booking.course?.title || 'your training request';
+    setReplySubject(`Regarding your TrainMICE booking for ${courseTitle}`);
+    setReplyMessage('');
+    setReplyAttachment(null);
+    setMarkReplyAsQuoted(booking.status.toUpperCase() === 'APPROVED');
+    setShowReplyModal(true);
+  };
+
+  const handleSendBookingReply = async () => {
+    if (!detailBooking) return;
+    if (!replySubject.trim() || !replyMessage.trim()) {
+      showToast('Please provide both subject and message', 'error');
+      return;
+    }
+
+    setSendingReply(true);
+    try {
+      await apiClient.replyToBookingClient(detailBooking.id, {
+        subject: replySubject.trim(),
+        message: replyMessage.trim(),
+        attachment: replyAttachment,
+      });
+
+      if (markReplyAsQuoted && detailBooking.status.toUpperCase() === 'APPROVED') {
+        await apiClient.updateBookingStatus(detailBooking.id, 'QUOTED');
+      }
+
+      showToast('Reply sent to client successfully', 'success');
+      setShowReplyModal(false);
+      setReplySubject('');
+      setReplyMessage('');
+      setReplyAttachment(null);
+      fetchBookings();
+    } catch (error: any) {
+      showToast(error.message || 'Error sending client reply', 'error');
+    } finally {
+      setSendingReply(false);
     }
   };
 
@@ -913,6 +964,22 @@ export const BookingsPage: React.FC = () => {
                         />
                     </div>
                     <div className="col-span-2">
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input
+                          label="Requested Start Date"
+                          type="date"
+                          value={editedData.requestedDate}
+                          onChange={(e) => setEditedData({...editedData, requestedDate: e.target.value})}
+                        />
+                        <Input
+                          label="Requested End Date"
+                          type="date"
+                          value={editedData.endDate}
+                          onChange={(e) => setEditedData({...editedData, endDate: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="col-span-2">
                        <Input 
                         label="Location/Venue" 
                         value={editedData.location} 
@@ -983,6 +1050,14 @@ export const BookingsPage: React.FC = () => {
                 <div className="pt-4 border-t space-y-3">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">Workflow Actions</p>
                   <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="secondary"
+                      className="border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100"
+                      onClick={() => openReplyModal(b)}
+                      disabled={detailActionLoading || !(b.clientEmail || b.client?.companyEmail)}
+                    >
+                      <Mail size={16} className="mr-2" />Reply Client / Attach Files
+                    </Button>
                     {/* QUOTED → Confirm & Create Event */}
                     {s === 'QUOTED' && (
                       <Button variant="primary" className="shadow-lg shadow-teal-100 px-6"
@@ -1069,6 +1144,77 @@ export const BookingsPage: React.FC = () => {
             </div>
           ) as React.ReactNode;
         })()}
+      </Modal>
+
+      <Modal
+        isOpen={showReplyModal}
+        onClose={() => {
+          if (!sendingReply) {
+            setShowReplyModal(false);
+            setReplyAttachment(null);
+          }
+        }}
+        title="Reply Client"
+        size="lg"
+      >
+        {detailBooking && (
+          <div className="space-y-4">
+            <div className="p-4 bg-sky-50 border border-sky-100 rounded-xl">
+              <p className="text-sm text-sky-900 font-semibold">
+                Sending to: {detailBooking.clientEmail || detailBooking.client?.companyEmail || 'No email available'}
+              </p>
+              <p className="text-xs text-sky-700 mt-1">
+                Use this next-step action to reply to the client and attach a brochure, quotation, or other supporting file.
+              </p>
+            </div>
+
+            <Input
+              label="Email Subject"
+              value={replySubject}
+              onChange={(e) => setReplySubject(e.target.value)}
+              placeholder="Regarding your booking request..."
+            />
+
+            <Textarea
+              label="Message"
+              value={replyMessage}
+              onChange={(e) => setReplyMessage(e.target.value)}
+              rows={8}
+              placeholder="Write your reply to the client here..."
+            />
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Attachment</label>
+              <input
+                type="file"
+                onChange={(e) => setReplyAttachment(e.target.files?.[0] || null)}
+                className="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-sky-50 file:px-4 file:py-2 file:font-semibold file:text-sky-700 hover:file:bg-sky-100"
+              />
+              <p className="text-xs text-gray-500">Optional. Attach brochure, quotation, PDF, DOCX, image, spreadsheet, or text file.</p>
+            </div>
+
+            {detailBooking.status.toUpperCase() === 'APPROVED' && (
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={markReplyAsQuoted}
+                  onChange={(e) => setMarkReplyAsQuoted(e.target.checked)}
+                />
+                Mark booking status as <span className="font-semibold">QUOTED</span> after sending
+              </label>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="secondary" onClick={() => setShowReplyModal(false)} disabled={sendingReply}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleSendBookingReply} disabled={sendingReply}>
+                <Paperclip size={16} className="mr-2" />
+                {sendingReply ? 'Sending...' : 'Send Reply'}
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Cancel Booking Modal */}

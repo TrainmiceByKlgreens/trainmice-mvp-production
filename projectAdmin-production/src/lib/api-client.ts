@@ -474,8 +474,18 @@ export class ApiClient {
     return this.put<{ message: string; booking: any }>(`/admin/bookings/${id}/status`, { status, availabilityIds });
   }
 
-  async updateBookingDetails(id: string, data: { courseMode?: string; trainerId?: string; location?: string; city?: string; state?: string; status?: string }) {
+  async updateBookingDetails(id: string, data: { courseMode?: string; trainerId?: string; requestedDate?: string; endDate?: string; location?: string; city?: string; state?: string; status?: string }) {
     return this.put<{ message: string; booking: any }>(`/admin/bookings/${id}`, data);
+  }
+
+  async replyToBookingClient(bookingId: string, data: { subject: string; message: string; attachment?: File | null }) {
+    const formData = new FormData();
+    formData.append('subject', data.subject);
+    formData.append('message', data.message);
+    if (data.attachment) {
+      formData.append('attachment', data.attachment);
+    }
+    return this.post<{ message: string; sentTo: string; attachmentName?: string | null }>(`/admin/bookings/${bookingId}/reply`, formData);
   }
 
   async toggleBookingVisibility(id: string) {

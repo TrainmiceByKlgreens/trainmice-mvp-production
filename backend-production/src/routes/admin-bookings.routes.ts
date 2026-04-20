@@ -1,9 +1,11 @@
 import express from 'express';
 import prisma from '../config/database';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { uploadMessageAttachment } from '../middleware/upload';
 import { createActivityLog } from '../utils/utils/activityLogger';
 import { releaseTrainerAvailability } from '../utils/utils/availabilityHelper';
 import { broadcastUpdate } from '../lib/socket';
+import { sendBookingReplyEmail } from '../utils/email';
 
 const router = express.Router();
 
@@ -187,6 +189,86 @@ router.post('/send-email', async (req: AuthRequest, res) => {
   } catch (error: any) {
     console.error('Send email error:', error);
     return res.status(500).json({ error: 'Failed to send email', details: error.message });
+  }
+});
+
+// Reply directly to a booking client with optional attachment
+router.post('/:id/reply', uploadMessageAttachment.single('attachment'), async (req: AuthRequest, res) => {
+  try {
+    const booking = await prisma.bookingRequest.findUnique({
+      where: { id: req.params.id },
+      include: {
+        client: {
+          select: {
+            id: true,
+            userName: true,
+            companyEmail: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
+    const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+    const recipientEmail = booking.clientEmail || booking.client?.companyEmail || '';
+
+    if (!subject || !message) {
+      return res.status(400).json({ error: 'Subject and message are required' });
+    }
+
+    if (!recipientEmail) {
+      return res.status(400).json({ error: 'This booking does not have a client email address' });
+    }
+
+    await sendBookingReplyEmail({
+      email: recipientEmail,
+      subject,
+      message,
+      adminName: req.user?.email || 'TrainMICE Admin Team',
+      attachment: req.file ? {
+        filename: req.file.originalname,
+        content: req.file.buffer,
+        contentType: req.file.mimetype,
+      } : null,
+    });
+
+    if (booking.clientId) {
+      await prisma.notification.create({
+        data: {
+          userId: booking.clientId,
+          title: subject,
+          message: message.length > 180 ? `${message.slice(0, 177)}...` : message,
+          type: 'INFO',
+          relatedEntityType: 'booking_request',
+          relatedEntityId: booking.id,
+        },
+      });
+    }
+
+    await createActivityLog({
+      userId: req.user!.id,
+      actionType: 'CREATE',
+      entityType: 'booking',
+      entityId: booking.id,
+      description: `Replied to booking client ${booking.clientName || booking.clientEmail || booking.id}`,
+      metadata: {
+        subject,
+        attachmentName: req.file?.originalname || null,
+      },
+    });
+
+    return res.status(201).json({
+      message: 'Client reply sent successfully',
+      sentTo: recipientEmail,
+      attachmentName: req.file?.originalname || null,
+    });
+  } catch (error: any) {
+    console.error('Reply to booking client error:', error);
+    return res.status(500).json({ error: 'Failed to send client reply', details: error.message });
   }
 });
 
@@ -466,7 +548,7 @@ router.put('/:id/confirm', async (req: AuthRequest, res) => {
 // Update booking details (General update)
 router.put('/:id', async (req: AuthRequest, res) => {
   try {
-    const { courseMode, trainerId, location, city, state, status } = req.body;
+    const { courseMode, trainerId, location, city, state, status, requestedDate, endDate } = req.body;
 
     const booking = await prisma.bookingRequest.findUnique({
       where: { id: req.params.id },
@@ -481,6 +563,12 @@ router.put('/:id', async (req: AuthRequest, res) => {
       data: {
         courseMode: courseMode !== undefined ? courseMode : undefined,
         trainerId: trainerId !== undefined ? trainerId : undefined,
+        requestedDate: requestedDate !== undefined
+          ? (requestedDate ? new Date(requestedDate) : null)
+          : undefined,
+        endDate: endDate !== undefined
+          ? (endDate ? new Date(endDate) : null)
+          : undefined,
         location: location !== undefined ? location : undefined,
         city: city !== undefined ? city : undefined,
         state: state !== undefined ? state : undefined,
