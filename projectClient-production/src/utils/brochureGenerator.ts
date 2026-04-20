@@ -1,7 +1,6 @@
 /**
  * Brochure Generator for Courses
  * Generates a multi-page PDF brochure for courses
- * EDITED: Title and course info repositioned within yellow line area
  */
 
 import jsPDF from 'jspdf';
@@ -581,9 +580,11 @@ export const generateCourseBrochure = async (
       });
 
       // Display each session
-      for (const session of daySessions) {
+      for (let sessionIndex = 0; sessionIndex < daySessions.length; sessionIndex++) {
+        const session = daySessions[sessionIndex];
         const firstItem = session.items[0];
         if (!firstItem) continue;
+        const nextSession = daySessions[sessionIndex + 1]?.items[0];
 
         // Check if we need space for this session
         currentY = await checkPageBreak(currentY, 25);
@@ -591,7 +592,7 @@ export const generateCourseBrochure = async (
         // Session time header
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${firstItem.startTime} - ${firstItem.endTime}`, margin, currentY);
+        doc.text(`${formatScheduleTime(firstItem.startTime)} - ${formatScheduleTime(firstItem.endTime)}`, margin, currentY);
         currentY += 6;
 
         // Display all modules for this session
@@ -634,6 +635,18 @@ export const generateCourseBrochure = async (
         }
 
         currentY += 8; // Space between sessions
+
+        if (shouldInsertLunchBreak(firstItem, nextSession)) {
+          currentY = await checkPageBreak(currentY, 16);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.text('Lunch Break', margin + 5, currentY);
+          currentY += 5;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          currentY = await addText('1:00 PM - 2:00 PM (mandatory non-editable break)', margin + 10, currentY, contentWidth - 10, 9);
+          currentY += 6;
+        }
       }
 
       currentY += 5; // Space between days
