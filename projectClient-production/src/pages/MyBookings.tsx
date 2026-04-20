@@ -44,6 +44,7 @@ interface InHouseBooking {
     courseTitle: string;
     courseCode: string | null;
     requestedDate: string | null;
+    endDate: string | null;
     status: string;
     linkedEventStatus: string | null;
     linkedEventDate: string | null;
@@ -157,9 +158,89 @@ const STAGE_NAME: Record<string, string> = {
     PENDING: 'Request Sent',
     TENTATIVE: 'Tentative Date',
     APPROVED: 'Quotation Sent',
+    QUOTED: 'Quotation Sent',
     CONFIRMED: 'Training Confirmed',
     COMPLETED: 'Completed',
 };
+
+function getInhouseClientNextStep(booking: InHouseBooking): {
+    tone: 'amber' | 'sky' | 'green' | 'gray' | 'red';
+    title: string;
+    description: string;
+} {
+    const status = (booking.status || '').toUpperCase();
+    const linkedEventStatus = (booking.linkedEventStatus || '').toUpperCase();
+
+    if (status === 'DENIED') {
+        return {
+            tone: 'red',
+            title: 'Request Declined',
+            description: 'This training request could not be approved. If you need alternatives, please contact our team.',
+        };
+    }
+
+    if (status === 'CANCELLED' || linkedEventStatus === 'CANCELLED') {
+        return {
+            tone: 'red',
+            title: 'Booking Cancelled',
+            description: 'This booking is no longer active. If you would like to reschedule, please contact TrainMICE support.',
+        };
+    }
+
+    if (status === 'PENDING') {
+        return {
+            tone: 'amber',
+            title: 'Waiting For Review',
+            description: 'Our team is reviewing your requested date and location. We will update you once availability is checked.',
+        };
+    }
+
+    if (status === 'TENTATIVE') {
+        return {
+            tone: 'amber',
+            title: 'Tentative Plan Proposed',
+            description: 'A tentative training arrangement is being prepared. Please watch for confirmation from our team.',
+        };
+    }
+
+    if (status === 'APPROVED' || status === 'QUOTED') {
+        return {
+            tone: 'sky',
+            title: 'Quotation / Brochure Sent',
+            description: 'Please check your email for the quotation, brochure, or supporting documents sent by our admin team.',
+        };
+    }
+
+    if (status === 'CONFIRMED') {
+        if (linkedEventStatus === 'COMPLETED') {
+            return {
+                tone: 'green',
+                title: 'Training Completed',
+                description: 'Your in-house training has been completed successfully.',
+            };
+        }
+
+        return {
+            tone: 'green',
+            title: 'Training Confirmed',
+            description: 'Your requested dates and venue have been finalized. Please refer to the latest email from TrainMICE for full details.',
+        };
+    }
+
+    if (status === 'COMPLETED') {
+        return {
+            tone: 'green',
+            title: 'Training Completed',
+            description: 'This engagement has been completed. Thank you for training with TrainMICE.',
+        };
+    }
+
+    return {
+        tone: 'gray',
+        title: 'Booking In Progress',
+        description: 'Your booking is active and we will continue updating you as it progresses.',
+    };
+}
 
 // ─── Vertical Stepper ─────────────────────────────────────────────────────────
 
@@ -339,10 +420,15 @@ function PublicBookingCard({ booking }: { booking: PublicRegistration }) {
 function InHouseBookingCard({ booking }: { booking: InHouseBooking }) {
     const [expanded, setExpanded] = useState(false);
     const { index, canceled, cancelLabel } = getInhouseStep(booking);
+    const nextStep = getInhouseClientNextStep(booking);
 
-    const requestedDate = (() => {
+    const requestedDateRange = (() => {
         if (!booking.requestedDate) return 'Date TBD';
-        try { return format(new Date(booking.requestedDate), 'dd MMM yyyy'); }
+        try {
+            const start = format(new Date(booking.requestedDate), 'dd MMM yyyy');
+            const end = booking.endDate ? format(new Date(booking.endDate), 'dd MMM yyyy') : null;
+            return end && end !== start ? `${start} - ${end}` : start;
+        }
         catch { return booking.requestedDate; }
     })();
 
@@ -368,7 +454,7 @@ function InHouseBookingCard({ booking }: { booking: InHouseBooking }) {
                         </div>
                         <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">{booking.courseTitle}</h3>
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
-                            <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Preferred: {requestedDate}</span>
+                            <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Preferred: {requestedDateRange}</span>
                             {location && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {location}</span>}
                         </div>
                     </div>
@@ -385,6 +471,33 @@ function InHouseBookingCard({ booking }: { booking: InHouseBooking }) {
                     cancelledAtStatus={booking.cancelledAtStatus}
                     cancellationReason={booking.cancellationReason}
                 />
+
+                {!canceled && (
+                    <div className={`mt-5 rounded-2xl border px-4 py-3 ${
+                        nextStep.tone === 'amber' ? 'border-amber-100 bg-amber-50/80' :
+                        nextStep.tone === 'sky' ? 'border-sky-100 bg-sky-50/80' :
+                        nextStep.tone === 'green' ? 'border-green-100 bg-green-50/80' :
+                        nextStep.tone === 'red' ? 'border-red-100 bg-red-50/80' :
+                        'border-gray-100 bg-gray-50/80'
+                    }`}>
+                        <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 ${
+                                nextStep.tone === 'amber' ? 'text-amber-500' :
+                                nextStep.tone === 'sky' ? 'text-sky-500' :
+                                nextStep.tone === 'green' ? 'text-green-500' :
+                                nextStep.tone === 'red' ? 'text-red-500' :
+                                'text-gray-400'
+                            }`}>
+                                <Info className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Next Step</p>
+                                <p className="text-sm font-semibold text-gray-900 mt-0.5">{nextStep.title}</p>
+                                <p className="text-xs text-gray-600 mt-1 leading-relaxed">{nextStep.description}</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {expanded && (
@@ -401,6 +514,14 @@ function InHouseBookingCard({ booking }: { booking: InHouseBooking }) {
                         <div>
                             <p className="text-[10px] font-bold uppercase text-gray-400 mb-0.5">Current Stage</p>
                             <p className="font-semibold capitalize">{booking.status.toLowerCase().replace(/_/g, ' ')}</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold uppercase text-gray-400 mb-0.5">Requested Dates</p>
+                            <p className="font-semibold">{requestedDateRange}</p>
+                        </div>
+                        <div className="sm:col-span-2">
+                            <p className="text-[10px] font-bold uppercase text-gray-400 mb-0.5">Training Location</p>
+                            <p className="font-semibold">{location || 'To be confirmed'}</p>
                         </div>
                     </div>
                 </div>

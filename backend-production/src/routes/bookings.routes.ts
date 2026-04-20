@@ -201,6 +201,7 @@ router.get('/my-bookings', authenticate, async (req: AuthRequest, res) => {
         courseTitle: b.course?.title || 'Training Request',
         courseCode: b.course?.courseCode || null,
         requestedDate: toDateStr(b.requestedDate),
+        endDate: toDateStr(b.endDate),
         status: b.status,
         linkedEventStatus: linked?.eventStatus || null,
         linkedEventDate: linked?.eventDate || null,
@@ -672,4 +673,3 @@ router.put(
 );
 
 export default router;
-
