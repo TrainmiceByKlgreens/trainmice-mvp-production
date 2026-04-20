@@ -145,13 +145,17 @@ app.get('/health', (_req: Request, res: Response) => {
 app.get('/health/db', async (_req: Request, res: Response) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    const dbInfo = await prisma.$queryRaw<Array<{ db: string }>>`SELECT DATABASE() as db`;
+    const dbInfo = await prisma.$queryRaw<Array<{ db: string; current_user: string }>>`
+      SELECT current_database() as db, current_user as current_user
+    `;
 
     res.json({
       status: 'ok',
       database: {
         connected: true,
         name: dbInfo[0]?.db || 'unknown',
+        user: dbInfo[0]?.current_user || 'unknown',
+        provider: 'postgresql',
         timestamp: new Date().toISOString(),
       },
     });
@@ -316,4 +320,3 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 export default app;
-

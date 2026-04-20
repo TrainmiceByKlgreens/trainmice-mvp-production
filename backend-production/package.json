@@ -1,7 +1,7 @@
 {
   "name": "trainmice-backend",
   "version": "1.0.0",
-  "description": "TrainMICE backend API - MySQL + Express + Prisma (Production Ready)",
+  "description": "TrainMICE backend API - PostgreSQL + Express + Prisma (Railway production)",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -18,7 +18,7 @@
   },
   "keywords": [
     "express",
-    "mysql",
+    "postgresql",
     "prisma",
     "api",
     "production-ready"
