@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
@@ -108,7 +108,7 @@ export const EnhancedTrainersPage: React.FC = () => {
   const [profileTrainerSummary, setProfileTrainerSummary] = useState<TrainerListItem | null>(null);
   const [profileTrainer, setProfileTrainer] = useState<any | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const profileSectionRef = useRef<HTMLDivElement | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedExpertise, setSelectedExpertise] = useState('all');
@@ -152,12 +152,6 @@ export const EnhancedTrainersPage: React.FC = () => {
     applyFilters();
   }, [trainers, searchTerm, selectedExpertise, selectedState, selectedProfileStatus]);
 
-  useEffect(() => {
-    if ((profileLoading || profileTrainer) && profileSectionRef.current) {
-      profileSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [profileLoading, profileTrainer]);
-
   const fetchTrainers = async () => {
     try {
       const response = await apiClient.getTrainers();
@@ -196,6 +190,7 @@ export const EnhancedTrainersPage: React.FC = () => {
   };
 
   const handleViewProfile = async (trainer: TrainerListItem) => {
+    setShowProfileModal(true);
     setProfileTrainerSummary(trainer);
     setProfileLoading(true);
 
@@ -211,6 +206,7 @@ export const EnhancedTrainersPage: React.FC = () => {
   };
 
   const clearProfileView = () => {
+    setShowProfileModal(false);
     setProfileTrainerSummary(null);
     setProfileTrainer(null);
     setProfileLoading(false);
@@ -695,14 +691,17 @@ export const EnhancedTrainersPage: React.FC = () => {
         </div>
       </Card>
 
-      <div ref={profileSectionRef}>
+      <Modal
+        isOpen={showProfileModal}
+        onClose={clearProfileView}
+        title={profileTrainerSummary ? `Trainer Profile - ${profileTrainerSummary.full_name}` : 'Trainer Profile'}
+        size="2xl"
+      >
         {profileLoading ? (
-          <Card className="border border-teal-100 shadow-md">
-            <div className="flex items-center justify-center gap-3 px-6 py-16">
-              <LoadingSpinner />
-              <span className="text-sm text-gray-600">Loading trainer profile...</span>
-            </div>
-          </Card>
+          <div className="flex items-center justify-center gap-3 px-6 py-16">
+            <LoadingSpinner />
+            <span className="text-sm text-gray-600">Loading trainer profile...</span>
+          </div>
         ) : profileTrainer && profileTrainerSummary ? (
           <TrainerProfileView
             trainer={profileTrainer}
@@ -718,8 +717,10 @@ export const EnhancedTrainersPage: React.FC = () => {
             }}
             onReviewProfile={(status) => openProfileReviewModal(profileTrainerSummary, status)}
           />
-        ) : null}
-      </div>
+        ) : (
+          <p className="py-8 text-center text-gray-500">No trainer profile available.</p>
+        )}
+      </Modal>
 
       {/* Add Trainer Modal */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Trainer">
