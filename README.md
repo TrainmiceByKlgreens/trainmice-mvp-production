@@ -8,7 +8,7 @@ This is a monorepo containing four main applications:
 
 ```
 Trainmice Production/
-├── backend-production/          # Backend API (Express + TypeScript + Prisma + MySQL)
+├── backend-production/          # Backend API (Express + TypeScript + Prisma + PostgreSQL)
 ├── projectAdmin-production/     # Admin Dashboard (React + Vite + TypeScript)
 ├── projectClient-production/    # Client Portal (React + Vite + TypeScript)
 └── projectTrainer-production/  # Trainer Portal (React + Vite + TypeScript)
@@ -20,7 +20,7 @@ Trainmice Production/
 
 - Node.js >= 18.0.0
 - npm >= 9.0.0
-- MySQL database (for backend)
+- PostgreSQL database (for backend)
 
 ### Installation
 
@@ -73,7 +73,7 @@ Each project has its own detailed README:
 ## 🏗️ Architecture
 
 ### Backend (`backend-production`)
-- **Stack**: Express.js, TypeScript, Prisma ORM, MySQL
+- **Stack**: Express.js, TypeScript, Prisma ORM, PostgreSQL
 - **Features**: RESTful API, JWT authentication, file uploads, email support
 - **Deployment**: Railway (recommended) or any Node.js hosting
 
@@ -109,7 +109,7 @@ All three frontend applications share similar tech stacks:
 
 ## 🗄️ Database Setup
 
-1. **Create MySQL database**
+1. **Create PostgreSQL database**
 2. **Configure `DATABASE_URL` in `backend-production/.env`**
 3. **Run migrations** (from `backend-production/`)
    ```bash
@@ -144,7 +144,7 @@ All three frontend applications share similar tech stacks:
 - Express.js
 - TypeScript
 - Prisma ORM
-- MySQL
+- PostgreSQL
 - JWT
 - bcryptjs
 - Nodemailer
@@ -168,4 +168,3 @@ For issues and questions, please open an issue on GitHub.
 ---
 
 **Production Ready** ✅ | **Fully Documented** ✅ | **Type-Safe** ✅
-

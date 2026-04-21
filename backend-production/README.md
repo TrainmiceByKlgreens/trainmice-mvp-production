@@ -1,13 +1,13 @@
 # TrainMICE Backend API
 
-Production-ready backend API for TrainMICE platform built with Express, TypeScript, Prisma, and MySQL.
+Production-ready backend API for TrainMICE platform built with Express, TypeScript, Prisma, and PostgreSQL.
 
 ## 🚀 Features
 
 - ✅ **Production-Ready**: Enhanced security, error handling, and logging
 - ✅ **Type-Safe**: Full TypeScript support with strict mode
 - ✅ **Secure**: Helmet.js security headers, CORS validation, JWT authentication
-- ✅ **Database**: Prisma ORM with MySQL
+- ✅ **Database**: Prisma ORM with PostgreSQL
 - ✅ **Health Checks**: Built-in health check endpoints
 - ✅ **Error Handling**: Comprehensive error handling and logging
 - ✅ **Email Support**: Optional SMTP email (disabled by default to prevent timeouts)
@@ -16,7 +16,7 @@ Production-ready backend API for TrainMICE platform built with Express, TypeScri
 
 - Node.js >= 18.0.0
 - npm >= 9.0.0
-- MySQL database
+- PostgreSQL database
 - Railway account (recommended) or any hosting platform
 
 ## 🔧 Installation
@@ -38,7 +38,7 @@ Production-ready backend API for TrainMICE platform built with Express, TypeScri
    ```
    
    Edit `.env` and configure:
-   - `DATABASE_URL`: MySQL connection string
+   - `DATABASE_URL`: PostgreSQL connection string
    - `JWT_SECRET`: Strong random secret (min 32 chars)
    - `FRONTEND_URL_*`: Your frontend application URLs
    - Other optional settings
@@ -143,11 +143,11 @@ npm run db:studio
 ### Railway (Recommended)
 
 1. **Create a new Railway project**
-2. **Add MySQL database service**
+2. **Add PostgreSQL database service**
 3. **Add Node.js service**
 4. **Connect to your GitHub repository**
 5. **Set environment variables** in Railway dashboard:
-   - `DATABASE_URL` (auto-provided if using Railway MySQL)
+   - `DATABASE_URL` (auto-provided if using Railway PostgreSQL)
    - `JWT_SECRET` (generate a strong secret)
    - `FRONTEND_URL_CLIENT`, `FRONTEND_URL_TRAINER`, `FRONTEND_URL_ADMIN`
    - `NODE_ENV=production`
@@ -236,4 +236,3 @@ For issues and questions, please open an issue on GitHub.
 ---
 
 **Production Ready** ✅ | **Security Hardened** ✅ | **Fully Documented** ✅
-

@@ -16,7 +16,7 @@ Ensure these are set in your deployment platform:
 
 #### Required
 ```bash
-DATABASE_URL=mysql://...
+DATABASE_URL=postgresql://...
 JWT_SECRET=<strong-random-32-char-string>
 FRONTEND_URL_CLIENT=https://...
 FRONTEND_URL_TRAINER=https://...
@@ -41,8 +41,8 @@ SMTP_PASS=...
    - Click "New Project"
    - Select "Deploy from GitHub repo"
 
-2. **Add MySQL Database**
-   - Click "+ New" → "Database" → "Add MySQL"
+2. **Add PostgreSQL Database**
+   - Click "+ New" → "Database" → "Add PostgreSQL"
    - Railway will provide `DATABASE_URL` automatically
 
 3. **Configure Service**
@@ -52,7 +52,7 @@ SMTP_PASS=...
 
 4. **Set Environment Variables**
    ```bash
-   DATABASE_URL=<from MySQL service>
+   DATABASE_URL=<from PostgreSQL service>
    JWT_SECRET=<generate-strong-secret>
    FRONTEND_URL_CLIENT=<your-client-url>
    FRONTEND_URL_TRAINER=<your-trainer-url>
@@ -138,4 +138,3 @@ Set up monitoring for:
 ---
 
 **Ready for Production** ✅
-

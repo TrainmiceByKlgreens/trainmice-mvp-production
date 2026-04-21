@@ -102,7 +102,7 @@ export const EnhancedCoursesPage: React.FC = () => {
         title: c.title || '',
         description: c.description || null,
         trainer_id: c.trainerId || null,
-        created_by_admin: c.createdByAdmin || false,
+        created_by_admin: c.createdByAdmin ?? false,
         venue: c.venue || null,
         price: c.price ? parseFloat(c.price) : null,
         duration_hours: c.durationHours ? parseFloat(c.durationHours) : null,
@@ -365,10 +365,10 @@ export const EnhancedCoursesPage: React.FC = () => {
     }
   };
 
-  // Filter trainer-created courses that are pending approval
-  const trainerCreatedCourses = filteredCourses.filter(c =>
-    !c.created_by_admin &&
-    c.status === 'PENDING_APPROVAL'
+  // Show every pending course in the approval queue.
+  // Some older/imported records may have inconsistent created_by_admin flags.
+  const pendingApprovalCourses = filteredCourses.filter(
+    (c) => c.status === 'PENDING_APPROVAL'
   );
 
   if (loading) {
@@ -532,15 +532,15 @@ export const EnhancedCoursesPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Trainer Created Courses (Pending Approval) */}
-      {trainerCreatedCourses.length > 0 && (
+      {/* Pending Approval Courses */}
+      {pendingApprovalCourses.length > 0 && (
         <div>
           <button
             onClick={() => setIsPendingApprovalExpanded(!isPendingApprovalExpanded)}
             className="flex items-center justify-between w-full text-left mb-4 hover:bg-gray-50 p-3 rounded-lg transition-colors"
           >
             <h2 className="text-xl font-semibold text-gray-800">
-              Pending Approval ({trainerCreatedCourses.length})
+              Pending Approval ({pendingApprovalCourses.length})
             </h2>
             {isPendingApprovalExpanded ? (
               <ChevronUp size={24} className="text-gray-600" />
@@ -550,7 +550,7 @@ export const EnhancedCoursesPage: React.FC = () => {
           </button>
           {isPendingApprovalExpanded && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {trainerCreatedCourses.map((course) => (
+              {pendingApprovalCourses.map((course) => (
                 <Card key={course.id} className="border-l-4 border-yellow-500">
                   <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
