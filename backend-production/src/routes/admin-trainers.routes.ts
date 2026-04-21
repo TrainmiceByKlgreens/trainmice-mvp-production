@@ -254,16 +254,65 @@ router.put(
         return res.status(404).json({ error: 'Trainer not found' });
       }
 
-      const updatedTrainer = await prisma.trainer.update({
-        where: { id: trainerId },
-        data: {
-          profileApprovalStatus: status,
-          profileApprovalNotes: notes?.trim() ? notes.trim() : null,
-          profileApprovalUpdatedAt: new Date(),
-          profileApprovedAt: status === 'APPROVED' ? new Date() : null,
-          profileApprovedBy: status === 'APPROVED' ? req.user!.id : null,
-        },
-      });
+      const trimmedNotes = notes?.trim() ? notes.trim() : null;
+      const baseApprovalData = {
+        profileApprovalStatus: status,
+        profileApprovalNotes: trimmedNotes,
+        profileApprovalUpdatedAt: new Date(),
+      };
+      const minimalApprovalData = {
+        profileApprovalStatus: status,
+        profileApprovalNotes: trimmedNotes,
+      };
+
+      let updatedTrainer;
+      try {
+        updatedTrainer = await prisma.trainer.update({
+          where: { id: trainerId },
+          data: {
+            ...baseApprovalData,
+            profileApprovedAt: status === 'APPROVED' ? new Date() : null,
+            profileApprovedBy: status === 'APPROVED' ? req.user!.id : null,
+          },
+        });
+      } catch (updateError: any) {
+        // Some deployed databases are behind schema and can miss one or more
+        // profile review audit columns. Retry with progressively smaller payloads.
+        const missingColumn = String(updateError?.meta?.column || '');
+        const isMissingApprovalAuditColumn =
+          updateError?.code === 'P2022' &&
+          (
+            missingColumn.includes('profile_approved_at') ||
+            missingColumn.includes('profile_approved_by')
+          );
+
+        if (!isMissingApprovalAuditColumn) {
+          throw updateError;
+        }
+
+        console.warn('Trainer profile approval audit columns missing; retrying without approval audit fields.');
+        try {
+          updatedTrainer = await prisma.trainer.update({
+            where: { id: trainerId },
+            data: baseApprovalData,
+          });
+        } catch (fallbackError: any) {
+          const fallbackMissingColumn = String(fallbackError?.meta?.column || '');
+          const isMissingUpdatedAtColumn =
+            fallbackError?.code === 'P2022' &&
+            fallbackMissingColumn.includes('profile_approval_updated_at');
+
+          if (!isMissingUpdatedAtColumn) {
+            throw fallbackError;
+          }
+
+          console.warn('Trainer profile approval updated-at column missing; retrying with minimal profile review fields.');
+          updatedTrainer = await prisma.trainer.update({
+            where: { id: trainerId },
+            data: minimalApprovalData,
+          });
+        }
+      }
 
       const profileMessages = {
         APPROVED: {
@@ -274,7 +323,7 @@ router.put(
         },
         DENIED: {
           title: 'Trainer Profile Changes Requested',
-          message: `Your trainer profile needs updates before it can be published.${notes?.trim() ? ` Notes: ${notes.trim()}` : ''}`,
+          message: `Your trainer profile needs updates before it can be published.${trimmedNotes ? ` Notes: ${trimmedNotes}` : ''}`,
           type: 'WARNING' as const,
           actionType: 'REJECT' as const,
         },
@@ -288,7 +337,7 @@ router.put(
 
       const notification = profileMessages[status];
       await sendNotification({
-        userId: trainerId,
+        userId: trainer.id,
         title: notification.title,
         message: notification.message,
         type: notification.type,
