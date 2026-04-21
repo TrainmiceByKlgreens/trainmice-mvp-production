@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiClient } from '../lib/api-client';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -42,7 +43,7 @@ import { MultiSelect } from '../components/ui/MultiSelect';
 import { PastClientsSection } from '../components/profile/PastClientsSection';
 
 export function TrainerProfile() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [trainer, setTrainer] = useState<Trainer | null>(null);
   const [qualifications, setQualifications] = useState<TrainerQualification[]>([]);
@@ -55,6 +56,7 @@ export function TrainerProfile() {
   const [isEditingOther, setIsEditingOther] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [originalTrainer, setOriginalTrainer] = useState<Trainer | null>(null);
   const [imgError, setImgError] = useState(false);
@@ -239,6 +241,32 @@ export function TrainerProfile() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user?.id || deletingAccount) return;
+
+    const firstConfirmation = window.confirm(
+      'Delete your trainer account permanently? This will remove your profile and cannot be undone.'
+    );
+    if (!firstConfirmation) return;
+
+    const secondConfirmation = window.confirm(
+      'Final confirmation: continue deleting your account now? No admin approval is needed and this action is immediate.'
+    );
+    if (!secondConfirmation) return;
+
+    setDeletingAccount(true);
+    try {
+      await apiClient.deleteCurrentAccount();
+      await signOut();
+      alert('Your account has been deleted successfully.');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete account');
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -341,6 +369,25 @@ export function TrainerProfile() {
           </div>
         </div>
       </div>
+
+      <Card className="border border-red-200 bg-red-50/40 shadow-modern-sm">
+        <CardHeader className="border-b border-red-100">
+          <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-red-700">Danger Zone</h2>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-red-700">
+            Delete your account permanently. This is immediate and does not require admin approval.
+          </p>
+          <Button
+            variant="danger"
+            onClick={handleDeleteAccount}
+            disabled={deletingAccount}
+            isLoading={deletingAccount}
+          >
+            Delete Profile
+          </Button>
+        </CardContent>
+      </Card>
 
       {profileIncomplete && (
         <div className="bg-accent-50/50 border border-accent-100 rounded-2xl p-6 flex items-start gap-5 shadow-modern-sm animate-scale-in">
