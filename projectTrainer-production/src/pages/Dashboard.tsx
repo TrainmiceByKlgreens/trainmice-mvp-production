@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EngagementCard } from '../components/dashboard/EngagementCard';
 import { TrainingRequestCard } from '../components/dashboard/TrainingRequestCard';
@@ -33,13 +32,12 @@ interface EventEngagement {
 type CombinedEngagement = (BookingWithCourse & { type?: 'booking' }) | (EventEngagement & { type: 'event' });
 
 export function Dashboard() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [engagements, setEngagements] = useState<CombinedEngagement[]>([]);
   const [requests, setRequests] = useState<BookingWithCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'engagements' | 'requests'>('engagements');
   const [selectedEngagement, setSelectedEngagement] = useState<CombinedEngagement | null>(null);
-  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -195,32 +193,6 @@ export function Dashboard() {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!user?.id || deletingAccount) return;
-
-    const firstConfirmation = window.confirm(
-      'Delete your trainer account permanently? This cannot be undone.'
-    );
-    if (!firstConfirmation) return;
-
-    const secondConfirmation = window.confirm(
-      'Final confirmation: delete account now? No admin approval is needed.'
-    );
-    if (!secondConfirmation) return;
-
-    setDeletingAccount(true);
-    try {
-      await apiClient.deleteCurrentAccount();
-      await signOut();
-      alert('Your account has been deleted successfully.');
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      alert(error instanceof Error ? error.message : 'Failed to delete account');
-    } finally {
-      setDeletingAccount(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -231,19 +203,9 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="animate-slide-in-bottom flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-corporate-950 tracking-tight underline decoration-accent-gold decoration-4 underline-offset-8">Welcome, <span className="text-black font-black">{user?.full_name}</span></h1>
-          <p className="text-corporate-500 mt-4 text-base font-medium">Monitoring all training programs</p>
-        </div>
-        <Button
-          variant="danger"
-          onClick={handleDeleteAccount}
-          disabled={deletingAccount}
-          isLoading={deletingAccount}
-        >
-          Delete Profile
-        </Button>
+      <div className="animate-slide-in-bottom">
+        <h1 className="text-3xl font-bold text-corporate-950 tracking-tight underline decoration-accent-gold decoration-4 underline-offset-8">Welcome, <span className="text-black font-black">{user?.full_name}</span></h1>
+        <p className="text-corporate-500 mt-4 text-base font-medium">Monitoring all training programs</p>
       </div>
 
       {/* Tabs */}
