@@ -331,17 +331,8 @@ export function CourseDetail() {
       setIsAuthenticated(!!user);
     });
 
-    // Listen for modal open events
-    const handleOpenLogin = () => setIsLoginModalOpen(true);
-    const handleOpenSignup = () => setIsSignupModalOpen(true);
-
-    window.addEventListener('openLogin', handleOpenLogin);
-    window.addEventListener('openSignup', handleOpenSignup);
-
     return () => {
       unsubscribe();
-      window.removeEventListener('openLogin', handleOpenLogin);
-      window.removeEventListener('openSignup', handleOpenSignup);
     };
   }, []);
 
@@ -471,7 +462,8 @@ export function CourseDetail() {
 
   const handlePublicBooking = () => {
     if (!isAuthenticated) {
-      window.dispatchEvent(new CustomEvent('openLogin'));
+      setIsSignupModalOpen(false);
+      setIsLoginModalOpen(true);
       return;
     }
 
@@ -484,7 +476,8 @@ export function CourseDetail() {
 
   const handleInHouseBooking = () => {
     if (!isAuthenticated) {
-      window.dispatchEvent(new CustomEvent('openLogin'));
+      setIsSignupModalOpen(false);
+      setIsLoginModalOpen(true);
       return;
     }
     setIsInHouseModalOpen(true);
@@ -501,7 +494,8 @@ export function CourseDetail() {
       return true;
     }
 
-    window.dispatchEvent(new CustomEvent('openLogin'));
+    setIsSignupModalOpen(false);
+    setIsLoginModalOpen(true);
     return false;
   };
 
