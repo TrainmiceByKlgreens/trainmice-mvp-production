@@ -36,6 +36,15 @@ const hideUnapprovedCourseTrainers = (course: any) => ({
     : course.courseTrainers,
 });
 
+const hideBrochureForAnonymousUsers = (course: any) => {
+  if (!course) {
+    return course;
+  }
+
+  const { brochureUrl, brochure_url, ...courseWithoutBrochure } = course;
+  return courseWithoutBrochure;
+};
+
 // Get all courses (public) - only show APPROVED courses to clients
 // If trainerId is provided, show all trainer's courses regardless of status (for trainer's My Courses page)
 router.get('/', authenticateOptional, async (req: AuthRequest, res) => {
@@ -176,6 +185,9 @@ router.get('/', authenticateOptional, async (req: AuthRequest, res) => {
     if (shouldHideUnapprovedTrainerProfiles(req)) {
       responseCourses = responseCourses.map(hideUnapprovedCourseTrainers);
     }
+    if (!req.user) {
+      responseCourses = responseCourses.map(hideBrochureForAnonymousUsers);
+    }
 
     return res.json({ courses: responseCourses });
   } catch (error: any) {
@@ -289,6 +301,9 @@ router.get('/:id', authenticateOptional, async (req: AuthRequest, res) => {
     let responseCourse = courseWithRating;
     if (shouldHideUnapprovedTrainerProfiles(req)) {
       responseCourse = hideUnapprovedCourseTrainers(responseCourse);
+    }
+    if (!req.user) {
+      responseCourse = hideBrochureForAnonymousUsers(responseCourse);
     }
 
     return res.json({ course: responseCourse });

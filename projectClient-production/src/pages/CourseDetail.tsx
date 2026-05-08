@@ -490,6 +490,21 @@ export function CourseDetail() {
     setIsInHouseModalOpen(true);
   };
 
+  const ensureBrochureAccess = async () => {
+    if (isAuthenticated) {
+      return true;
+    }
+
+    const { user } = await auth.getSession();
+    if (user) {
+      setIsAuthenticated(true);
+      return true;
+    }
+
+    window.dispatchEvent(new CustomEvent('openLogin'));
+    return false;
+  };
+
   const buildBrochureData = async () => {
     const courseTypeRaw = (course as any).course_type;
     const courseType = Array.isArray(courseTypeRaw) && courseTypeRaw.length > 0
@@ -604,6 +619,8 @@ export function CourseDetail() {
 
   const handlePreviewBrochure = async () => {
     if (isPreparingBrochurePreview) return;
+    if (!(await ensureBrochureAccess())) return;
+
     setIsPreparingBrochurePreview(true);
     try {
       const brochureData = await buildBrochureData();
@@ -625,6 +642,8 @@ export function CourseDetail() {
 
   const handleDownloadBrochure = async () => {
     if (isDownloadingBrochure) return;
+    if (!(await ensureBrochureAccess())) return;
+
     setIsDownloadingBrochure(true);
     try {
       const brochureData = await buildBrochureData();

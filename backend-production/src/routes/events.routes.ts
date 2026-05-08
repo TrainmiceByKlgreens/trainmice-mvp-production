@@ -10,6 +10,15 @@ import { releaseTrainerAvailability } from '../utils/utils/availabilityHelper';
 
 const router = express.Router();
 
+const hideBrochureForAnonymousUsers = (event: any) => {
+  if (!event) {
+    return event;
+  }
+
+  const { brochureUrl, brochure_url, ...eventWithoutBrochure } = event;
+  return eventWithoutBrochure;
+};
+
 // Optional authentication middleware - doesn't fail if no token, but sets req.user if token is valid
 const optionalAuthenticate = async (req: AuthRequest, _res: Response, next: NextFunction) => {
   try {
@@ -185,7 +194,11 @@ router.get('/', optionalAuthenticate, async (req: AuthRequest, res: Response) =>
       };
     });
 
-    return res.json({ events: eventsWithParticipants });
+    const responseEvents = req.user
+      ? eventsWithParticipants
+      : eventsWithParticipants.map(hideBrochureForAnonymousUsers);
+
+    return res.json({ events: responseEvents });
   } catch (error: any) {
     console.error('Get events error:', error);
     return res.status(500).json({ error: 'Failed to fetch events', details: error.message });
@@ -334,7 +347,9 @@ router.get('/:id', optionalAuthenticate, async (req: AuthRequest, res: Response)
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    return res.json({ event });
+    const responseEvent = req.user ? event : hideBrochureForAnonymousUsers(event);
+
+    return res.json({ event: responseEvent });
   } catch (error: any) {
     console.error('Get event error:', error);
     return res.status(500).json({ error: 'Failed to fetch event', details: error.message });
